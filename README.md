@@ -1,6 +1,7 @@
 # OurSQL
 ## Blockchain replication layer for MySQL
 
+# Not Ready yet. Coming soon ...
 
 ## Author
 
