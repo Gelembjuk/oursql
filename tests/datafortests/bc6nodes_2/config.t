@@ -1,0 +1,1 @@
+{"Logs": ["trace", "error"], "Database": {"DbUser": "", "MysqlPort": 3306, "DatabaseName": "", "DbPassword": "", "MysqlHost": "localhost", "TablesPrefix": ""}, "Host": "localhost", "Minter": "1L2ckd7sUxbvrXhibEojDFvnufCyguXstN", "Nodes": [{"Host": "localhost", "Port": 30002}, {"Host": "localhost", "Port": 30003}], "Port": 30001}
