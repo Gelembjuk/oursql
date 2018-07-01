@@ -1,6 +1,8 @@
 package blockchain
 
 import (
+	"errors"
+
 	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/database"
 	"github.com/gelembjuk/oursql/node/structures"
@@ -53,8 +55,7 @@ func (i *BlockchainIterator) Next() (*structures.Block, error) {
 		return nil, err
 	}
 
-	block = &structures.Block{}
-	err = block.DeserializeBlock(encodedBlock)
+	block, err = structures.NewBlockFromBytes(encodedBlock)
 
 	if err != nil {
 		return nil, err
@@ -72,8 +73,17 @@ func (i *BlockchainIterator) GetAddressHistory(pubKeyHash []byte, address string
 	for {
 		block, _ := i.Next()
 
-		for _, tx := range block.Transactions {
+		for _, txT := range block.Transactions {
 
+			if !txT.CheckTypeIs(structures.TXTypeCurrency) {
+				// skip non currency transactions
+				continue
+			}
+			tx, ok := txT.(*structures.CurrencyTransaction)
+
+			if !ok {
+				return nil, errors.New("Failure of transaction type cast")
+			}
 			income := float64(0)
 
 			spent := false
@@ -112,7 +122,7 @@ func (i *BlockchainIterator) GetAddressHistory(pubKeyHash []byte, address string
 					result = append(result, structures.TransactionsHistory{false, tx.ID, address, totalvalue})
 					result = append(result, structures.TransactionsHistory{true, tx.ID, address, totalvalue})
 				}
-			} else if tx.IsCoinbase() {
+			} else if tx.CheckSubTypeIs(structures.TXTypeCurrencyCoinbase) {
 
 				if tx.Vout[0].IsLockedWithKey(pubKeyHash) {
 					spentaddress = "Coin base"

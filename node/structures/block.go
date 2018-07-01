@@ -3,6 +3,8 @@ package structures
 import (
 	"bytes"
 	"encoding/gob"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/gelembjuk/oursql/lib/utils"
@@ -11,7 +13,7 @@ import (
 // Block represents a block in the blockchain
 type Block struct {
 	Timestamp     int64
-	Transactions  []*Transaction
+	Transactions  []TransactionInterface
 	PrevBlockHash []byte
 	Hash          []byte
 	Nonce         int
@@ -118,7 +120,7 @@ func (b *Block) GetSimpler() *BlockSimpler {
 func (b *Block) Copy() *Block {
 	bc := Block{}
 	bc.Timestamp = b.Timestamp
-	bc.Transactions = []*Transaction{}
+	bc.Transactions = []TransactionInterface{}
 
 	bc.PrevBlockHash = make([]byte, len(b.PrevBlockHash))
 
@@ -137,13 +139,13 @@ func (b *Block) Copy() *Block {
 
 	for _, t := range b.Transactions {
 		tc, _ := t.Copy()
-		bc.Transactions = append(bc.Transactions, &tc)
+		bc.Transactions = append(bc.Transactions, tc)
 	}
 	return &bc
 }
 
 // Fills a block with transactions. But without signatures
-func (b *Block) PrepareNewBlock(transactions []*Transaction, prevBlockHash []byte, height int) error {
+func (b *Block) PrepareNewBlock(transactions []TransactionInterface, prevBlockHash []byte, height int) error {
 	b.Timestamp = time.Now().Unix()
 	b.Transactions = transactions[:]
 
@@ -180,11 +182,14 @@ func (b *Block) HashTransactions() ([]byte, error) {
 // Serialize serializes the block
 func (b *Block) Serialize() ([]byte, error) {
 	var result bytes.Buffer
+
+	gob.Register(&CurrencyTransaction{})
+
 	encoder := gob.NewEncoder(&result)
 
 	err := encoder.Encode(b)
 	if err != nil {
-		return nil, err
+		return nil, errors.New(fmt.Sprintf("Block serialise error %s", err.Error()))
 	}
 
 	return result.Bytes(), nil
@@ -192,7 +197,7 @@ func (b *Block) Serialize() ([]byte, error) {
 
 // DeserializeBlock deserializes a block
 func (b *Block) DeserializeBlock(d []byte) error {
-
+	gob.Register(&CurrencyTransaction{})
 	decoder := gob.NewDecoder(bytes.NewReader(d))
 	err := decoder.Decode(&b)
 

@@ -286,7 +286,7 @@ func (wc *WalletCLI) commandSend() error {
 
 	// Prepares new transaction without signatures
 	// This is just request to a node and it returns prepared transaction
-	TXBytes, DataToSign, err := wc.NodeCLI.SendRequestNewTransaction(wc.Node,
+	TXBytes, DataToSign, err := wc.NodeCLI.SendRequestNewCurrencyTransaction(wc.Node,
 		walletobj.GetPublicKey(), wc.Input.ToAddress, wc.Input.Amount)
 
 	if err != nil {
@@ -295,7 +295,7 @@ func (wc *WalletCLI) commandSend() error {
 	// Sign transaction data
 	signatures, err := utils.SignDataSet(walletobj.GetPublicKey(), walletobj.GetPrivateKey(), DataToSign)
 
-	NewTXID, err := wc.NodeCLI.SendNewTransactionData(wc.Node, wc.Input.Address, TXBytes, signatures)
+	NewTXID, err := wc.NodeCLI.SendNewCurrencyTransactionData(wc.Node, wc.Input.Address, TXBytes, signatures)
 
 	if err != nil {
 		return err

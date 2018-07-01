@@ -471,7 +471,6 @@ func (c *NodeCLI) commandUnapprovedTransactions() error {
 
 	total, _ := c.Node.GetTransactionsManager().ForEachUnapprovedTransaction(
 		func(txhash, txstr string) error {
-			fmt.Printf("============ Transaction %x ============\n", txhash)
 
 			fmt.Println(txstr)
 

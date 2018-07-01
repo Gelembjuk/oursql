@@ -100,15 +100,15 @@ func (n *txManager) GetUnspentCount() (int, error) {
 
 // return number of unapproved transactions for new block. detect conflicts
 // if there are less, it returns less than requested
-func (n *txManager) GetUnapprovedTransactionsForNewBlock(number int) ([]*structures.Transaction, error) {
+func (n *txManager) GetUnapprovedTransactionsForNewBlock(number int) ([]structures.TransactionInterface, error) {
 	txlist, err := n.getUnapprovedTransactionsManager().GetTransactions(number)
 
 	n.Logger.Trace.Printf("Found %d transaction to mine\n", len(txlist))
 
-	txs := []*structures.Transaction{}
+	txs := []structures.TransactionInterface{}
 
 	for _, tx := range txlist {
-		n.Logger.Trace.Printf("Go to verify: %x\n", tx.ID)
+		n.Logger.Trace.Printf("Go to verify: %x\n", tx.GetID())
 
 		// we need to verify each transaction
 		// we will do full deep check of transaction
@@ -118,9 +118,9 @@ func (n *txManager) GetUnapprovedTransactionsForNewBlock(number int) ([]*structu
 		if err != nil {
 			// this can be case when a transaction is based on other unapproved transaction
 			// and that transaction was created in same second
-			n.Logger.Trace.Printf("Ignore transaction %x. Verify failed with error: %s\n", tx.ID, err.Error())
+			n.Logger.Trace.Printf("Ignore transaction %x. Verify failed with error: %s\n", tx.GetID(), err.Error())
 			// we delete this transaction. no sense to keep it
-			n.CancelTransaction(tx.ID)
+			n.CancelTransaction(tx.GetID())
 			continue
 		}
 
@@ -131,8 +131,8 @@ func (n *txManager) GetUnapprovedTransactionsForNewBlock(number int) ([]*structu
 			// the transaction is invalid. some input was already used in other confirmed transaction
 			// or somethign wrong with signatures.
 			// remove this transaction from the DB of unconfirmed transactions
-			n.Logger.Trace.Printf("Delete transaction used in other block before: %x\n", tx.ID)
-			n.CancelTransaction(tx.ID)
+			n.Logger.Trace.Printf("Delete transaction used in other block before: %x\n", tx.GetID())
+			n.CancelTransaction(tx.GetID())
 		}
 	}
 	txlist = nil
@@ -144,7 +144,7 @@ func (n *txManager) GetUnapprovedTransactionsForNewBlock(number int) ([]*structu
 	}
 
 	// now it is needed to check if transactions don't conflict one to other
-	var badtransactions []*structures.Transaction
+	var badtransactions []structures.TransactionInterface
 	txs, badtransactions, err = n.getUnapprovedTransactionsManager().DetectConflicts(txs)
 
 	n.Logger.Trace.Printf("After conflict detection %d - fine, %d - conflicts\n", len(txs), len(badtransactions))
@@ -156,8 +156,8 @@ func (n *txManager) GetUnapprovedTransactionsForNewBlock(number int) ([]*structu
 	if len(badtransactions) > 0 {
 		// there are conflicts! remove conflicting transactions
 		for _, tx := range badtransactions {
-			n.Logger.Trace.Printf("Delete conflicting transaction: %x\n", tx.ID)
-			n.CancelTransaction(tx.ID)
+			n.Logger.Trace.Printf("Delete conflicting transaction: %x\n", tx.GetID())
+			n.CancelTransaction(tx.GetID())
 		}
 	}
 	return txs, nil
@@ -183,15 +183,27 @@ func (n *txManager) CancelTransaction(txid []byte) error {
 // If it is build on correct outputs.This does checks agains blockchain. Needs more time
 // NOTE Transaction can have outputs of other transactions that are not yet approved.
 // This must be considered as correct case
-func (n *txManager) VerifyTransaction(tx *structures.Transaction, prevtxs []*structures.Transaction, tip []byte) (bool, error) {
-	inputTXs, notFoundInputs, err := n.getInputTransactionsState(tx, tip)
+func (n *txManager) VerifyTransaction(tx structures.TransactionInterface, prevtxs []structures.TransactionInterface, tip []byte) (bool, error) {
+	if tx.CheckTypeIs(structures.TXTypeCurrency) {
+		return n.VerifyCurrencyTransaction(tx, prevtxs, tip)
+	}
+
+	return false, errors.New("Unknown ype of transaction")
+}
+
+// Verify if currency transaction is correct.
+// If it is build on correct outputs.This does checks agains blockchain. Needs more time
+// NOTE Transaction can have outputs of other transactions that are not yet approved.
+// This must be considered as correct case
+func (n *txManager) VerifyCurrencyTransaction(tx structures.TransactionInterface, prevtxs []structures.TransactionInterface, tip []byte) (bool, error) {
+	inputTXs, notFoundInputs, err := n.getCurrencyInputTransactionsState(tx, tip)
 	if err != nil {
 		return false, err
 	}
 
 	if len(notFoundInputs) > 0 {
 		// some of inputs can be from other transactions in this pool
-		inputTXs, err = n.getUnapprovedTransactionsManager().CheckInputsWereBefore(notFoundInputs, prevtxs, inputTXs)
+		inputTXs, err = n.getUnapprovedTransactionsManager().CheckCurrencyInputsWereBefore(notFoundInputs, prevtxs, inputTXs)
 
 		if err != nil {
 			return false, err
@@ -267,7 +279,7 @@ func (n *txManager) BlockRemovedFromPrimaryChain(block *structures.Block) error 
 //
 // Returns new transaction hash. This return can be used to try to send transaction
 // to other nodes or to try mining
-func (n *txManager) CreateTransaction(PubKey []byte, privKey ecdsa.PrivateKey, to string, amount float64) (*structures.Transaction, error) {
+func (n *txManager) CreateCurrencyTransaction(PubKey []byte, privKey ecdsa.PrivateKey, to string, amount float64) (structures.TransactionInterface, error) {
 
 	if amount <= 0 {
 		return nil, errors.New("Amount must be positive value")
@@ -276,7 +288,7 @@ func (n *txManager) CreateTransaction(PubKey []byte, privKey ecdsa.PrivateKey, t
 		return nil, errors.New("Recipient address is not provided")
 	}
 
-	txBytes, DataToSign, err := n.PrepareNewTransaction(PubKey, to, amount)
+	txBytes, DataToSign, err := n.PrepareNewCurrencyTransaction(PubKey, to, amount)
 
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Prepare error: %s", err.Error()))
@@ -287,7 +299,7 @@ func (n *txManager) CreateTransaction(PubKey []byte, privKey ecdsa.PrivateKey, t
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Sign error: %s", err.Error()))
 	}
-	NewTX, err := n.ReceivedNewTransactionData(txBytes, signatures)
+	NewTX, err := n.ReceivedNewCurrencyTransactionData(txBytes, signatures)
 
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Final ading TX error: %s", err.Error()))
@@ -298,9 +310,8 @@ func (n *txManager) CreateTransaction(PubKey []byte, privKey ecdsa.PrivateKey, t
 
 // New transactions created. It is received in serialysed view and signatures separately
 // This data is ready to be convertd to complete gransaction
-func (n *txManager) ReceivedNewTransactionData(txBytes []byte, Signatures [][]byte) (*structures.Transaction, error) {
-	tx := structures.Transaction{}
-	err := tx.DeserializeTransaction(txBytes)
+func (n *txManager) ReceivedNewCurrencyTransactionData(txBytes []byte, Signatures [][]byte) (structures.TransactionInterface, error) {
+	tx, err := structures.DeserializeTransaction(txBytes)
 
 	if err != nil {
 		return nil, err
@@ -312,17 +323,17 @@ func (n *txManager) ReceivedNewTransactionData(txBytes []byte, Signatures [][]by
 		return nil, err
 	}
 
-	err = n.ReceivedNewTransaction(&tx)
+	err = n.ReceivedNewTransaction(tx)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &tx, nil
+	return tx, nil
 }
 
 // New transaction reveived from other node. We need to verify and add to cache of unapproved
-func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction) error {
+func (n *txManager) ReceivedNewTransaction(tx structures.TransactionInterface) error {
 	// verify this transaction
 	good, err := n.verifyTransactionQuick(tx)
 
@@ -339,7 +350,7 @@ func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction) error {
 // Request to make new transaction and prepare data to sign
 // This function should find good input transactions for this amount
 // Including inputs from unapproved transactions if no good approved transactions yet
-func (n *txManager) PrepareNewTransaction(PubKey []byte, to string, amount float64) ([]byte, [][]byte, error) {
+func (n *txManager) PrepareNewCurrencyTransaction(PubKey []byte, to string, amount float64) ([]byte, [][]byte, error) {
 	amount, err := strconv.ParseFloat(fmt.Sprintf("%.8f", amount), 64)
 
 	if err != nil {
@@ -347,7 +358,7 @@ func (n *txManager) PrepareNewTransaction(PubKey []byte, to string, amount float
 	}
 	PubKeyHash, _ := utils.HashPubKey(PubKey)
 	// get from pending transactions. find outputs used by this pubkey
-	pendinginputs, pendingoutputs, _, err := n.getUnapprovedTransactionsManager().GetPreparedBy(PubKeyHash)
+	pendinginputs, pendingoutputs, _, err := n.getUnapprovedTransactionsManager().GetCurrencyTXsPreparedBy(PubKeyHash)
 	n.Logger.Trace.Printf("Pending transactions state: %d- inputs, %d - unspent outputs", len(pendinginputs), len(pendingoutputs))
 
 	inputs, prevTXs, totalamount, err := n.getUnspentOutputsManager().GetNewTransactionInputs(PubKey, to, amount, pendinginputs)
@@ -381,12 +392,12 @@ func (n *txManager) PrepareNewTransaction(PubKey []byte, to string, amount float
 		return nil, nil, errors.New("No anough funds to make new transaction")
 	}
 
-	return n.prepareNewTransactionComplete(PubKey, to, amount, inputs, totalamount, prevTXs)
+	return n.prepareNewCurrencyTransactionComplete(PubKey, to, amount, inputs, totalamount, prevTXs)
 }
 
 //
-func (n *txManager) prepareNewTransactionComplete(PubKey []byte, to string, amount float64,
-	inputs []structures.TXInput, totalamount float64, prevTXs map[string]structures.Transaction) ([]byte, [][]byte, error) {
+func (n *txManager) prepareNewCurrencyTransactionComplete(PubKey []byte, to string, amount float64,
+	inputs []structures.TXInput, totalamount float64, prevTXs map[string]structures.CurrencyTransaction) ([]byte, [][]byte, error) {
 
 	var outputs []structures.TXOutput
 
@@ -398,33 +409,32 @@ func (n *txManager) prepareNewTransactionComplete(PubKey []byte, to string, amou
 		outputs = append(outputs, *structures.NewTXOutput(totalamount-amount, from)) // a change
 	}
 
-	inputTXs := make(map[int]*structures.Transaction)
+	inputTXs := make(map[int]structures.TransactionInterface)
 
 	for vinInd, vin := range inputs {
 		tx := prevTXs[hex.EncodeToString(vin.Txid)]
 		inputTXs[vinInd] = &tx
 	}
 
-	tx := structures.Transaction{nil, inputs, outputs, 0}
-	tx.TimeNow()
+	tx, _ := structures.NewCurrencyTransaction(inputs, outputs)
 
 	signdata, err := tx.PrepareSignData(inputTXs)
 
 	if err != nil {
 		return nil, nil, err
 	}
-
-	txBytes, err := tx.Serialize()
+	n.Logger.Trace.Printf("Serialise prepated TX")
+	txBytes, err := structures.SerializeTransaction(tx)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.New(fmt.Sprintf("Error serialyxing prepared TX: %s", err.Error()))
 	}
-
+	n.Logger.Trace.Printf("TX prepared. Return TX bytes and sign data")
 	return txBytes, signdata, nil
 }
 
 // check if transaction exists. it checks in all places. in approved and pending
-func (n *txManager) GetIfExists(txid []byte) (*structures.Transaction, error) {
+func (n *txManager) GetIfExists(txid []byte) (structures.TransactionInterface, error) {
 	// check in pending first
 	tx, err := n.getUnapprovedTransactionsManager().GetIfExists(txid)
 
@@ -434,12 +444,12 @@ func (n *txManager) GetIfExists(txid []byte) (*structures.Transaction, error) {
 
 	// not exist on pending and no error
 	// try to check in approved . it will look only in primary branch
-	tx, _, _, err = n.getIndexManager().GetTransactionAllInfo(txid, []byte{})
+	tx, _, _, err = n.getIndexManager().GetCurrencyTransactionAllInfo(txid, []byte{})
 	return tx, err
 }
 
 // check if transaction exists in unapproved cache
-func (n *txManager) GetIfUnapprovedExists(txid []byte) (*structures.Transaction, error) {
+func (n *txManager) GetIfUnapprovedExists(txid []byte) (structures.TransactionInterface, error) {
 	// check in pending first
 	tx, err := n.getUnapprovedTransactionsManager().GetIfExists(txid)
 
@@ -456,7 +466,7 @@ func (n *txManager) getAddressPendingBalance(address string) (float64, error) {
 	// inputs this is what a wallet spent from his real approved balance
 	// outputs this is what a wallet receives (and didn't resulse in other pending TXs)
 	// slice inputs contains only inputs from approved transactions outputs
-	_, outputs, inputs, err := n.getUnapprovedTransactionsManager().GetPreparedBy(PubKeyHash)
+	_, outputs, inputs, err := n.getUnapprovedTransactionsManager().GetCurrencyTXsPreparedBy(PubKeyHash)
 
 	if err != nil {
 		return 0, err
@@ -500,12 +510,26 @@ func (n *txManager) getAddressPendingBalance(address string) (float64, error) {
 	return pendingbalance, nil
 }
 
+// Verify if transaction is correct. Uing only caches
+func (n *txManager) verifyTransactionQuick(tx structures.TransactionInterface) (bool, error) {
+	if tx.CheckTypeIs(structures.TXTypeCurrency) {
+		return n.verifyCurrencyTransactionQuick(tx)
+	}
+
+	return false, errors.New("Unknown type")
+}
+
 // Verify if transaction is correct.
 // If it is build on correct outputs.It checks only cache of unspent transactions
 // This function doesn't do full alidation with blockchain
 // NOTE Transaction can have outputs of other transactions that are not yet approved.
 // This must be considered as correct case
-func (n *txManager) verifyTransactionQuick(tx *structures.Transaction) (bool, error) {
+func (n *txManager) verifyCurrencyTransactionQuick(txT structures.TransactionInterface) (bool, error) {
+	tx, ok := txT.(*structures.CurrencyTransaction)
+
+	if !ok {
+		return false, errors.New("Wrong type")
+	}
 	notFoundInputs, inputTXs, err := n.getUnspentOutputsManager().VerifyTransactionsOutputsAreNotSpent(tx.Vin)
 
 	if err != nil {
@@ -538,15 +562,20 @@ func (n *txManager) verifyTransactionQuick(tx *structures.Transaction) (bool, er
 // Missed inputs can be some unconfirmed transactions
 // Returns: map of previous transactions (full info about input TX). map by input index
 // next map is wrong input, where a TX is not found.
-func (n *txManager) getInputTransactionsState(tx *structures.Transaction,
-	tip []byte) (map[int]*structures.Transaction, map[int]structures.TXInput, error) {
+func (n *txManager) getCurrencyInputTransactionsState(txT structures.TransactionInterface,
+	tip []byte) (map[int]structures.TransactionInterface, map[int]structures.TXInput, error) {
 
+	tx, ok := txT.(*structures.CurrencyTransaction)
+
+	if !ok {
+		return nil, nil, errors.New("Wrong TX type")
+	}
 	//n.Logger.Trace.Printf("get state %x , tip %x", tx.ID, tip)
 
-	prevTXs := make(map[int]*structures.Transaction)
+	prevTXs := make(map[int]structures.TransactionInterface)
 	badinputs := make(map[int]structures.TXInput)
 
-	if tx.IsCoinbase() {
+	if tx.CheckSubTypeIs(structures.TXTypeCurrencyCoinbase) {
 
 		return prevTXs, badinputs, nil
 	}
@@ -573,7 +602,7 @@ func (n *txManager) getInputTransactionsState(tx *structures.Transaction,
 			return nil, nil, err
 		}
 
-		var prevTX *structures.Transaction
+		var prevTX structures.TransactionInterface
 
 		if txBockHash == nil {
 			//n.Logger.Trace.Printf("Not found TX")

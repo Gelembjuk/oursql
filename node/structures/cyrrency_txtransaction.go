@@ -2,8 +2,6 @@ package structures
 
 import (
 	"bytes"
-	"crypto/ecdsa"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
@@ -18,32 +16,64 @@ import (
 	"github.com/gelembjuk/oursql/lib/utils"
 )
 
-// Transaction represents a Bitcoin transaction
-type Transaction struct {
+// CurrencyTransaction represents a Bitcoin transaction
+type CurrencyTransaction struct {
 	ID   []byte
 	Vin  []TXInput
 	Vout []TXOutput
 	Time int64
 }
 
+// Return ID of transaction
+func (tx CurrencyTransaction) GetID() []byte {
+	return tx.ID
+}
+
+// IsCoinbase checks whether the transaction is currency transaction
+func (tx CurrencyTransaction) CheckTypeIs(t string) bool {
+	if t != TXTypeCurrency {
+		return false
+	}
+	return true
+}
+
 // IsCoinbase checks whether the transaction is coinbase
-func (tx Transaction) IsCoinbase() bool {
+func (tx CurrencyTransaction) CheckSubTypeIs(t string) bool {
+	cb := tx.isCoinbase()
+
+	if t == TXTypeCurrencyCoinbase && cb {
+		return true
+	}
+	if t == TXTypeCurrencyTransfer && !cb {
+		return true
+	}
+
+	return false
+}
+
+// check if TX is coin base
+func (tx CurrencyTransaction) isCoinbase() bool {
 	return len(tx.Vin) == 1 && len(tx.Vin[0].Txid) == 0 && tx.Vin[0].Vout == -1
 }
 
-// Hash returns the hash of the Transaction
-func (tx *Transaction) TimeNow() {
+// check if needs signatures. in case of coin base doesn't need it
+func (tx CurrencyTransaction) NeedsSignatures() bool {
+	return !tx.isCoinbase()
+}
+
+// Hash returns the hash of the CurrencyTransaction
+func (tx *CurrencyTransaction) timeNow() {
 	tx.Time = time.Now().UTC().UnixNano()
 }
 
-// Hash returns the hash of the Transaction
-func (tx *Transaction) Hash() ([]byte, error) {
+// Hash returns the hash of the CurrencyTransaction
+func (tx *CurrencyTransaction) Hash() ([]byte, error) {
 	var hash [32]byte
 
 	txCopy := *tx
 	txCopy.ID = []byte{}
 
-	txser, err := txCopy.Serialize()
+	txser, err := txCopy.serialize()
 
 	if err != nil {
 		return nil, err
@@ -56,10 +86,16 @@ func (tx *Transaction) Hash() ([]byte, error) {
 }
 
 // String returns a human-readable representation of a transaction
-func (tx Transaction) String() string {
+func (tx CurrencyTransaction) String() string {
 	var lines []string
-	from, _ := utils.PubKeyToAddres(tx.Vin[0].PubKey)
-	fromhash, _ := utils.HashPubKey(tx.Vin[0].PubKey)
+	from := "Coin Base"
+	fromhash := []byte{}
+
+	if !tx.isCoinbase() {
+		from, _ = utils.PubKeyToAddres(tx.Vin[0].PubKey)
+		fromhash, _ = utils.HashPubKey(tx.Vin[0].PubKey)
+	}
+
 	to := ""
 	amount := 0.0
 
@@ -71,18 +107,20 @@ func (tx Transaction) String() string {
 		}
 	}
 
-	lines = append(lines, fmt.Sprintf("--- Transaction %x:", tx.ID))
+	lines = append(lines, fmt.Sprintf("--- CurrencyTransaction %x:", tx.ID))
 	lines = append(lines, fmt.Sprintf("    FROM %s TO %s VALUE %f", from, to, amount))
 	lines = append(lines, fmt.Sprintf("    Time %d (%s)", tx.Time, time.Unix(0, tx.Time)))
 
-	for i, input := range tx.Vin {
-		address, _ := utils.PubKeyToAddres(input.PubKey)
-		lines = append(lines, fmt.Sprintf("     Input %d:", i))
-		lines = append(lines, fmt.Sprintf("       TXID:      %x", input.Txid))
-		lines = append(lines, fmt.Sprintf("       Out:       %d", input.Vout))
-		lines = append(lines, fmt.Sprintf("       Signature: %x", input.Signature))
-		lines = append(lines, fmt.Sprintf("       PubKey:    %x", input.PubKey))
-		lines = append(lines, fmt.Sprintf("       Address:   %s", address))
+	if !tx.isCoinbase() {
+		for i, input := range tx.Vin {
+			address, _ := utils.PubKeyToAddres(input.PubKey)
+			lines = append(lines, fmt.Sprintf("     Input %d:", i))
+			lines = append(lines, fmt.Sprintf("       TXID:      %x", input.Txid))
+			lines = append(lines, fmt.Sprintf("       Out:       %d", input.Vout))
+			lines = append(lines, fmt.Sprintf("       Signature: %x", input.Signature))
+			lines = append(lines, fmt.Sprintf("       PubKey:    %x", input.PubKey))
+			lines = append(lines, fmt.Sprintf("       Address:   %s", address))
+		}
 	}
 
 	for i, output := range tx.Vout {
@@ -96,8 +134,8 @@ func (tx Transaction) String() string {
 	return strings.Join(lines, "\n")
 }
 
-// TrimmedCopy creates a trimmed copy of Transaction to be used in signing
-func (tx *Transaction) TrimmedCopy() Transaction {
+// TrimmedCopy creates a trimmed copy of CurrencyTransaction to be used in signing
+func (tx *CurrencyTransaction) trimmedCopy() CurrencyTransaction {
 	var inputs []TXInput
 	var outputs []TXOutput
 
@@ -111,13 +149,13 @@ func (tx *Transaction) TrimmedCopy() Transaction {
 		outputs = append(outputs, TXOutput{vout.Value, pkh})
 	}
 	txID := utils.CopyBytes(tx.ID)
-	txCopy := Transaction{txID, inputs, outputs, tx.Time}
+	txCopy := CurrencyTransaction{txID, inputs, outputs, tx.Time}
 
 	return txCopy
 }
 
-// TrimmedCopy creates a trimmed copy of Transaction to be used in signing
-func (tx *Transaction) Copy() (Transaction, error) {
+// TrimmedCopy creates a trimmed copy of CurrencyTransaction to be used in signing
+func (tx CurrencyTransaction) Copy() (TransactionInterface, error) {
 	//if tx.IsCoinbase() {
 	//	return *tx, nil
 	//}
@@ -140,30 +178,28 @@ func (tx *Transaction) Copy() (Transaction, error) {
 
 	txID := utils.CopyBytes(tx.ID)
 
-	txCopy := Transaction{txID, inputs, outputs, tx.Time}
+	txCopy := &CurrencyTransaction{txID, inputs, outputs, tx.Time}
 
 	return txCopy, nil
 }
 
 // prepare data to sign as part of transaction
 // this return slice of slices. Every of them must be signed for each TX Input
-func (tx *Transaction) PrepareSignData(prevTXs map[int]*Transaction) ([][]byte, error) {
-	if tx.IsCoinbase() {
-		return nil, nil
-	}
+func (tx *CurrencyTransaction) PrepareSignData(prevTXs map[int]TransactionInterface) ([][]byte, error) {
+	tx.timeNow()
 
 	for vinInd, vin := range tx.Vin {
 		if _, ok := prevTXs[vinInd]; !ok {
 			return nil, errors.New("Previous transaction is not correct")
 		}
-		if bytes.Compare(prevTXs[vinInd].ID, vin.Txid) != 0 {
+		if bytes.Compare(prevTXs[vinInd].GetID(), vin.Txid) != 0 {
 			return nil, errors.New("Previous transaction is not correct")
 		}
 	}
 
 	signdata := make([][]byte, len(tx.Vin))
 
-	txCopy := tx.TrimmedCopy()
+	txCopy := tx.trimmedCopy()
 	txCopy.ID = []byte{}
 
 	for inID, _ := range txCopy.Vin {
@@ -171,13 +207,15 @@ func (tx *Transaction) PrepareSignData(prevTXs map[int]*Transaction) ([][]byte, 
 	}
 
 	for inID, vin := range txCopy.Vin {
-		prevTx := prevTXs[inID]
+		prevTx, ok := prevTXs[inID].(*CurrencyTransaction)
+
+		if !ok {
+			return nil, errors.New("Wring type of previous transaction")
+		}
 
 		txCopy.Vin[inID].PubKey = prevTx.Vout[vin.Vout].PubKeyHash
 
-		dataToSign := fmt.Sprintf("%x\n", txCopy)
-
-		signdata[inID] = []byte(dataToSign)
+		signdata[inID], _ = txCopy.ToBytes()
 
 		txCopy.Vin[inID].PubKey = nil
 	}
@@ -185,61 +223,9 @@ func (tx *Transaction) PrepareSignData(prevTXs map[int]*Transaction) ([][]byte, 
 	return signdata, nil
 }
 
-// Sign Inouts for transaction
-// DataToSign is output of the function PrepareSignData
-func (tx *Transaction) SignData(privKey ecdsa.PrivateKey, PubKey []byte, DataToSign [][]byte) error {
-	if tx.IsCoinbase() {
-		return nil
-	}
-
-	for inID, _ := range tx.Vin {
-		dataToSign := DataToSign[inID]
-
-		attempt := 1
-
-		var signature []byte
-		var err error
-
-		for {
-			// we can do more 1 attempt to sign. we found some cases where verification of signature fails
-			// we don't know the reason
-			signature, err = utils.SignData(privKey, dataToSign)
-
-			if err != nil {
-				return err
-			}
-
-			attempt = attempt + 1
-
-			v, err := utils.VerifySignature(signature, dataToSign, PubKey)
-
-			if err != nil {
-				return err
-			}
-
-			if v {
-				break
-			}
-
-			if attempt > 10 {
-				break
-			}
-		}
-
-		tx.Vin[inID].Signature = signature
-	}
-	// when transaction i complete, we can add ID to it
-	tx.Hash()
-
-	return nil
-}
-
 // Sets signatures for inputs. Signatures were created separately for data set prepared before
 // in the function PrepareSignData
-func (tx *Transaction) SetSignatures(signatures [][]byte) error {
-	if tx.IsCoinbase() {
-		return nil
-	}
+func (tx *CurrencyTransaction) SetSignatures(signatures [][]byte) error {
 
 	for inID, _ := range tx.Vin {
 
@@ -251,10 +237,10 @@ func (tx *Transaction) SetSignatures(signatures [][]byte) error {
 	return nil
 }
 
-// Verify verifies signatures of Transaction inputs
+// Verify verifies signatures of CurrencyTransaction inputs
 // And total amount of inputs and outputs
-func (tx *Transaction) Verify(prevTXs map[int]*Transaction) error {
-	if tx.IsCoinbase() {
+func (tx *CurrencyTransaction) Verify(prevTXs map[int]TransactionInterface) error {
+	if tx.isCoinbase() {
 		// coinbase has only 1 output and it must have value equal to constant
 		if tx.Vout[0].Value != lib.CurrencyPaymentForBlockMade {
 			return errors.New("Value of coinbase transaction is wrong")
@@ -268,23 +254,35 @@ func (tx *Transaction) Verify(prevTXs map[int]*Transaction) error {
 	totalinput := float64(0)
 
 	for vind, vin := range tx.Vin {
-		if prevTXs[vind].ID == nil {
+		prevTx, ok := prevTXs[vind].(*CurrencyTransaction)
+
+		if !ok {
+			return errors.New("Wring type of previous transaction")
+		}
+
+		if prevTx.ID == nil {
 			return errors.New("Previous transaction is not correct")
 		}
-		amount := prevTXs[vind].Vout[vin.Vout].Value
+		amount := prevTx.Vout[vin.Vout].Value
 		totalinput += amount
 	}
 
-	txCopy := tx.TrimmedCopy()
+	txCopy := tx.trimmedCopy()
 	txCopy.ID = []byte{}
 
 	for inID, _ := range tx.Vin {
 		txCopy.Vin[inID].Signature = nil
 		txCopy.Vin[inID].PubKey = nil
 	}
+
 	for inID, vin := range tx.Vin {
 		// full input transaction
-		prevTx := prevTXs[inID]
+
+		prevTx, ok := prevTXs[inID].(*CurrencyTransaction)
+
+		if !ok {
+			return errors.New("Wring type of previous transaction")
+		}
 
 		//hash of key who signed this input
 		signPubKeyHash, _ := utils.HashPubKey(vin.PubKey)
@@ -296,9 +294,9 @@ func (tx *Transaction) Verify(prevTXs map[int]*Transaction) error {
 		// replace pub key with its hash. same was done when signing
 		txCopy.Vin[inID].PubKey = prevTx.Vout[vin.Vout].PubKeyHash
 
-		dataToVerify := fmt.Sprintf("%x\n", txCopy)
+		dataToVerify, _ := txCopy.ToBytes()
 
-		v, err := utils.VerifySignature(vin.Signature, []byte(dataToVerify), vin.PubKey)
+		v, err := utils.VerifySignature(vin.Signature, dataToVerify, vin.PubKey)
 
 		if err != nil {
 			return err
@@ -327,41 +325,14 @@ func (tx *Transaction) Verify(prevTXs map[int]*Transaction) error {
 	return nil
 }
 
-/*
-* Make a transaction to be coinbase.
- */
-func (tx *Transaction) MakeCoinbaseTX(to, data string) error {
-	if data == "" {
-		randData := make([]byte, 20)
-		_, err := rand.Read(randData)
-
-		if err != nil {
-			return err
-		}
-
-		data = fmt.Sprintf("%x", randData)
-	}
-
-	txin := TXInput{[]byte{}, -1, nil, []byte(data)}
-	txout := NewTXOutput(lib.CurrencyPaymentForBlockMade, to)
-	tx.Vin = []TXInput{txin}
-	tx.Vout = []TXOutput{*txout}
-
-	tx.Hash()
-
-	return nil
-}
-
-// Serialize returns a serialized Transaction
-func (tx Transaction) Serialize() ([]byte, error) {
+// Serialize returns a serialized CurrencyTransaction
+func (tx CurrencyTransaction) serialize() ([]byte, error) {
 	// to remove any references to other ponters
 	// do full copy of the TX
-	txCopy, _ := tx.Copy()
 
 	var encoded bytes.Buffer
-
 	enc := gob.NewEncoder(&encoded)
-	err := enc.Encode(&txCopy)
+	err := enc.Encode(tx)
 	if err != nil {
 		return nil, err
 	}
@@ -369,21 +340,20 @@ func (tx Transaction) Serialize() ([]byte, error) {
 	return encoded.Bytes(), nil
 }
 
-// DeserializeTransaction deserializes a transaction
-func (tx *Transaction) DeserializeTransaction(data []byte) error {
+// DeserializeCurrencyTransaction deserializes a transaction
+func (tx *CurrencyTransaction) DeserializeTransaction(data []byte) error {
 	decoder := gob.NewDecoder(bytes.NewReader(data))
 	err := decoder.Decode(tx)
 
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
 // converts transaction to slice of bytes
 // this will be used to do a hash of transactions
-func (tx Transaction) ToBytes() ([]byte, error) {
+func (tx CurrencyTransaction) ToBytes() ([]byte, error) {
 	buff := new(bytes.Buffer)
 
 	err := binary.Write(buff, binary.BigEndian, tx.ID)
@@ -424,9 +394,13 @@ func (tx Transaction) ToBytes() ([]byte, error) {
 	return buff.Bytes(), nil
 }
 
-// Sorting of transactions slice
-type Transactions []*Transaction
+func (tx CurrencyTransaction) IsComplete() bool {
+	if tx.ID != nil {
+		return true
+	}
+	return false
+}
 
-func (c Transactions) Len() int           { return len(c) }
-func (c Transactions) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
-func (c Transactions) Less(i, j int) bool { return c[i].Time < c[j].Time }
+func (tx CurrencyTransaction) GetTime() int64 {
+	return tx.Time
+}

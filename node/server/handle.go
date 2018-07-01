@@ -181,10 +181,13 @@ func (s *NodeServerRequest) handleTxFull() error {
 	if err != nil {
 		return err
 	}
-	TX := structures.Transaction{}
-	TX.DeserializeTransaction(payload.TX)
+	TX, err := structures.DeserializeTransaction(payload.TX)
 
-	err = s.Node.GetTransactionsManager().ReceivedNewTransaction(&TX)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Transaction accepting error: %s", err.Error()))
+	}
+
+	err = s.Node.GetTransactionsManager().ReceivedNewTransaction(TX)
 
 	if err != nil {
 		return errors.New(fmt.Sprintf("Transaction accepting error: %s", err.Error()))
@@ -194,7 +197,7 @@ func (s *NodeServerRequest) handleTxFull() error {
 
 	// send internal command to try to mine new block
 
-	s.S.TryToMakeNewBlock(TX.ID)
+	s.S.TryToMakeNewBlock(TX.GetID())
 
 	s.Response, err = net.GobEncode(payload.TX)
 
@@ -218,7 +221,7 @@ func (s *NodeServerRequest) handleTxData() error {
 		return err
 	}
 
-	TX, err := s.Node.GetTransactionsManager().ReceivedNewTransactionData(payload.TX, payload.Signatures)
+	TX, err := s.Node.GetTransactionsManager().ReceivedNewCurrencyTransactionData(payload.TX, payload.Signatures)
 
 	if err != nil {
 		return errors.New(fmt.Sprintf("Transaction accepting error: %s", err.Error()))
@@ -228,9 +231,9 @@ func (s *NodeServerRequest) handleTxData() error {
 
 	// send internal command to try to mine new block
 
-	s.S.TryToMakeNewBlock(TX.ID)
+	s.S.TryToMakeNewBlock(TX.GetID())
 
-	s.Response, err = net.GobEncode(TX.ID)
+	s.Response, err = net.GobEncode(TX.GetID())
 
 	if err != nil {
 		return errors.New(fmt.Sprintf("TXFull Response Error: %s", err.Error()))
@@ -256,7 +259,7 @@ func (s *NodeServerRequest) handleTxRequest() error {
 	result := nodeclient.ComRequestTransactionData{}
 
 	TXBytes, DataToSign, err := s.Node.GetTransactionsManager().
-		PrepareNewTransaction(payload.PubKey, payload.To, payload.Amount)
+		PrepareNewCurrencyTransaction(payload.PubKey, payload.To, payload.Amount)
 
 	if err != nil {
 		return err
@@ -393,8 +396,7 @@ func (s *NodeServerRequest) handleBlock() error {
 				s.S.Transit.CleanBlocks(payload.AddrFrom)
 
 				// request from a node blocks down to this first block
-				bs := &structures.BlockShort{}
-				err := bs.DeserializeBlock(blockdata)
+				bs, err := structures.NewBlockShortFromBytes(blockdata)
 
 				if err != nil {
 					return err
@@ -462,8 +464,7 @@ func (s *NodeServerRequest) handleInv() error {
 				s.S.Transit.CleanBlocks(payload.AddrFrom)
 
 				// request from a node blocks down to this first block
-				bs := &structures.BlockShort{}
-				err := bs.DeserializeBlock(blockdata)
+				bs, err := structures.NewBlockShortFromBytes(blockdata)
 
 				if err != nil {
 					return err
@@ -604,7 +605,7 @@ func (s *NodeServerRequest) handleGetData() error {
 
 			s.Logger.Trace.Printf("Return transaction with ID %x to %s\n", payload.ID, payload.AddrFrom.NodeAddrToString())
 			// exists
-			txser, err := txe.Serialize()
+			txser, err := structures.SerializeTransaction(txe)
 
 			if err != nil {
 				return err
@@ -636,21 +637,20 @@ func (s *NodeServerRequest) handleTx() error {
 	}
 
 	txData := payload.Transaction
-	tx := structures.Transaction{}
-	err = tx.DeserializeTransaction(txData)
+	tx, err := structures.DeserializeTransaction(txData)
 
 	if err != nil {
 		return err
 	}
 
-	if txe, err := s.Node.GetTransactionsManager().GetIfExists(tx.ID); err == nil && txe != nil {
-		s.Logger.Trace.Printf("Received transaction. It already exists: %x ", tx.ID)
+	if txe, err := s.Node.GetTransactionsManager().GetIfExists(tx.GetID()); err == nil && txe != nil {
+		s.Logger.Trace.Printf("Received transaction. It already exists: %x ", tx.GetID())
 		// exists , nothing to do, it was already processed before
 		return nil
 	}
-	s.Logger.Trace.Printf("Received transaction. It does not exists: %x ", tx.ID)
+	s.Logger.Trace.Printf("Received transaction. It does not exists: %x ", tx.GetID())
 	// this will also verify a transaction
-	err = s.Node.GetTransactionsManager().ReceivedNewTransaction(&tx)
+	err = s.Node.GetTransactionsManager().ReceivedNewTransaction(tx)
 
 	if err != nil {
 		// if error is because some input transaction is not found, then request it and after it this TX again

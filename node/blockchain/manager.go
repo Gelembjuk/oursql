@@ -106,8 +106,7 @@ func (bc *Blockchain) AddBlock(block *structures.Block) (uint, error) {
 		return BCBAddState_error, err
 	}
 
-	lastBlock := structures.Block{}
-	err = lastBlock.DeserializeBlock(lastBlockData)
+	lastBlock, err := structures.NewBlockFromBytes(lastBlockData)
 
 	if err != nil {
 		return BCBAddState_error, err
@@ -268,9 +267,7 @@ func (bc *Blockchain) DeleteBlock() (*structures.Block, error) {
 		return nil, errors.New("Top block is not found!")
 	}
 
-	block := &structures.Block{}
-
-	err = block.DeserializeBlock(blockInDb)
+	block, err := structures.NewBlockFromBytes(blockInDb)
 
 	if err != nil {
 		return nil, err
@@ -295,7 +292,7 @@ func (bc *Blockchain) DeleteBlock() (*structures.Block, error) {
 
 // GetTransactionFromBlock finds a transaction by its ID in given block
 // If block is known . It worsk much faster then FindTransaction
-func (bc *Blockchain) GetTransactionFromBlock(txID []byte, blockHash []byte) (*structures.Transaction, error) {
+func (bc *Blockchain) GetTransactionFromBlock(txID []byte, blockHash []byte) (structures.TransactionInterface, error) {
 	block, err := bc.GetBlock(blockHash)
 
 	if err != nil {
@@ -304,7 +301,7 @@ func (bc *Blockchain) GetTransactionFromBlock(txID []byte, blockHash []byte) (*s
 
 	// get transaction from a block
 	for _, tx := range block.Transactions {
-		if bytes.Compare(tx.ID, txID) == 0 {
+		if bytes.Compare(tx.GetID(), txID) == 0 {
 			return tx, nil
 		}
 	}
@@ -356,8 +353,7 @@ func (bc *Blockchain) GetBestHeight() (int, error) {
 		return 0, err
 	}
 
-	lastBlock := structures.Block{}
-	err = lastBlock.DeserializeBlock(blockData)
+	lastBlock, err := structures.NewBlockFromBytes(blockData)
 
 	if err != nil {
 		return 0, err
@@ -381,8 +377,7 @@ func (bc *Blockchain) GetState() ([]byte, int, error) {
 		return nil, 0, err
 	}
 
-	lastBlock := structures.Block{}
-	err = lastBlock.DeserializeBlock(blockData)
+	lastBlock, err := structures.NewBlockFromBytes(blockData)
 
 	if err != nil {
 		return nil, 0, err
@@ -422,8 +417,7 @@ func (bc *Blockchain) GetBlock(blockHash []byte) (structures.Block, error) {
 	if blockData == nil {
 		return block, errors.New("Block is not found.")
 	}
-	blocktmp := structures.Block{}
-	err = blocktmp.DeserializeBlock(blockData)
+	blocktmp, err := structures.NewBlockFromBytes(blockData)
 
 	if err != nil {
 		return block, err

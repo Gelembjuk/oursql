@@ -211,15 +211,15 @@ func (n *Node) RestoreBlockchain(file string) error {
 /*
 * Send transaction to all known nodes. This wil send only hash and node hash to check if hash exists or no
  */
-func (n *Node) SendTransactionToAll(tx *structures.Transaction) {
+func (n *Node) SendTransactionToAll(tx structures.TransactionInterface) {
 	n.Logger.Trace.Printf("Send transaction to %d nodes", len(n.NodeNet.Nodes))
 
 	for _, node := range n.NodeNet.Nodes {
 		if node.CompareToAddress(n.NodeClient.NodeAddress) {
 			continue
 		}
-		n.Logger.Trace.Printf("Send TX %x to %s", tx.ID, node.NodeAddrToString())
-		n.NodeClient.SendInv(node, "tx", [][]byte{tx.ID})
+		n.Logger.Trace.Printf("Send TX %x to %s", tx.GetID(), node.NodeAddrToString())
+		n.NodeClient.SendInv(node, "tx", [][]byte{tx.GetID()})
 	}
 }
 
@@ -317,14 +317,14 @@ func (n *Node) Send(PubKey []byte, privKey ecdsa.PrivateKey, to string, amount f
 		return nil, errors.New("Recipient address is not valid")
 	}
 
-	tx, err := n.GetTransactionsManager().CreateTransaction(PubKey, privKey, to, amount)
+	tx, err := n.GetTransactionsManager().CreateCurrencyTransaction(PubKey, privKey, to, amount)
 
 	if err != nil {
 		return nil, err
 	}
 	n.SendTransactionToAll(tx)
 
-	return tx.ID, nil
+	return tx.GetID(), nil
 }
 
 // Try to make a block. If no enough transactions, send new transaction to all other nodes
@@ -490,8 +490,7 @@ func (n *Node) DropBlock() error {
 // returns state of processing. if a block data was requested or exists or prev doesn't exist
 func (n *Node) ReceivedBlockFromOtherNode(addrfrom net.NodeAddr, bsdata []byte) (int, error) {
 
-	bs := &structures.BlockShort{}
-	err := bs.DeserializeBlock(bsdata)
+	bs, err := structures.NewBlockShortFromBytes(bsdata)
 
 	if err != nil {
 		return 0, err
@@ -519,8 +518,7 @@ func (n *Node) ReceivedBlockFromOtherNode(addrfrom net.NodeAddr, bsdata []byte) 
 func (n *Node) ReceivedFullBlockFromOtherNode(blockdata []byte) (int, uint, *structures.Block, error) {
 	addstate := uint(blockchain.BCBAddState_error)
 
-	block := &structures.Block{}
-	err := block.DeserializeBlock(blockdata)
+	block, err := structures.NewBlockFromBytes(blockdata)
 
 	if err != nil {
 		return -1, addstate, nil, err

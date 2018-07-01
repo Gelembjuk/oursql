@@ -139,9 +139,9 @@ def GetUnapprovedTransactions(datadir):
     _lib.StartTest("Get unapproved transactions")
     res = _lib.ExecuteNode(['unapprovedtransactions','-configdir',datadir])
     
-    _lib.FatalAssertSubstr(res,"============ Transaction","Output should contains list of transactions")
+    _lib.FatalAssertSubstr(res,"--- CurrencyTransaction","Output should contains list of transactions")
 
-    regex = ur"--- Transaction ([^:]+):"
+    regex = ur"--- CurrencyTransaction ([^:]+):"
 
     transactions = re.findall(regex, res)
 

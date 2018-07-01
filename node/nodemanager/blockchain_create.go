@@ -102,8 +102,7 @@ func (n *makeBlockchain) InitBlockchainFromOther(addr net.NodeAddr, nodeclient *
 
 	firstblockbytes := result.Blocks[0]
 
-	block := &structures.Block{}
-	err = block.DeserializeBlock(firstblockbytes)
+	block, err := structures.NewBlockFromBytes(firstblockbytes)
 
 	if err != nil {
 		return false, err
@@ -132,8 +131,7 @@ func (n *makeBlockchain) InitBlockchainFromOther(addr net.NodeAddr, nodeclient *
 				continue
 			}
 			// add this block
-			block := &structures.Block{}
-			err := block.DeserializeBlock(blockdata)
+			block, err := structures.NewBlockFromBytes(blockdata)
 
 			if err != nil {
 				return false, err
@@ -170,16 +168,14 @@ func (n *makeBlockchain) prepareGenesisBlock(address, genesisCoinbaseData string
 		return nil, errors.New("Geneisis block text missed")
 	}
 
-	cbtx := &structures.Transaction{}
-
-	errc := cbtx.MakeCoinbaseTX(address, genesisCoinbaseData)
+	cbtx, errc := structures.NewCurrencyCoinbaseTransaction(address, genesisCoinbaseData)
 
 	if errc != nil {
-		return nil, errc
+		return nil, errors.New(fmt.Sprintf("Error creating coinbase TX %s", errc.Error()))
 	}
 
 	genesis := &structures.Block{}
-	genesis.PrepareNewBlock([]*structures.Transaction{cbtx}, []byte{}, 0)
+	genesis.PrepareNewBlock([]structures.TransactionInterface{cbtx}, []byte{}, 0)
 
 	return genesis, nil
 }

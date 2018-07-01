@@ -2,17 +2,14 @@ package structures
 
 import (
 	"bytes"
-	"encoding/gob"
 	"encoding/hex"
 
 	"time"
 
 	"testing"
-
-	"github.com/gelembjuk/oursql/lib/wallet"
 )
 
-func TestHash(t *testing.T) {
+func makeTestTX() CurrencyTransaction {
 	PubKey := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
 
 	inputs := []TXInput{
@@ -25,24 +22,58 @@ func TestHash(t *testing.T) {
 		TXOutput{2, PubKey},
 	}
 
-	newTX := Transaction{nil, inputs, outputs, 0}
+	newTX := CurrencyTransaction{nil, inputs, outputs, 0}
 
 	layout := "2006-01-02T15:04:05.000Z"
 	str := "2014-11-12T11:45:26.371Z"
 	time, _ := time.Parse(layout, str)
 	newTX.Time = time.UnixNano()
+	return newTX
+}
+func TestHash(t *testing.T) {
+	newTX := makeTestTX()
 
-	newTX.Hash()
+	_, err := newTX.Hash()
 
-	expected := "913acaf3f296c048df72565c3940b33afdbdba1b0683bd71969491a549a86ba3"
+	if err != nil {
+		t.Fatalf("Hash error %s", err.Error())
+	}
+
+	expected := "1c750c1ad12353447b430a8fe2e7d50c246ff3f4a57154573956f30b1e27af92"
 
 	expectedBytes, _ := hex.DecodeString(expected)
 
 	if bytes.Compare(expectedBytes, newTX.ID) != 0 {
-		t.Fatalf("Got \n%x\nexpected\n%x", newTX.ID, expected)
+		t.Fatalf("Got \n%x\nexpected\n%x", newTX.ID, expectedBytes)
+	}
+}
+func TestSerialize(t *testing.T) {
+	newTX := makeTestTX()
+
+	_, err := newTX.Hash()
+
+	if err != nil {
+		t.Fatalf("Hash error %s", err.Error())
+	}
+
+	txData, err := SerializeTransaction(&newTX)
+
+	if err != nil {
+		t.Fatalf("Serialize error %s", err.Error())
+	}
+
+	tx, err := DeserializeTransaction(txData)
+
+	if err != nil {
+		t.Fatalf("DeSerialize error %s", err.Error())
+	}
+
+	if bytes.Compare(tx.GetID(), newTX.ID) != 0 {
+		t.Fatalf("IDs are not same. Got \n%x\nexpected\n%x", tx.GetID(), newTX.GetID())
 	}
 }
 
+/*
 func TestSignature(t *testing.T) {
 	// wallet wallet address, wallets file, transaction, input transactions
 	testSets := [][]string{
@@ -61,7 +92,7 @@ func TestSignature(t *testing.T) {
 	}
 
 	for _, test := range testSets {
-		ws := wallet.Wallets{}
+		ws := remoteclient.Wallets{}
 		ws.WalletsFile = "testsdata/" + test[1]
 		ws.LoadFromFile()
 
@@ -72,10 +103,10 @@ func TestSignature(t *testing.T) {
 		}
 
 		tb, _ := hex.DecodeString(test[2])
-		tx := Transaction{}
+		tx := CurrencyTransaction{}
 		tx.DeserializeTransaction(tb)
 
-		prevTXs := map[int]*Transaction{}
+		prevTXs := map[int]*CurrencyTransaction{}
 		tb, _ = hex.DecodeString(test[3])
 		decoder := gob.NewDecoder(bytes.NewReader(tb))
 		decoder.Decode(&prevTXs)
@@ -100,7 +131,7 @@ func TestSignature(t *testing.T) {
 
 	}
 }
-
+*/
 /*
 func TestSignatureAndVerify(t *testing.T) {
 	// wallet wallet address, wallets file, transaction, input transactions, tx before verify

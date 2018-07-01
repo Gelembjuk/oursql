@@ -19,7 +19,7 @@ type unApprovedTransactions struct {
 
 // Check if transaction inputs are pointed to some prepared transactions.
 // Check conflicts too. Same output can not be repeated twice
-func (u *unApprovedTransactions) CheckInputsArePrepared(inputs map[int]structures.TXInput, inputTXs map[int]*structures.Transaction) error {
+func (u *unApprovedTransactions) CheckInputsArePrepared(inputs map[int]structures.TXInput, inputTXs map[int]structures.TransactionInterface) error {
 	checked := map[string][]int{}
 
 	for vinInd, vin := range inputs {
@@ -59,9 +59,9 @@ func (u *unApprovedTransactions) CheckInputsArePrepared(inputs map[int]structure
 // and input transactions for this tx
 // Check conflicts too. Same output can not be repeated twice
 
-func (u *unApprovedTransactions) CheckInputsWereBefore(
-	inputs map[int]structures.TXInput, prevTXs []*structures.Transaction,
-	inputTXs map[int]*structures.Transaction) (map[int]*structures.Transaction, error) {
+func (u *unApprovedTransactions) CheckCurrencyInputsWereBefore(
+	inputs map[int]structures.TXInput, prevTXs []structures.TransactionInterface,
+	inputTXs map[int]structures.TransactionInterface) (map[int]structures.TransactionInterface, error) {
 
 	checked := map[string][]int{}
 
@@ -84,7 +84,7 @@ func (u *unApprovedTransactions) CheckInputsWereBefore(
 		exists := false
 
 		for _, tx := range prevTXs {
-			if bytes.Compare(vin.Txid, tx.ID) == 0 {
+			if bytes.Compare(vin.Txid, tx.GetID()) == 0 {
 				inputTXs[vind] = tx
 				exists = true
 				break
@@ -107,7 +107,7 @@ func (u *unApprovedTransactions) CheckInputsWereBefore(
 //		this are outputs that can be still used in new TX
 // List of inputs based on approved outputs (sub list of the first list). From the first list
 //		we dropped inputs where otput is from pending TX
-func (u *unApprovedTransactions) GetPreparedBy(PubKeyHash []byte) ([]structures.TXInput,
+func (u *unApprovedTransactions) GetCurrencyTXsPreparedBy(PubKeyHash []byte) ([]structures.TXInput,
 	[]*structures.TXOutputIndependent, []structures.TXInput, error) {
 
 	inputs := []structures.TXInput{}
@@ -121,16 +121,23 @@ func (u *unApprovedTransactions) GetPreparedBy(PubKeyHash []byte) ([]structures.
 	// goes over all pending (unconfirmed) transactions in the cache
 	// check every input for every TX and adds to "inputs" if that input was signed by this pub key
 	err = utdb.ForEach(func(k, txBytes []byte) error {
-		tx := structures.Transaction{}
-		err = tx.DeserializeTransaction(txBytes)
+		txT, err := structures.DeserializeTransaction(txBytes)
 
 		if err != nil {
 			return err
 		}
 
+		if !txT.CheckTypeIs(structures.TXTypeCurrency) {
+			return nil
+		}
+		tx, ok := txT.(*structures.CurrencyTransaction)
+
+		if !ok {
+			return nil
+		}
 		sender := []byte{}
 
-		if !tx.IsCoinbase() {
+		if !tx.CheckSubTypeIs(structures.TXTypeCurrencyCoinbase) {
 			sender = tx.Vin[0].PubKey
 
 			for _, vin := range tx.Vin {
@@ -146,7 +153,7 @@ func (u *unApprovedTransactions) GetPreparedBy(PubKeyHash []byte) ([]structures.
 				voutind := structures.TXOutputIndependent{}
 				// we are settings serialised transaction in place of block hash
 				// we don't have a block for such transaction , but we need full transaction later
-				voutind.LoadFromSimple(vout, tx.ID, indV, sender, tx.IsCoinbase(), txBytes)
+				voutind.LoadFromSimple(vout, tx.ID, indV, sender, tx.CheckSubTypeIs(structures.TXTypeCurrencyCoinbase), txBytes)
 
 				// "outputs" contains list of outputs of transations in the pending cache
 				// we need it to know later which outputs and used as inputs for other pending transactions
@@ -216,11 +223,17 @@ func (u *unApprovedTransactions) GetInputValue(input structures.TXInput) (float6
 		return 0, errors.New("TX not found in cache of unapproved")
 	}
 
-	return tx.Vout[input.Vout].Value, nil
+	txC, ok := tx.(*structures.CurrencyTransaction)
+
+	if !ok {
+		return 0, errors.New("Not currency transaction")
+	}
+
+	return txC.Vout[input.Vout].Value, nil
 }
 
 // Check if transaction exists in a cache of unapproved
-func (u *unApprovedTransactions) GetIfExists(txid []byte) (*structures.Transaction, error) {
+func (u *unApprovedTransactions) GetIfExists(txid []byte) (structures.TransactionInterface, error) {
 	utdb, err := u.DB.GetUnapprovedTransactionsObject()
 
 	if err != nil {
@@ -237,37 +250,35 @@ func (u *unApprovedTransactions) GetIfExists(txid []byte) (*structures.Transacti
 		return nil, nil
 	}
 
-	tx := structures.Transaction{}
-	err = tx.DeserializeTransaction(txBytes)
+	tx, err := structures.DeserializeTransaction(txBytes)
 
 	if err != nil {
 		return nil, err
 	}
 
-	return &tx, nil
+	return tx, nil
 
 }
 
 // Get all unapproved transactions
-func (u *unApprovedTransactions) GetTransactions(number int) ([]*structures.Transaction, error) {
+func (u *unApprovedTransactions) GetTransactions(number int) ([]structures.TransactionInterface, error) {
 	utdb, err := u.DB.GetUnapprovedTransactionsObject()
 
 	if err != nil {
 		return nil, err
 	}
-	txset := []*structures.Transaction{}
+	txset := []structures.TransactionInterface{}
 
 	totalnumber := 0
 
 	err = utdb.ForEach(func(k, txBytes []byte) error {
-		tx := structures.Transaction{}
-		err = tx.DeserializeTransaction(txBytes)
+		tx, err := structures.DeserializeTransaction(txBytes)
 
 		if err != nil {
 			return err
 		}
 
-		txset = append(txset, &tx)
+		txset = append(txset, tx)
 		totalnumber++
 
 		if totalnumber >= number {
@@ -301,7 +312,7 @@ func (u *unApprovedTransactions) GetCount() (int, error) {
 // Add new transaction for the list of unapproved
 // Before to call this function we checked that transaction is valid
 // Now we need to check if there are no conflicts with other transactions in the cache
-func (u *unApprovedTransactions) Add(txadd *structures.Transaction) error {
+func (u *unApprovedTransactions) Add(txadd structures.TransactionInterface) error {
 	conflicts, err := u.DetectConflictsForNew(txadd)
 
 	if err != nil {
@@ -309,7 +320,7 @@ func (u *unApprovedTransactions) Add(txadd *structures.Transaction) error {
 	}
 
 	if conflicts != nil {
-		return errors.New(fmt.Sprintf("The transaction conflicts with other prepared transaction: %x", conflicts.ID))
+		return errors.New(fmt.Sprintf("The transaction conflicts with other prepared transaction: %x", conflicts.GetID()))
 	}
 
 	utdb, err := u.DB.GetUnapprovedTransactionsObject()
@@ -318,16 +329,16 @@ func (u *unApprovedTransactions) Add(txadd *structures.Transaction) error {
 		return err
 	}
 
-	u.Logger.Trace.Printf("adding TX to unappr %x", txadd.ID)
+	u.Logger.Trace.Printf("adding TX to unappr %x", txadd.GetID())
 
-	txser, err := txadd.Serialize()
+	txser, err := structures.SerializeTransaction(txadd)
 
 	if err != nil {
 		u.Logger.Trace.Printf("err 1 %s", err.Error())
 		return err
 	}
 
-	err = utdb.PutTransaction(txadd.ID, txser)
+	err = utdb.PutTransaction(txadd.GetID(), append(txser))
 
 	if err != nil {
 		u.Logger.Trace.Printf("err 2 %s", err.Error())
@@ -393,8 +404,8 @@ func (u *unApprovedTransactions) DeleteFromBlock(block *structures.Block) error 
 	u.Logger.Trace.Printf("UnApprTXs: remove on block add %x", block.Hash)
 
 	for _, tx := range block.Transactions {
-		if !tx.IsCoinbase() {
-			u.Delete(tx.ID)
+		if !(tx.CheckTypeIs(structures.TXTypeCurrency) && tx.CheckSubTypeIs(structures.TXTypeCurrencyCoinbase)) {
+			u.Delete(tx.GetID())
 		}
 	}
 
@@ -417,8 +428,7 @@ func (u *unApprovedTransactions) forEachUnapprovedTransaction(callback UnApprove
 	err = utdb.ForEach(func(txID, txBytes []byte) error {
 		u.Logger.Trace.Printf("found TX %x", txID)
 
-		tx := structures.Transaction{}
-		err = tx.DeserializeTransaction(txBytes)
+		tx, err := structures.DeserializeTransaction(txBytes)
 
 		if err != nil {
 			u.Logger.Trace.Printf("err %s", err.Error())
@@ -439,22 +449,41 @@ func (u *unApprovedTransactions) forEachUnapprovedTransaction(callback UnApprove
 // Check if this new transaction conflicts with any other transaction in the cache
 // It is not allowed 2 prepared transactions have same inputs
 // we return first found transaction taht conflicts
-func (u *unApprovedTransactions) DetectConflictsForNew(txcheck *structures.Transaction) (*structures.Transaction, error) {
+func (u *unApprovedTransactions) DetectConflictsForNew(txcheckT structures.TransactionInterface) (structures.TransactionInterface, error) {
 	// it i needed to go over all tranactions in cache and check each of them if input is same as in this tx
 	utdb, err := u.DB.GetUnapprovedTransactionsObject()
 
 	if err != nil {
 		return nil, err
 	}
+	// TODO . this must work for all types of tranactions separately
+	if !txcheckT.CheckTypeIs(structures.TXTypeCurrency) {
+		return nil, nil
+	}
 
-	var txconflicts *structures.Transaction
+	txcheck, ok := txcheckT.(*structures.CurrencyTransaction)
+
+	if !ok {
+		return nil, errors.New("Error cast")
+	}
+
+	var txconflicts structures.TransactionInterface
 
 	err = utdb.ForEach(func(txID, txBytes []byte) error {
-		txexi := structures.Transaction{}
-		err = txexi.DeserializeTransaction(txBytes)
+		txexiT, err := structures.DeserializeTransaction(txBytes)
 
 		if err != nil {
 			return err
+		}
+
+		if !txexiT.CheckTypeIs(structures.TXTypeCurrency) {
+			return nil
+		}
+
+		txexi, ok := txexiT.(*structures.CurrencyTransaction)
+
+		if !ok {
+			return errors.New("Error cast")
 		}
 
 		conflicts := false
@@ -463,7 +492,7 @@ func (u *unApprovedTransactions) DetectConflictsForNew(txcheck *structures.Trans
 			for _, vine := range txexi.Vin {
 				if bytes.Compare(vin.Txid, vine.Txid) == 0 && vin.Vout == vine.Vout {
 					// this is same input structures. it is conflict
-					txconflicts = &txexi
+					txconflicts = txexi
 					conflicts = true
 					break
 				}
@@ -486,20 +515,29 @@ func (u *unApprovedTransactions) DetectConflictsForNew(txcheck *structures.Trans
 	return txconflicts, nil
 }
 
-/*
-* The function detects conflicts in unconfirmed transactions list
-* This is for case when some transaction output was used for 2 or more transactions input
-* For building of a block we should use only one of them.
-* Transaction can be used more 1 time in a block. But each time must be differeent output index
- */
-func (u *unApprovedTransactions) DetectConflicts(txs []*structures.Transaction) ([]*structures.Transaction, []*structures.Transaction, error) {
-	goodtransactions := []*structures.Transaction{}
-	conflicts := []*structures.Transaction{}
+// The function detects conflicts in unconfirmed transactions list
+// This is for case when some transaction output was used for 2 or more transactions input
+// For building of a block we should use only one of them.
+// Transaction can be used more 1 time in a block. But each time must be differeent output index
+// TODO should work for different types of ransactions
+func (u *unApprovedTransactions) DetectConflicts(txs []structures.TransactionInterface) ([]structures.TransactionInterface, []structures.TransactionInterface, error) {
+	return u.detectConflictsForCurrentcy(txs)
+}
+
+func (u *unApprovedTransactions) detectConflictsForCurrentcy(txs []structures.TransactionInterface) ([]structures.TransactionInterface, []structures.TransactionInterface, error) {
+	goodtransactions := []structures.TransactionInterface{}
+	conflicts := []structures.TransactionInterface{}
 
 	usedoutputs := map[string][]int{}
 
-	for _, tx := range txs {
+	for _, txT := range txs {
 		used := false
+
+		if !txT.CheckTypeIs(structures.TXTypeCurrency) {
+			continue
+		}
+
+		tx, _ := txT.(*structures.CurrencyTransaction)
 
 		for _, txi := range tx.Vin {
 			txinhax := hex.EncodeToString(txi.Txid)
@@ -539,15 +577,15 @@ func (u *unApprovedTransactions) DetectConflicts(txs []*structures.Transaction) 
 }
 
 // Is used for case when a block canceled. all transactions from a block are back to unapproved cache
-func (u *unApprovedTransactions) AddFromCanceled(txs []*structures.Transaction) error {
+func (u *unApprovedTransactions) AddFromCanceled(txs []structures.TransactionInterface) error {
 	for _, tx := range txs {
-		if !tx.IsCoinbase() {
+		if !(tx.CheckTypeIs(structures.TXTypeCurrency) && tx.CheckSubTypeIs(structures.TXTypeCurrencyCoinbase)) {
 			err := u.Add(tx)
 
 			if err != nil {
-				u.Logger.Trace.Printf("add tx %x error %s", tx.ID, err.Error())
+				u.Logger.Trace.Printf("add tx %x error %s", tx.GetID(), err.Error())
 			} else {
-				u.Logger.Trace.Printf("UnAppr. add tx from canceled block. fine %x", tx.ID)
+				u.Logger.Trace.Printf("UnAppr. add tx from canceled block. fine %x", tx.GetID())
 			}
 		}
 	}
