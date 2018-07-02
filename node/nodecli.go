@@ -809,3 +809,36 @@ func (c *NodeCLI) commandRemoveNode() error {
 
 	return nil
 }
+
+// Execute new SQL command
+func (c *NodeCLI) commandSQL() error {
+	if c.AlreadyRunningPort > 0 {
+
+		// run in wallet mode.
+		return c.forwardCommandToWallet()
+	}
+	c.Logger.Trace.Println("Execute SQL with manager tool")
+
+	walletscli, err := c.getWalletsCLI()
+
+	if err != nil {
+		return err
+	}
+
+	walletobj, err := walletscli.WalletsObj.GetWallet(c.Input.Args.From)
+
+	if err != nil {
+		return err
+	}
+
+	txid, err := c.Node.Send(walletobj.GetPublicKey(), walletobj.GetPrivateKey(),
+		c.Input.Args.To, c.Input.Args.Amount)
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Success. New transaction: %x\n", txid)
+
+	return nil
+}

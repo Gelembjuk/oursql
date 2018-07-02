@@ -118,14 +118,11 @@ func (s *NodeServer) handleConnection(conn net.Conn) {
 	case "tx":
 		rerr = requestobj.handleTx()
 
-	case "txfull":
-		rerr = requestobj.handleTxFull()
-
 	case "txdata":
 		rerr = requestobj.handleTxData()
 
-	case "txrequest":
-		rerr = requestobj.handleTxRequest()
+	case "txcurrequest":
+		rerr = requestobj.handleTxCurRequest()
 
 	case "getnodes":
 		rerr = requestobj.handleGetNodes()

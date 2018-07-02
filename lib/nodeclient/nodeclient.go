@@ -339,30 +339,7 @@ func (c *NodeClient) SendGetHistory(addr netlib.NodeAddr, address string) ([]Com
 }
 
 // Send new transaction from a wallet to a node
-func (c *NodeClient) SendNewCurrencyTransaction(addr netlib.NodeAddr, from string, tx []byte) ([]byte, error) {
-	data := ComNewTransaction{}
-	data.Address = from
-	data.TX = tx
-
-	request, err := c.BuildCommandData("txfull", &data)
-
-	NewTX := []byte{}
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = c.SendDataWaitResponse(addr, request, &NewTX)
-
-	if err != nil {
-		return nil, err
-	}
-	// no data are returned. only success or not
-	return NewTX, nil
-}
-
-// Send new transaction from a wallet to a node
-func (c *NodeClient) SendNewCurrencyTransactionData(addr netlib.NodeAddr, from string, txBytes []byte, signatures [][]byte) ([]byte, error) {
+func (c *NodeClient) SendNewTransactionData(addr netlib.NodeAddr, from string, txBytes []byte, signatures [][]byte) ([]byte, error) {
 	data := ComNewTransactionData{}
 	data.Address = from
 	data.TX = txBytes
@@ -396,7 +373,7 @@ func (c *NodeClient) SendRequestNewCurrencyTransaction(addr netlib.NodeAddr,
 	data.To = to
 	data.Amount = amount
 
-	request, err := c.BuildCommandData("txrequest", &data)
+	request, err := c.BuildCommandData("txcurrequest", &data)
 
 	if err != nil {
 		return nil, nil, err

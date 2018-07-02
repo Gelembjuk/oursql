@@ -36,6 +36,7 @@ type AllPossibleArgs struct {
 	MySQLDBName    string
 	DBTablesPrefix string
 	DumpFile       string
+	SQL            string
 }
 
 // Input summary
@@ -96,6 +97,7 @@ func GetAppInput() (AppInput, error) {
 	cmd.StringVar(&input.Args.MySQLDBName, "mysqldb", "", "MySQL database")
 	cmd.StringVar(&input.Args.DBTablesPrefix, "tablesprefix", "", "MySQL blockchain tables prefix")
 	cmd.StringVar(&input.Args.DumpFile, "dumpfile", "", "File where to dump DB")
+	cmd.StringVar(&input.Args.SQL, "sql", "", "SQL command to execute")
 
 	configdirPtr := cmd.String("configdir", "", "Location of config files")
 	err := cmd.Parse(os.Args[2:])
@@ -353,33 +355,43 @@ func (c AppInput) PrintUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  help - Prints this help")
 	fmt.Println("  == Any of next commands can have optional argument [-configdir /path/to/dir] [-logdest stdout]==")
+	fmt.Println("=[Auth keys operations]")
 	fmt.Println("  createwallet\n\t- Generates a new key-pair and saves it into the wallet file")
+	fmt.Println("  listaddresses\n\t- Lists all addresses from the wallet file")
 
+	fmt.Println("=[Blockchain init operations]")
 	fmt.Println("  initblockchain [-minter ADDRESS] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Create a blockchain and send genesis block reward to ADDRESS")
 	fmt.Println("  importblockchain [-nodehost HOST] [-nodeport PORT] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Loads a blockchain from other node to init the DB.")
 	fmt.Println("  restoreblockchain -dumpfile FILEPATH [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Loads a blockchain from dump file and restores it to given DB. A DB credentials can be optional if they are present in config file")
 	fmt.Println("  dumpblockchain -dumpfile FILEPATH\n\t- Dump blockchain DB to a file. This fle can be used to restore a BC")
+	fmt.Println("  updateconfig [-minter ADDRESS] [-host HOST] [-port PORT] [-nodehost HOST] [-nodeport PORT] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Update config file. Allows to set this node minter address, host and port and remote node host and port")
 
+	fmt.Println("=[Blockchain manage operations]")
 	fmt.Println("  printchain [-view short|long]\n\t- Print all the blocks of the blockchain. Default view is long")
 	fmt.Println("  makeblock [-minter ADDRESS]\n\t- Try to mine new block if there are enough transactions")
 	fmt.Println("  dropblock\n\t- Delete last block fro the block chain. All transaction are returned back to unapproved state")
+
+	fmt.Println("=[SQL operations]")
+	fmt.Println("  sql -from FROM -sql SQLCOMMAND\n\t- Execute SQL query signed by FROM address")
+
+	fmt.Println("=[Currency transactions and control operations]")
 	fmt.Println("  reindexcache\n\t- Rebuilds the database of unspent transactions outputs and transaction pointers")
 	fmt.Println("  showunspent -address ADDRESS\n\t- Print the list of all unspent transactions and balance")
-	fmt.Println("  unapprovedtransactions [-clean]\n\t- Print the list of transactions not included in any block yet. If the option -clean provided then cleans the cache")
-
 	fmt.Println("  getbalance -address ADDRESS\n\t- Get balance of ADDRESS")
-	fmt.Println("  listaddresses\n\t- Lists all addresses from the wallet file")
 	fmt.Println("  getbalances\n\t- Lists all addresses from the wallet file and show balance for each")
 	fmt.Println("  addrhistory -address ADDRESS\n\t- Shows all transactions for a wallet address")
 
 	fmt.Println("  send -from FROM -to TO -amount AMOUNT\n\t- Send AMOUNT of coins from FROM address to TO. ")
-	fmt.Println("  canceltransaction -transaction TRANSACTIONID\n\t- Cancel unapproved transaction. NOTE!. This cancels only from local cache!")
 
+	fmt.Println("=[Transactions]")
+	fmt.Println("  canceltransaction -transaction TRANSACTIONID\n\t- Cancel unapproved transaction. NOTE!. This cancels only from local cache!")
+	fmt.Println("  unapprovedtransactions [-clean]\n\t- Print the list of transactions not included in any block yet. If the option -clean provided then cleans the cache")
+
+	fmt.Println("=[Node server operations]")
 	fmt.Println("  startnode [-minter ADDRESS] [-host HOST] [-port PORT]\n\t- Start a node server. -minter defines minting address, -host - hostname of the node server and -port - listening port")
 	fmt.Println("  startintnode [-minter ADDRESS] [-port PORT]\n\t- Start a node server in interactive mode (no deamon). -minter defines minting address and -port - listening port")
 	fmt.Println("  stopnode\n\t- Stop runnning node")
 	fmt.Println("  nodestate\n\t- Print state of the node process")
-	fmt.Println("  updateconfig [-minter ADDRESS] [-host HOST] [-port PORT] [-nodehost HOST] [-nodeport PORT] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Update config file. Allows to set this node minter address, host and port and remote node host and port")
 
 	fmt.Println("  shownodes\n\t- Display list of nodes addresses, including inactive")
 	fmt.Println("  addnode -nodehost HOST -nodeport PORT\n\t- Adds new node to list of connections")
