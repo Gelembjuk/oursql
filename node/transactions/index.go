@@ -81,16 +81,11 @@ func (ti *transactionsIndex) BlockAdded(block *structures.Block) error {
 		if err != nil {
 			return err
 		}
-
-		currTx, ok := tx.(*structures.CurrencyTransaction)
-
-		if !ok {
+		if tx.IsCoinbaseTransfer() {
 			continue
 		}
+		currTx := tx
 
-		if currTx.CheckSubTypeIs(structures.TXTypeCurrencyCoinbase) {
-			continue
-		}
 		// for each input we save list of tranactions where iput was used
 		for inInd, vin := range currTx.Vin {
 			// get existing ecordsfor this input
@@ -188,19 +183,12 @@ func (ti *transactionsIndex) BlockRemoved(block *structures.Block) error {
 		} else {
 			txdb.DeleteTXToBlockLink(tx.GetID())
 		}
-
-		currTx, ok := tx.(*structures.CurrencyTransaction)
-
-		if !ok {
-			continue
-		}
-
-		if currTx.CheckSubTypeIs(structures.TXTypeCurrencyCoinbase) {
+		if tx.IsCoinbaseTransfer() {
 			continue
 		}
 
 		// remove inputs from used outputs
-		for _, vin := range currTx.Vin {
+		for _, vin := range tx.Vin {
 			// get existing ecordsfor this input
 			to, err := txdb.GetTXSpentOutputs(vin.Txid)
 
@@ -435,8 +423,8 @@ func (ti *transactionsIndex) filterTranactionOutputsSpent(outPuts []Transactions
 }
 
 // Get full TX, spending status and block hash for TX by ID
-func (ti *transactionsIndex) GetCurrencyTransactionAllInfo(txID []byte, topHash []byte) (structures.TransactionInterface, []TransactionsIndexSpentOutputs, []byte, error) {
-	localError := func(err error) (structures.TransactionInterface, []TransactionsIndexSpentOutputs, []byte, error) {
+func (ti *transactionsIndex) GetCurrencyTransactionAllInfo(txID []byte, topHash []byte) (*structures.Transaction, []TransactionsIndexSpentOutputs, []byte, error) {
+	localError := func(err error) (*structures.Transaction, []TransactionsIndexSpentOutputs, []byte, error) {
 		return nil, nil, nil, err
 	}
 

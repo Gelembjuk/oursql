@@ -116,7 +116,7 @@ def WaitUnapprovedTransactions(datadir, count, maxseconds = 10):
         
         c=c+1
         
-        if "--- CurrencyTransaction" not in res:
+        if "--- Transaction" not in res:
             if c > maxseconds:
                 break
             
@@ -124,7 +124,7 @@ def WaitUnapprovedTransactions(datadir, count, maxseconds = 10):
             
             continue
 
-        regex = ur"--- CurrencyTransaction ([^:]+):"
+        regex = ur"--- Transaction ([^:]+):"
 
         transactions = re.findall(regex, res)
 
@@ -140,7 +140,7 @@ def WaitUnapprovedTransactions(datadir, count, maxseconds = 10):
 
         time.sleep(1)
     
-    _lib.FatalAssertSubstr(res,"--- CurrencyTransaction","Output should contains list of transactions")
+    _lib.FatalAssertSubstr(res,"--- Transaction","Output should contains list of transactions")
     
     txlist={}
     

@@ -168,14 +168,14 @@ func (n *makeBlockchain) prepareGenesisBlock(address, genesisCoinbaseData string
 		return nil, errors.New("Geneisis block text missed")
 	}
 
-	cbtx, errc := structures.NewCurrencyCoinbaseTransaction(address, genesisCoinbaseData)
+	cbtx, errc := structures.NewCoinbaseTransaction(address, genesisCoinbaseData)
 
 	if errc != nil {
 		return nil, errors.New(fmt.Sprintf("Error creating coinbase TX %s", errc.Error()))
 	}
 
 	genesis := &structures.Block{}
-	genesis.PrepareNewBlock([]structures.TransactionInterface{cbtx}, []byte{}, 0)
+	genesis.PrepareNewBlock([]*structures.Transaction{cbtx}, []byte{}, 0)
 
 	return genesis, nil
 }

@@ -292,7 +292,7 @@ func (bc *Blockchain) DeleteBlock() (*structures.Block, error) {
 
 // GetTransactionFromBlock finds a transaction by its ID in given block
 // If block is known . It worsk much faster then FindTransaction
-func (bc *Blockchain) GetTransactionFromBlock(txID []byte, blockHash []byte) (structures.TransactionInterface, error) {
+func (bc *Blockchain) GetTransactionFromBlock(txID []byte, blockHash []byte) (*structures.Transaction, error) {
 	block, err := bc.GetBlock(blockHash)
 
 	if err != nil {
@@ -302,7 +302,7 @@ func (bc *Blockchain) GetTransactionFromBlock(txID []byte, blockHash []byte) (st
 	// get transaction from a block
 	for _, tx := range block.Transactions {
 		if bytes.Compare(tx.GetID(), txID) == 0 {
-			return tx, nil
+			return &tx, nil
 		}
 	}
 

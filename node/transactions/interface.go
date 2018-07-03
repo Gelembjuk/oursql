@@ -14,20 +14,20 @@ type TransactionsManagerInterface interface {
 	GetAddressBalance(address string) (remoteclient.WalletBalance, error)
 	GetUnapprovedCount() (int, error)
 	GetUnspentCount() (int, error)
-	GetUnapprovedTransactionsForNewBlock(number int) ([]structures.TransactionInterface, error)
-	GetIfExists(txid []byte) (structures.TransactionInterface, error)
-	GetIfUnapprovedExists(txid []byte) (structures.TransactionInterface, error)
+	GetUnapprovedTransactionsForNewBlock(number int) ([]*structures.Transaction, error)
+	GetIfExists(txid []byte) (*structures.Transaction, error)
+	GetIfUnapprovedExists(txid []byte) (*structures.Transaction, error)
 
-	VerifyTransaction(tx structures.TransactionInterface, prevtxs []structures.TransactionInterface, tip []byte) (bool, error)
+	VerifyTransaction(tx *structures.Transaction, prevtxs []*structures.Transaction, tip []byte) (bool, error)
 
 	ForEachUnspentOutput(address string, callback UnspentTransactionOutputCallbackInterface) error
 	ForEachUnapprovedTransaction(callback UnApprovedTransactionCallbackInterface) (int, error)
 
 	// Create transaction methods
-	CreateCurrencyTransaction(PubKey []byte, privKey ecdsa.PrivateKey, to string, amount float64) (structures.TransactionInterface, error)
+	CreateCurrencyTransaction(PubKey []byte, privKey ecdsa.PrivateKey, to string, amount float64) (*structures.Transaction, error)
 	PrepareNewCurrencyTransaction(PubKey []byte, to string, amount float64) ([]byte, [][]byte, error)
-	ReceivedNewCurrencyTransactionData(txBytes []byte, Signatures [][]byte) (structures.TransactionInterface, error)
-	ReceivedNewTransaction(tx structures.TransactionInterface) error
+	ReceivedNewCurrencyTransactionData(txBytes []byte, Signatures [][]byte) (*structures.Transaction, error)
+	ReceivedNewTransaction(tx *structures.Transaction) error
 
 	// new block was created in blockchain DB. It must not be on top of primary blockchain
 	BlockAdded(block *structures.Block, ontopofchain bool) error

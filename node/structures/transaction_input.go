@@ -9,7 +9,7 @@ import (
 import "github.com/gelembjuk/oursql/lib/utils"
 
 // TXInput represents a transaction input
-type TXInput struct {
+type TXCurrencyInput struct {
 	Txid      []byte
 	Vout      int
 	Signature []byte
@@ -17,13 +17,13 @@ type TXInput struct {
 }
 
 // UsesKey checks whether the address initiated the transaction
-func (in *TXInput) UsesKey(pubKeyHash []byte) bool {
+func (in *TXCurrencyInput) UsesKey(pubKeyHash []byte) bool {
 	lockingHash, _ := utils.HashPubKey(in.PubKey)
 
 	return bytes.Compare(lockingHash, pubKeyHash) == 0
 }
 
-func (input TXInput) String() string {
+func (input TXCurrencyInput) String() string {
 	lines := []string{}
 
 	lines = append(lines, fmt.Sprintf("       TXID:      %x", input.Txid))
@@ -34,7 +34,7 @@ func (input TXInput) String() string {
 	return strings.Join(lines, "\n")
 }
 
-func (input TXInput) ToBytes() ([]byte, error) {
+func (input TXCurrencyInput) ToBytes() ([]byte, error) {
 	buff := new(bytes.Buffer)
 
 	err := binary.Write(buff, binary.BigEndian, input.Txid)

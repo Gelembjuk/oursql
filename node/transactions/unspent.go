@@ -38,19 +38,6 @@ func (u unspentTransactions) serializeOutputs(outs []structures.TXOutputIndepend
 	return buff.Bytes(), nil
 }
 
-// Return TX casted to currencyTX if it is that
-func (u unspentTransactions) makeCurrencyTransaction(tx structures.TransactionInterface) (*structures.CurrencyTransaction, error) {
-	if !tx.CheckTypeIs(structures.TXTypeCurrency) {
-		return nil, nil
-	}
-	txC, ok := tx.(*structures.CurrencyTransaction)
-
-	if !ok {
-		return nil, errors.New("Error cost transaction to currency tranaction")
-	}
-	return txC, nil
-}
-
 /*
 * Deserialize data from bytes loaded fom DB
  */
@@ -95,7 +82,7 @@ func (u unspentTransactions) GetAddressBalance(address string) (float64, error) 
 }
 
 // CGet input value. Input is unspent TX output
-func (u unspentTransactions) GetInputValue(input structures.TXInput) (float64, error) {
+func (u unspentTransactions) GetInputValue(input structures.TXCurrencyInput) (float64, error) {
 
 	uodb, err := u.DB.GetUnspentOutputsObject()
 
@@ -131,7 +118,7 @@ func (u unspentTransactions) GetInputValue(input structures.TXInput) (float64, e
 
 // Choose inputs for new transaction
 func (u unspentTransactions) ChooseSpendableOutputs(pubKeyHash []byte, amount float64,
-	pendinguse []structures.TXInput) (float64, []structures.TXOutputIndependent, error) {
+	pendinguse []structures.TXCurrencyInput) (float64, []structures.TXOutputIndependent, error) {
 
 	uodb, err := u.DB.GetUnspentOutputsObject()
 
@@ -399,21 +386,13 @@ func (u unspentTransactions) FindunspentTransactions() (map[string][]structures.
 		block, _ := bci.Next()
 
 		for j := len(block.Transactions) - 1; j >= 0; j-- {
-			tx, err := u.makeCurrencyTransaction(block.Transactions[j])
-
-			if err != nil {
-				return nil, err
-			}
-
-			if tx == nil {
-				continue
-			}
+			tx := &block.Transactions[j]
 
 			txID := hex.EncodeToString(tx.GetID())
 
 			sender := []byte{}
 
-			if !tx.CheckSubTypeIs(structures.TXTypeCurrencyCoinbase) {
+			if !tx.IsCoinbaseTransfer() {
 				sender, _ = utils.HashPubKey(tx.Vin[0].PubKey)
 			}
 
@@ -446,13 +425,13 @@ func (u unspentTransactions) FindunspentTransactions() (map[string][]structures.
 				outs := UTXO[txID]
 
 				oute := structures.TXOutputIndependent{}
-				oute.LoadFromSimple(out, tx.GetID(), outIdx, sender, tx.CheckSubTypeIs(structures.TXTypeCurrencyCoinbase), block.Hash)
+				oute.LoadFromSimple(out, tx.GetID(), outIdx, sender, tx.IsCoinbaseTransfer(), block.Hash)
 
 				outs = append(outs, oute)
 				UTXO[txID] = outs
 			}
 
-			if tx.CheckSubTypeIs(structures.TXTypeCurrencyCoinbase) {
+			if tx.IsCoinbaseTransfer() {
 				continue
 			}
 			for _, in := range tx.Vin {
@@ -491,22 +470,12 @@ func (u unspentTransactions) UpdateOnBlockAdd(block *structures.Block) error {
 
 	u.Logger.Trace.Printf("UPdate UTXO on block add %x", block.Hash)
 
-	for _, txT := range block.Transactions {
-		u.Logger.Trace.Printf("UpdateOnBlockAdd check tx %x", txT.GetID())
-
-		tx, err := u.makeCurrencyTransaction(txT)
-
-		if err != nil {
-			return err
-		}
-
-		if tx == nil {
-			continue
-		}
+	for _, tx := range block.Transactions {
+		u.Logger.Trace.Printf("UpdateOnBlockAdd check tx %x", tx.GetID())
 
 		sender := []byte{}
 
-		if !tx.CheckSubTypeIs(structures.TXTypeCurrencyCoinbase) {
+		if !tx.IsCoinbaseTransfer() {
 			for _, vin := range tx.Vin {
 				sender, _ = utils.HashPubKey(vin.PubKey)
 
@@ -558,7 +527,7 @@ func (u unspentTransactions) UpdateOnBlockAdd(block *structures.Block) error {
 
 		for outInd, out := range tx.Vout {
 			no := structures.TXOutputIndependent{}
-			no.LoadFromSimple(out, tx.ID, outInd, sender, tx.CheckSubTypeIs(structures.TXTypeCurrencyCoinbase), block.Hash)
+			no.LoadFromSimple(out, tx.ID, outInd, sender, tx.IsCoinbaseTransfer(), block.Hash)
 			newOutputs = append(newOutputs, no)
 		}
 
@@ -590,23 +559,13 @@ func (u unspentTransactions) UpdateOnBlockCancel(block *structures.Block) error 
 
 	u.Logger.Trace.Printf("block cancel at unspent %x , prev hash %x", block.Hash, block.PrevBlockHash) //REM
 
-	for _, txT := range block.Transactions {
-		u.Logger.Trace.Printf("BC check tx %x", txT.GetID()) //REM
-
-		tx, err := u.makeCurrencyTransaction(txT)
-
-		if err != nil {
-			return err
-		}
-
-		if tx == nil {
-			continue
-		}
+	for _, tx := range block.Transactions {
+		u.Logger.Trace.Printf("BC check tx %x", tx.GetID()) //REM
 
 		// delete this transaction from list of unspent
 		uodb.DeleteDataForTransaction(tx.GetID())
 
-		if tx.CheckSubTypeIs(structures.TXTypeCurrencyCoinbase) {
+		if tx.IsCoinbaseTransfer() {
 			continue
 		}
 
@@ -615,7 +574,7 @@ func (u unspentTransactions) UpdateOnBlockCancel(block *structures.Block) error 
 		for _, vin := range tx.Vin {
 			// when we execute cancel, current top can be already changed. we use this block hash as a top
 			// to find this TX
-			txiT, spending, blockHash, err := u.newTransactionIndex().GetCurrencyTransactionAllInfo(vin.Txid, block.PrevBlockHash)
+			txi, spending, blockHash, err := u.newTransactionIndex().GetCurrencyTransactionAllInfo(vin.Txid, block.PrevBlockHash)
 
 			//u.Logger.Trace.Printf("input tx find input %x", vin.Txid) //REM
 
@@ -624,16 +583,10 @@ func (u unspentTransactions) UpdateOnBlockCancel(block *structures.Block) error 
 				return err
 			}
 
-			if txiT == nil {
+			if txi == nil {
 				// TX is not found in current BC . no sense to add it to unspent
 				u.Logger.Trace.Printf("tx not found in current BC") //REM
 				break
-			}
-
-			txi, err := u.makeCurrencyTransaction(txiT)
-
-			if err != nil {
-				return err
 			}
 
 			//u.Logger.Trace.Printf("found tx in block %x", blockHash)   //REM
@@ -655,7 +608,7 @@ func (u unspentTransactions) UpdateOnBlockCancel(block *structures.Block) error 
 				}
 				if !spent {
 					no := structures.TXOutputIndependent{}
-					no.LoadFromSimple(out, txi.ID, outInd, sender, tx.CheckSubTypeIs(structures.TXTypeCurrencyCoinbase), blockHash)
+					no.LoadFromSimple(out, txi.ID, outInd, sender, tx.IsCoinbaseTransfer(), blockHash)
 
 					UnspentOuts = append(UnspentOuts, no)
 				}
@@ -689,13 +642,13 @@ func (u unspentTransactions) UpdateOnBlockCancel(block *structures.Block) error 
 // Returns list of inputs prepared. Even if less then requested
 // Returns previous transactions. It later will be used to prepare data to sign
 func (u unspentTransactions) GetNewTransactionInputs(PubKey []byte, to string, amount float64,
-	pendinguse []structures.TXInput) ([]structures.TXInput, map[string]structures.CurrencyTransaction, float64, error) {
+	pendinguse []structures.TXCurrencyInput) ([]structures.TXCurrencyInput, map[string]*structures.Transaction, float64, error) {
 
-	localError := func(err error) ([]structures.TXInput, map[string]structures.CurrencyTransaction, float64, error) {
+	localError := func(err error) ([]structures.TXCurrencyInput, map[string]*structures.Transaction, float64, error) {
 		return nil, nil, 0, err
 	}
 
-	inputs := []structures.TXInput{}
+	inputs := []structures.TXCurrencyInput{}
 
 	pubKeyHash, _ := utils.HashPubKey(PubKey)
 	totalamount, validOutputs, err := u.ChooseSpendableOutputs(pubKeyHash, amount, pendinguse)
@@ -713,11 +666,11 @@ func (u unspentTransactions) GetNewTransactionInputs(PubKey []byte, to string, a
 	// later we will add unconfirmed transactions if no enough funds
 
 	// build list of previous transactions
-	prevTXs := make(map[string]structures.CurrencyTransaction)
+	prevTXs := make(map[string]*structures.Transaction)
 
 	// Build a list of inputs
 	for _, out := range validOutputs {
-		input := structures.TXInput{out.TXID, out.OIndex, nil, PubKey}
+		input := structures.TXCurrencyInput{out.TXID, out.OIndex, nil, PubKey}
 		inputs = append(inputs, input)
 
 		prevTX, err := bcMan.GetTransactionFromBlock(out.TXID, out.BlockHash)
@@ -725,27 +678,20 @@ func (u unspentTransactions) GetNewTransactionInputs(PubKey []byte, to string, a
 		if err != nil {
 			return localError(err)
 		}
-		prevTXC, err := u.makeCurrencyTransaction(prevTX)
 
-		if err != nil {
-			return localError(err)
-		}
-		if prevTXC == nil {
-			return localError(errors.New("Wrong TX type"))
-		}
-		prevTXs[hex.EncodeToString(prevTX.GetID())] = *prevTXC
+		prevTXs[hex.EncodeToString(prevTX.GetID())] = prevTX
 	}
 	return inputs, prevTXs, totalamount, nil
 }
 
 // Returns previous transactions. It later will be used to prepare data to sign
 func (u unspentTransactions) ExtendNewTransactionInputs(PubKey []byte, amount, totalamount float64,
-	inputs []structures.TXInput, prevTXs map[string]structures.CurrencyTransaction,
-	pendingoutputs []*structures.TXOutputIndependent) ([]structures.TXInput, map[string]structures.CurrencyTransaction, float64, error) {
+	inputs []structures.TXCurrencyInput, prevTXs map[string]*structures.Transaction,
+	pendingoutputs []*structures.TXOutputIndependent) ([]structures.TXCurrencyInput, map[string]*structures.Transaction, float64, error) {
 
 	// Build a list of inputs
 	for _, out := range pendingoutputs {
-		input := structures.TXInput{out.TXID, out.OIndex, nil, PubKey}
+		input := structures.TXCurrencyInput{out.TXID, out.OIndex, nil, PubKey}
 		inputs = append(inputs, input)
 
 		prevTX, err := structures.DeserializeTransaction(out.BlockHash) // here we have transaction serialised, not block hash
@@ -754,7 +700,7 @@ func (u unspentTransactions) ExtendNewTransactionInputs(PubKey []byte, amount, t
 			return inputs, prevTXs, totalamount, err
 		}
 
-		prevTXs[hex.EncodeToString(prevTX.GetID())] = *(prevTX.(*structures.CurrencyTransaction))
+		prevTXs[hex.EncodeToString(prevTX.GetID())] = prevTX
 
 		totalamount += out.Value
 
@@ -767,15 +713,14 @@ func (u unspentTransactions) ExtendNewTransactionInputs(PubKey []byte, amount, t
 
 // Verifies which transactions outputs are not yet spent.
 // Returns list of inputs that are not found in list of unspent outputs
-func (u unspentTransactions) VerifyTransactionsOutputsAreNotSpent(txilist []structures.TXInput) (map[int]structures.TXInput, map[int]structures.TransactionInterface, error) {
-	localError := func(err error) (map[int]structures.TXInput, map[int]structures.TransactionInterface, error) {
+func (u unspentTransactions) VerifyTransactionsOutputsAreNotSpent(txilist []structures.TXCurrencyInput) (map[int]structures.TXCurrencyInput, map[int]*structures.Transaction, error) {
+	localError := func(err error) (map[int]structures.TXCurrencyInput, map[int]*structures.Transaction, error) {
 		return nil, nil, err
 	}
 	// list of full input transactions. it can be used to verify signature later
-	inputTX := map[int]structures.TransactionInterface{}
+	inputTX := map[int]*structures.Transaction{}
 
-	var notFoundInputs map[int]structures.TXInput
-	notFoundInputs = make(map[int]structures.TXInput)
+	notFoundInputs := make(map[int]structures.TXCurrencyInput)
 
 	uodb, err := u.DB.GetUnspentOutputsObject()
 

@@ -13,7 +13,7 @@ import (
 // Block represents a block in the blockchain
 type Block struct {
 	Timestamp     int64
-	Transactions  []TransactionInterface
+	Transactions  []Transaction
 	PrevBlockHash []byte
 	Hash          []byte
 	Nonce         int
@@ -120,7 +120,7 @@ func (b *Block) GetSimpler() *BlockSimpler {
 func (b *Block) Copy() *Block {
 	bc := Block{}
 	bc.Timestamp = b.Timestamp
-	bc.Transactions = []TransactionInterface{}
+	bc.Transactions = []Transaction{}
 
 	bc.PrevBlockHash = make([]byte, len(b.PrevBlockHash))
 
@@ -139,15 +139,19 @@ func (b *Block) Copy() *Block {
 
 	for _, t := range b.Transactions {
 		tc, _ := t.Copy()
-		bc.Transactions = append(bc.Transactions, tc)
+		bc.Transactions = append(bc.Transactions, *tc)
 	}
 	return &bc
 }
 
 // Fills a block with transactions. But without signatures
-func (b *Block) PrepareNewBlock(transactions []TransactionInterface, prevBlockHash []byte, height int) error {
+func (b *Block) PrepareNewBlock(transactions []*Transaction, prevBlockHash []byte, height int) error {
 	b.Timestamp = time.Now().Unix()
-	b.Transactions = transactions[:]
+	b.Transactions = []Transaction{}
+
+	for _, tx := range transactions {
+		b.Transactions = append(b.Transactions, *tx)
+	}
 
 	b.PrevBlockHash = make([]byte, len(prevBlockHash))
 
@@ -183,7 +187,7 @@ func (b *Block) HashTransactions() ([]byte, error) {
 func (b *Block) Serialize() ([]byte, error) {
 	var result bytes.Buffer
 
-	gob.Register(&CurrencyTransaction{})
+	gob.Register(&Transaction{})
 
 	encoder := gob.NewEncoder(&result)
 
@@ -197,7 +201,7 @@ func (b *Block) Serialize() ([]byte, error) {
 
 // DeserializeBlock deserializes a block
 func (b *Block) DeserializeBlock(d []byte) error {
-	gob.Register(&CurrencyTransaction{})
+	gob.Register(&Transaction{})
 	decoder := gob.NewDecoder(bytes.NewReader(d))
 	err := decoder.Decode(&b)
 

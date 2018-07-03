@@ -12,7 +12,7 @@ import (
 )
 
 // TXOutput represents a transaction output
-type TXOutput struct {
+type TXCurrrencyOutput struct {
 	Value      float64
 	PubKeyHash []byte
 }
@@ -33,14 +33,14 @@ type TXOutputIndependent struct {
 type TXOutputIndependentList []TXOutputIndependent
 
 // Lock signs the output
-func (out *TXOutput) Lock(address []byte) {
+func (out *TXCurrrencyOutput) Lock(address []byte) {
 	pubKeyHash := utils.Base58Decode(address)
 	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
 	out.PubKeyHash = pubKeyHash
 }
 
 // IsLockedWithKey checks if the output can be used by the owner of the pubkey
-func (out *TXOutput) IsLockedWithKey(pubKeyHash []byte) bool {
+func (out *TXCurrrencyOutput) IsLockedWithKey(pubKeyHash []byte) bool {
 	return bytes.Compare(out.PubKeyHash, pubKeyHash) == 0
 }
 
@@ -50,7 +50,7 @@ func (out *TXOutputIndependent) IsLockedWithKey(pubKeyHash []byte) bool {
 }
 
 // build independed transaction from normal output
-func (out *TXOutputIndependent) LoadFromSimple(sout TXOutput, txid []byte, ind int, sender []byte, iscoinbase bool, blockHash []byte) {
+func (out *TXOutputIndependent) LoadFromSimple(sout TXCurrrencyOutput, txid []byte, ind int, sender []byte, iscoinbase bool, blockHash []byte) {
 	out.OIndex = ind
 	out.DestPubKeyHash = sout.PubKeyHash
 	out.SendPubKeyHash = sender
@@ -61,8 +61,8 @@ func (out *TXOutputIndependent) LoadFromSimple(sout TXOutput, txid []byte, ind i
 }
 
 // NewTXOutput create a new TXOutput
-func NewTXOutput(value float64, address string) *TXOutput {
-	txo := &TXOutput{value, nil}
+func NewTXOutput(value float64, address string) *TXCurrrencyOutput {
+	txo := &TXCurrrencyOutput{value, nil}
 	txo.Lock([]byte(address))
 
 	return txo
@@ -70,7 +70,7 @@ func NewTXOutput(value float64, address string) *TXOutput {
 
 // TXOutputs collects TXOutput
 type TXOutputs struct {
-	Outputs []TXOutput
+	Outputs []TXCurrrencyOutput
 }
 
 // Serialize serializes TXOutputs
@@ -99,7 +99,7 @@ func DeserializeOutputs(data []byte) TXOutputs {
 	return outputs
 }
 
-func (output TXOutput) String() string {
+func (output TXCurrrencyOutput) String() string {
 	lines := []string{}
 
 	lines = append(lines, fmt.Sprintf("       Value:  %f", output.Value))
@@ -108,7 +108,7 @@ func (output TXOutput) String() string {
 	return strings.Join(lines, "\n")
 }
 
-func (output TXOutput) ToBytes() ([]byte, error) {
+func (output TXCurrrencyOutput) ToBytes() ([]byte, error) {
 	buff := new(bytes.Buffer)
 
 	err := binary.Write(buff, binary.BigEndian, output.Value)

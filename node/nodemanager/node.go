@@ -211,7 +211,7 @@ func (n *Node) RestoreBlockchain(file string) error {
 /*
 * Send transaction to all known nodes. This wil send only hash and node hash to check if hash exists or no
  */
-func (n *Node) SendTransactionToAll(tx structures.TransactionInterface) {
+func (n *Node) SendTransactionToAll(tx *structures.Transaction) {
 	n.Logger.Trace.Printf("Send transaction to %d nodes", len(n.NodeNet.Nodes))
 
 	for _, node := range n.NodeNet.Nodes {

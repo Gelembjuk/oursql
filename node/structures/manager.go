@@ -2,7 +2,6 @@ package structures
 
 import (
 	"crypto/rand"
-	"errors"
 	"fmt"
 
 	"github.com/gelembjuk/oursql/lib"
@@ -31,57 +30,41 @@ func NewBlockFromBytes(bsdata []byte) (*Block, error) {
 }
 
 // New "currency" transaction.
-func NewCurrencyTransaction(inputs []TXInput, outputs []TXOutput) (TransactionInterface, error) {
-	return &CurrencyTransaction{nil, inputs, outputs, 0}, nil
+func NewTransaction(sqlcommand string, inputs []TXCurrencyInput, outputs []TXCurrrencyOutput) (*Transaction, error) {
+	tx := &Transaction{}
+	tx.Vin = inputs
+	tx.Vout = outputs
+	tx.SQLCommand = []byte(sqlcommand)
+	return tx, nil
 }
 
 // Serialize Transaction
-func SerializeTransaction(tx TransactionInterface) ([]byte, error) {
+func SerializeTransaction(tx *Transaction) ([]byte, error) {
 	// add TX type to know how to deSerialize
-	var txType byte
-	var txData []byte
-	var err error
 
-	if tx.CheckTypeIs(TXTypeCurrency) {
-		txType = txTypeCurrency
+	txData, err := tx.serialize()
 
-		txC := tx.(*CurrencyTransaction)
-
-		txData, err = txC.serialize()
-
-		if err != nil {
-			return nil, err
-		}
-	} else if tx.CheckTypeIs(TXTypeSQL) {
-		txType = txTypeSQL
-		return nil, errors.New("Not implemented yet")
-	} else {
-		return nil, errors.New("Unknown type")
+	if err != nil {
+		return nil, err
 	}
 
-	return append([]byte{txType}, txData...), nil
+	return txData, nil
 }
 
 // Serialize Transaction
-func DeserializeTransaction(txData []byte) (TransactionInterface, error) {
+func DeserializeTransaction(txData []byte) (*Transaction, error) {
 	// get type from first byte
-	txType := txData[0]
-	txData = txData[1:]
+	tx := &Transaction{}
+	err := tx.DeserializeTransaction(txData)
 
-	if txType == txTypeCurrency {
-		tx := &CurrencyTransaction{}
-		err := tx.DeserializeTransaction(txData)
-
-		if err != nil {
-			return nil, err
-		}
-		return tx, nil
+	if err != nil {
+		return nil, err
 	}
-	return nil, errors.New("Unknown TX type")
+	return tx, nil
 }
 
 // New "currency" Coin Base transaction. This transaction must be present in each new block
-func NewCurrencyCoinbaseTransaction(to, data string) (TransactionInterface, error) {
+func NewCoinbaseTransaction(to, data string) (*Transaction, error) {
 	if data == "" {
 		randData := make([]byte, 20)
 		_, err := rand.Read(randData)
@@ -92,11 +75,11 @@ func NewCurrencyCoinbaseTransaction(to, data string) (TransactionInterface, erro
 
 		data = fmt.Sprintf("%x", randData)
 	}
-	tx := &CurrencyTransaction{}
-	txin := TXInput{[]byte{}, -1, nil, []byte(data)}
+	tx := &Transaction{}
+	txin := TXCurrencyInput{[]byte{}, -1, nil, []byte(data)}
 	txout := NewTXOutput(lib.CurrencyPaymentForBlockMade, to)
-	tx.Vin = []TXInput{txin}
-	tx.Vout = []TXOutput{*txout}
+	tx.Vin = []TXCurrencyInput{txin}
+	tx.Vout = []TXCurrrencyOutput{*txout}
 
 	tx.Hash()
 
@@ -104,7 +87,7 @@ func NewCurrencyCoinbaseTransaction(to, data string) (TransactionInterface, erro
 }
 
 // Sorting of transactions slice
-type Transactions []TransactionInterface
+type Transactions []*Transaction
 
 func (c Transactions) Len() int           { return len(c) }
 func (c Transactions) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
