@@ -35,6 +35,7 @@ func NewTransaction(sqlcommand string, inputs []TXCurrencyInput, outputs []TXCur
 	tx.Vin = inputs
 	tx.Vout = outputs
 	tx.SQLCommand = []byte(sqlcommand)
+	tx.initNewTX() // init new object
 	return tx, nil
 }
 
@@ -76,12 +77,14 @@ func NewCoinbaseTransaction(to, data string) (*Transaction, error) {
 		data = fmt.Sprintf("%x", randData)
 	}
 	tx := &Transaction{}
-	txin := TXCurrencyInput{[]byte{}, -1, nil, []byte(data)}
+	txin := TXCurrencyInput{[]byte{}, -1}
 	txout := NewTXOutput(lib.CurrencyPaymentForBlockMade, to)
 	tx.Vin = []TXCurrencyInput{txin}
 	tx.Vout = []TXCurrrencyOutput{*txout}
-
-	tx.Hash()
+	// init this newobject
+	tx.initNewTX()
+	// we don't need to do more action here. complete now. there are no signatures or so
+	tx.completeNewTX()
 
 	return tx, nil
 }

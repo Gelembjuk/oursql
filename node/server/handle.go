@@ -183,7 +183,7 @@ func (s *NodeServerRequest) handleTxData() error {
 		return err
 	}
 
-	TX, err := s.Node.GetTransactionsManager().ReceivedNewCurrencyTransactionData(payload.TX, payload.Signatures)
+	TX, err := s.Node.GetTransactionsManager().ReceivedNewCurrencyTransactionData(payload.TX, payload.Signature)
 
 	if err != nil {
 		return errors.New(fmt.Sprintf("Transaction accepting error: %s", err.Error()))

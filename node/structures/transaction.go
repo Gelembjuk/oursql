@@ -27,6 +27,16 @@ type Transaction struct {
 	SQLCommand []byte
 }
 
+// execute when new tranaction object is created
+func (tx *Transaction) initNewTX() {
+	tx.Time = time.Now().UTC().UnixNano()
+}
+
+// execute when new TX is ready. all is set. do last action
+func (tx *Transaction) completeNewTX() {
+	tx.makeHash()
+}
+
 // Return ID of transaction
 func (tx Transaction) GetID() []byte {
 	return tx.ID
@@ -60,12 +70,7 @@ func (tx Transaction) NeedsSignature() bool {
 }
 
 // Hash returns the hash of the Transaction
-func (tx *Transaction) timeNow() {
-	tx.Time = time.Now().UTC().UnixNano()
-}
-
-// Hash returns the hash of the Transaction
-func (tx *Transaction) Hash() ([]byte, error) {
+func (tx *Transaction) makeHash() ([]byte, error) {
 	var hash [32]byte
 
 	txCopy := *tx
@@ -89,9 +94,9 @@ func (tx Transaction) String() string {
 	from := "Coin Base"
 	fromhash := []byte{}
 
-	if !tx.IsCoinbaseTransfer() && !tx.IsSQLCommand() {
-		from, _ = utils.PubKeyToAddres(tx.Vin[0].PubKey)
-		fromhash, _ = utils.HashPubKey(tx.Vin[0].PubKey)
+	if !tx.IsCoinbaseTransfer() {
+		from, _ = utils.PubKeyToAddres(tx.ByPubKey)
+		fromhash, _ = utils.HashPubKey(tx.ByPubKey)
 	}
 
 	to := ""
@@ -109,15 +114,11 @@ func (tx Transaction) String() string {
 	lines = append(lines, fmt.Sprintf("    FROM %s TO %s VALUE %f", from, to, amount))
 	lines = append(lines, fmt.Sprintf("    Time %d (%s)", tx.Time, time.Unix(0, tx.Time)))
 
-	if !tx.IsCurrencyTransfer() && !tx.IsSQLCommand() {
+	if !tx.IsCoinbaseTransfer() && !tx.IsSQLCommand() {
 		for i, input := range tx.Vin {
-			address, _ := utils.PubKeyToAddres(input.PubKey)
 			lines = append(lines, fmt.Sprintf("     Input %d:", i))
 			lines = append(lines, fmt.Sprintf("       TXID:      %x", input.Txid))
 			lines = append(lines, fmt.Sprintf("       Out:       %d", input.Vout))
-			lines = append(lines, fmt.Sprintf("       Signature: %x", input.Signature))
-			lines = append(lines, fmt.Sprintf("       PubKey:    %x", input.PubKey))
-			lines = append(lines, fmt.Sprintf("       Address:   %s", address))
 		}
 	}
 
@@ -133,67 +134,29 @@ func (tx Transaction) String() string {
 }
 
 // TrimmedCopy creates a trimmed copy of Transaction to be used in signing
-func (tx *Transaction) trimmedCopy() Transaction {
-	var inputs []TXCurrencyInput
-	var outputs []TXCurrrencyOutput
-
-	for _, vin := range tx.Vin {
-		inputs = append(inputs, TXCurrencyInput{vin.Txid, vin.Vout, nil, nil})
-	}
-
-	for _, vout := range tx.Vout {
-		pkh := utils.CopyBytes(vout.PubKeyHash)
-
-		outputs = append(outputs, TXCurrrencyOutput{vout.Value, pkh})
-	}
-	txID := utils.CopyBytes(tx.ID)
-	txCopy := Transaction{}
-	txCopy.ID = txID
-	txCopy.Time = tx.Time
-	txCopy.Vin = inputs
-	txCopy.Vout = outputs
-
-	return txCopy
-}
-
-// TrimmedCopy creates a trimmed copy of Transaction to be used in signing
 func (tx Transaction) Copy() (*Transaction, error) {
 	//if tx.IsCoinbase() {
 	//	return *tx, nil
 	//}
-	var inputs []TXCurrencyInput
-	var outputs []TXCurrrencyOutput
-
-	for _, vin := range tx.Vin {
-		sig := utils.CopyBytes(vin.Signature)
-
-		pk := utils.CopyBytes(vin.PubKey)
-
-		inputs = append(inputs, TXCurrencyInput{vin.Txid, vin.Vout, sig, pk})
-	}
-
-	for _, vout := range tx.Vout {
-		pkh := utils.CopyBytes(vout.PubKeyHash)
-
-		outputs = append(outputs, TXCurrrencyOutput{vout.Value, pkh})
-	}
-
-	txID := utils.CopyBytes(tx.ID)
 
 	txCopy := &Transaction{}
-	txCopy.ID = txID
+	txCopy.ID = tx.ID
 	txCopy.Time = tx.Time
-	txCopy.Vin = inputs
-	txCopy.Vout = outputs
+	txCopy.Vin = tx.Vin
+	txCopy.Vout = tx.Vout
+	txCopy.Signature = tx.Signature
+	txCopy.ByPubKey = tx.ByPubKey
 
 	return txCopy, nil
 }
 
-// prepare data to sign as part of transaction
-// this return slice of slices. Every of them must be signed for each TX Input
-func (tx *Transaction) PrepareSignData(prevTXs map[int]*Transaction) ([][]byte, error) {
-	tx.timeNow()
+// prepare data to sign a transaction
+// this return []bytes. it is bytes representation of a TX.
+func (tx *Transaction) PrepareSignData(pubKey []byte, prevTXs map[int]*Transaction) ([]byte, error) {
 
+	pubKeyHash, _ := utils.HashPubKey(pubKey)
+
+	// check if input transactions map is correct
 	for vinInd, vin := range tx.Vin {
 		if _, ok := prevTXs[vinInd]; !ok {
 			return nil, errors.New("Previous transaction is not correct")
@@ -201,40 +164,26 @@ func (tx *Transaction) PrepareSignData(prevTXs map[int]*Transaction) ([][]byte, 
 		if bytes.Compare(prevTXs[vinInd].GetID(), vin.Txid) != 0 {
 			return nil, errors.New("Previous transaction is not correct")
 		}
+
+		if bytes.Compare(pubKeyHash, prevTXs[vinInd].Vout[vin.Vout].PubKeyHash) != 0 {
+			// check if output of previous transaction really belomgs to this pub key
+			return nil, errors.New("Previous Transaction was assigned to other address")
+		}
 	}
 
-	signdata := make([][]byte, len(tx.Vin))
+	tx.ByPubKey = pubKey
+	tx.Signature = []byte{}
+	tx.ID = []byte{}
 
-	txCopy := tx.trimmedCopy()
-	txCopy.ID = []byte{}
-
-	for inID, _ := range txCopy.Vin {
-		txCopy.Vin[inID].Signature = nil
-	}
-
-	for inID, vin := range txCopy.Vin {
-		prevTx := prevTXs[inID]
-
-		txCopy.Vin[inID].PubKey = prevTx.Vout[vin.Vout].PubKeyHash
-
-		signdata[inID], _ = txCopy.ToBytes()
-
-		txCopy.Vin[inID].PubKey = nil
-	}
-
-	return signdata, nil
+	return tx.ToBytes()
 }
 
 // Sets signatures for inputs. Signatures were created separately for data set prepared before
 // in the function PrepareSignData
-func (tx *Transaction) SetSignatures(signatures [][]byte) error {
+func (tx *Transaction) CompleteTransaction(signature []byte) error {
+	tx.Signature = signature
 
-	for inID, _ := range tx.Vin {
-
-		tx.Vin[inID].Signature = signatures[inID]
-	}
-	// when transaction is complete, we can add ID to it
-	tx.Hash()
+	tx.completeNewTX()
 
 	return nil
 }
@@ -264,42 +213,40 @@ func (tx *Transaction) Verify(prevTXs map[int]*Transaction) error {
 		amount := prevTx.Vout[vin.Vout].Value
 		totalinput += amount
 	}
-
-	txCopy := tx.trimmedCopy()
+	// VERIFY signature
+	// build copy to make sign data
+	txCopy, err := tx.Copy()
+	if err != nil {
+		return err
+	}
+	txCopy.Signature = []byte{}
 	txCopy.ID = []byte{}
 
-	for inID, _ := range tx.Vin {
-		txCopy.Vin[inID].Signature = nil
-		txCopy.Vin[inID].PubKey = nil
+	stringtosign, err := txCopy.ToBytes()
+
+	if err != nil {
+		return err
 	}
+
+	v, err := utils.VerifySignature(tx.Signature, stringtosign, tx.ByPubKey)
+
+	if err != nil {
+		return err
+	}
+
+	if !v {
+		return errors.New(fmt.Sprintf("Signatire doe not match for TX %x.", tx.GetID()))
+	}
+
+	pubKeyHash, _ := utils.HashPubKey(tx.ByPubKey)
 
 	for inID, vin := range tx.Vin {
 		// full input transaction
-
 		prevTx := prevTXs[inID]
 
-		//hash of key who signed this input
-		signPubKeyHash, _ := utils.HashPubKey(vin.PubKey)
-
-		if bytes.Compare(prevTx.Vout[vin.Vout].PubKeyHash, signPubKeyHash) != 0 {
+		if bytes.Compare(prevTx.Vout[vin.Vout].PubKeyHash, pubKeyHash) != 0 {
 			return errors.New(fmt.Sprintf("Sign Key Hash for input %x is different from output hash", vin.Txid))
 		}
-
-		// replace pub key with its hash. same was done when signing
-		txCopy.Vin[inID].PubKey = prevTx.Vout[vin.Vout].PubKeyHash
-
-		dataToVerify, _ := txCopy.ToBytes()
-
-		v, err := utils.VerifySignature(vin.Signature, dataToVerify, vin.PubKey)
-
-		if err != nil {
-			return err
-		}
-
-		if !v {
-			return errors.New(fmt.Sprintf("Signatire doe not match for input TX %x.", vin.Txid))
-		}
-		txCopy.Vin[inID].PubKey = nil
 	}
 
 	// calculate total output of transaction
@@ -385,6 +332,24 @@ func (tx Transaction) ToBytes() ([]byte, error) {
 		return nil, err
 	}
 
+	err = binary.Write(buff, binary.BigEndian, tx.Signature)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Write(buff, binary.BigEndian, tx.ByPubKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Write(buff, binary.BigEndian, tx.SQLCommand)
+
+	if err != nil {
+		return nil, err
+	}
+
 	return buff.Bytes(), nil
 }
 
@@ -395,6 +360,15 @@ func (tx Transaction) IsComplete() bool {
 	return false
 }
 
+// UsesKey checks whether the address initiated the transaction
+
+func (tx Transaction) CreatedByPubKeyHash(pubKeyHash []byte) bool {
+	lockingHash, _ := utils.HashPubKey(tx.ByPubKey)
+
+	return bytes.Compare(lockingHash, pubKeyHash) == 0
+}
+
+//
 func (tx Transaction) GetTime() int64 {
 	return tx.Time
 }

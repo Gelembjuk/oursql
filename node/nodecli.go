@@ -103,6 +103,7 @@ func (c NodeCLI) isInteractiveMode() bool {
 		"makeblock",
 		"reindexcache",
 		"send",
+		"sql",
 		"getbalance",
 		"getbalances",
 		"createwallet",
@@ -198,6 +199,9 @@ func (c NodeCLI) ExecuteCommand() error {
 
 	} else if c.Command == "send" {
 		return c.commandSend()
+
+	} else if c.Command == "sql" {
+		return c.commandSQL()
 
 	} else if c.Command == "unapprovedtransactions" {
 		return c.commandUnapprovedTransactions()
@@ -831,8 +835,7 @@ func (c *NodeCLI) commandSQL() error {
 		return err
 	}
 
-	txid, err := c.Node.Send(walletobj.GetPublicKey(), walletobj.GetPrivateKey(),
-		c.Input.Args.To, c.Input.Args.Amount)
+	txid, err := c.Node.SQLTransaction(walletobj.GetPublicKey(), walletobj.GetPrivateKey(), c.Input.Args.SQL)
 
 	if err != nil {
 		return err

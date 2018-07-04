@@ -72,9 +72,9 @@ type ComNewTransaction struct {
 
 // New Transaction Data command. It includes prepared TX and signatures for imputs
 type ComNewTransactionData struct {
-	Address    string
-	TX         []byte
-	Signatures [][]byte
+	Address   string
+	TX        []byte
+	Signature []byte
 }
 
 // To Request new transaction by wallet.
@@ -91,7 +91,7 @@ type ComRequestTransaction struct {
 // and data to sign
 type ComRequestTransactionData struct {
 	TX         []byte
-	DataToSign [][]byte
+	DataToSign []byte
 }
 
 // For request to get list of unspent transactions by wallet
@@ -339,11 +339,11 @@ func (c *NodeClient) SendGetHistory(addr netlib.NodeAddr, address string) ([]Com
 }
 
 // Send new transaction from a wallet to a node
-func (c *NodeClient) SendNewTransactionData(addr netlib.NodeAddr, from string, txBytes []byte, signatures [][]byte) ([]byte, error) {
+func (c *NodeClient) SendNewTransactionData(addr netlib.NodeAddr, from string, txBytes []byte, signature []byte) ([]byte, error) {
 	data := ComNewTransactionData{}
 	data.Address = from
 	data.TX = txBytes
-	data.Signatures = signatures
+	data.Signature = signature
 
 	request, err := c.BuildCommandData("txdata", &data)
 
@@ -366,7 +366,7 @@ func (c *NodeClient) SendNewTransactionData(addr netlib.NodeAddr, from string, t
 // It returns a transaction without signature.
 // Wallet has to sign it and then use SendNewTransaction to send completed transaction
 func (c *NodeClient) SendRequestNewCurrencyTransaction(addr netlib.NodeAddr,
-	PubKey []byte, to string, amount float64) ([]byte, [][]byte, error) {
+	PubKey []byte, to string, amount float64) ([]byte, []byte, error) {
 
 	data := ComRequestTransaction{}
 	data.PubKey = PubKey

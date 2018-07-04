@@ -393,7 +393,7 @@ func (u unspentTransactions) FindunspentTransactions() (map[string][]structures.
 			sender := []byte{}
 
 			if !tx.IsCoinbaseTransfer() {
-				sender, _ = utils.HashPubKey(tx.Vin[0].PubKey)
+				sender, _ = utils.HashPubKey(tx.ByPubKey)
 			}
 
 			var spent bool
@@ -476,8 +476,9 @@ func (u unspentTransactions) UpdateOnBlockAdd(block *structures.Block) error {
 		sender := []byte{}
 
 		if !tx.IsCoinbaseTransfer() {
+			sender, _ = utils.HashPubKey(tx.ByPubKey)
+
 			for _, vin := range tx.Vin {
-				sender, _ = utils.HashPubKey(vin.PubKey)
 
 				outsBytes, err := uodb.GetDataForTransaction(vin.Txid)
 
@@ -568,7 +569,7 @@ func (u unspentTransactions) UpdateOnBlockCancel(block *structures.Block) error 
 		if tx.IsCoinbaseTransfer() {
 			continue
 		}
-
+		sender, _ := utils.HashPubKey(tx.ByPubKey)
 		// all input outputs must be added back to unspent
 		// but only if inputs are in current BC
 		for _, vin := range tx.Vin {
@@ -592,8 +593,6 @@ func (u unspentTransactions) UpdateOnBlockCancel(block *structures.Block) error 
 			//u.Logger.Trace.Printf("found tx in block %x", blockHash)   //REM
 			//u.Logger.Trace.Printf("spendings count %d", len(spending)) //REM
 			//u.Logger.Trace.Printf("spendings count %s", spending)      //REM
-
-			sender, _ := utils.HashPubKey(txi.Vin[0].PubKey)
 
 			UnspentOuts := []structures.TXOutputIndependent{}
 
@@ -670,7 +669,7 @@ func (u unspentTransactions) GetNewTransactionInputs(PubKey []byte, to string, a
 
 	// Build a list of inputs
 	for _, out := range validOutputs {
-		input := structures.TXCurrencyInput{out.TXID, out.OIndex, nil, PubKey}
+		input := structures.TXCurrencyInput{out.TXID, out.OIndex}
 		inputs = append(inputs, input)
 
 		prevTX, err := bcMan.GetTransactionFromBlock(out.TXID, out.BlockHash)
@@ -691,7 +690,7 @@ func (u unspentTransactions) ExtendNewTransactionInputs(PubKey []byte, amount, t
 
 	// Build a list of inputs
 	for _, out := range pendingoutputs {
-		input := structures.TXCurrencyInput{out.TXID, out.OIndex, nil, PubKey}
+		input := structures.TXCurrencyInput{out.TXID, out.OIndex}
 		inputs = append(inputs, input)
 
 		prevTX, err := structures.DeserializeTransaction(out.BlockHash) // here we have transaction serialised, not block hash

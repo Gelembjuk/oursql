@@ -23,6 +23,7 @@ type AppInput struct {
 	ConfigDir string
 	Nodes     []net.NodeAddr
 	LogDest   string
+	SQL       string
 }
 
 type WalletCLI struct {
@@ -123,6 +124,9 @@ func (wc *WalletCLI) ExecuteCommand() error {
 
 	} else if wc.Input.Command == "send" {
 		return wc.commandSend()
+
+	} else if wc.Input.Command == "sql" {
+		return wc.commandSQL()
 
 	} else if wc.Input.Command == "showunspent" {
 		return wc.commandUnspentTransactions()
@@ -293,9 +297,55 @@ func (wc *WalletCLI) commandSend() error {
 		return err
 	}
 	// Sign transaction data
-	signatures, err := utils.SignDataSet(walletobj.GetPublicKey(), walletobj.GetPrivateKey(), DataToSign)
+	signature, err := utils.SignDataByPubKey(walletobj.GetPublicKey(), walletobj.GetPrivateKey(), DataToSign)
 
-	NewTXID, err := wc.NodeCLI.SendNewTransactionData(wc.Node, wc.Input.Address, TXBytes, signatures)
+	NewTXID, err := wc.NodeCLI.SendNewTransactionData(wc.Node, wc.Input.Address, TXBytes, signature)
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Success. New transaction: %x\n", NewTXID)
+
+	return nil
+}
+
+// Send money command. Connects to a node to do this operation
+func (wc *WalletCLI) commandSQL() error {
+	w := Wallet{}
+	// check input
+	if !w.ValidateAddress(wc.Input.Address) {
+		return errors.New("From Address is not valid")
+	}
+	if !w.ValidateAddress(wc.Input.ToAddress) {
+		return errors.New("To Address is not valid")
+	}
+
+	if wc.Input.Amount <= 0 {
+		return errors.New("The amount of transaction must be more 0")
+	}
+
+	wc.Logger.Trace.Printf("Prepare wallet %s to send data to node %s", wc.Input.Address, wc.Node.NodeAddrToString())
+
+	// load wallet object for this address
+	walletobj, err := wc.WalletsObj.GetWallet(wc.Input.Address)
+
+	if err != nil {
+		return err
+	}
+
+	// Prepares new transaction without signatures
+	// This is just request to a node and it returns prepared transaction
+	TXBytes, DataToSign, err := wc.NodeCLI.SendRequestNewCurrencyTransaction(wc.Node,
+		walletobj.GetPublicKey(), wc.Input.ToAddress, wc.Input.Amount)
+
+	if err != nil {
+		return err
+	}
+	// Sign transaction data
+	signature, err := utils.SignDataByPubKey(walletobj.GetPublicKey(), walletobj.GetPrivateKey(), DataToSign)
+
+	NewTXID, err := wc.NodeCLI.SendNewTransactionData(wc.Node, wc.Input.Address, TXBytes, signature)
 
 	if err != nil {
 		return err

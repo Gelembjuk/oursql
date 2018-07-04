@@ -145,12 +145,12 @@ func (b *Block) Copy() *Block {
 }
 
 // Fills a block with transactions. But without signatures
-func (b *Block) PrepareNewBlock(transactions []*Transaction, prevBlockHash []byte, height int) error {
+func (b *Block) PrepareNewBlock(transactions []Transaction, prevBlockHash []byte, height int) error {
 	b.Timestamp = time.Now().Unix()
 	b.Transactions = []Transaction{}
 
 	for _, tx := range transactions {
-		b.Transactions = append(b.Transactions, *tx)
+		b.Transactions = append(b.Transactions, tx)
 	}
 
 	b.PrevBlockHash = make([]byte, len(prevBlockHash))

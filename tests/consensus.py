@@ -24,8 +24,8 @@ def aftertest(testfilter):
 def test(testfilter):
     global datadirs
     _lib.CleanTestFolders()
-    #return _complex.Make5BlocksBC()
-    return _complex.PrepareNodes()
+    return _complex.Make5BlocksBC()
+    #return _complex.PrepareNodes()
 
     dirs = _complex.Copy6Nodes()
     

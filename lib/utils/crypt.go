@@ -50,7 +50,39 @@ func VerifySignature(signature []byte, message []byte, PubKey []byte) (bool, err
 
 	return ecdsa.Verify(&rawPubKey, data, &r, &s), nil
 }
+func SignDataByPubKey(PubKey []byte, privKey ecdsa.PrivateKey, dataToSign []byte) ([]byte, error) {
+	attempt := 1
 
+	var signature []byte
+	var err error
+
+	for {
+		// we can do more 1 attempt to sign. we found some cases where verification of signature fails
+		// we don't know the reason
+		signature, err = SignData(privKey, dataToSign)
+
+		if err != nil {
+			return nil, err
+		}
+
+		attempt = attempt + 1
+
+		v, err := VerifySignature(signature, dataToSign, PubKey)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if v {
+			break
+		}
+
+		if attempt > 10 {
+			break
+		}
+	}
+	return signature, nil
+}
 func SignDataSet(PubKey []byte, privKey ecdsa.PrivateKey, dataSetsToSign [][]byte) ([][]byte, error) {
 	signatures := [][]byte{}
 

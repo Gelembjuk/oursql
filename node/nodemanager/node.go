@@ -13,6 +13,7 @@ import (
 	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/blockchain"
 	"github.com/gelembjuk/oursql/node/consensus"
+	"github.com/gelembjuk/oursql/node/dbquery"
 	"github.com/gelembjuk/oursql/node/structures"
 	"github.com/gelembjuk/oursql/node/transactions"
 )
@@ -92,6 +93,11 @@ func (n *NodeLocks) InitLocks() {
 // Build transaction manager structure
 func (n *Node) GetTransactionsManager() transactions.TransactionsManagerInterface {
 	return transactions.NewManager(n.DBConn.DB(), n.Logger)
+}
+
+// Build Db query manager object
+func (n *Node) GetDBQueryManager() dbquery.DbQueryInterface {
+	return dbquery.NewManager(n.DBConn.DB(), n.Logger)
 }
 
 // Build BC manager structure
@@ -302,10 +308,9 @@ func (n *Node) CheckAddressKnown(addr net.NodeAddr) bool {
 	return false
 }
 
-/*
-* Send money .
-* This adds a transaction directly to the DB. Can be executed when a node server is not running
- */
+// Send money .
+// This adds a transaction directly to the DB. Can be executed when a node server is not running
+// This creates currency transfer transaction where SQL command is not present
 func (n *Node) Send(PubKey []byte, privKey ecdsa.PrivateKey, to string, amount float64) ([]byte, error) {
 	// get pubkey of the wallet with "from" address
 	if to == "" {
@@ -318,6 +323,21 @@ func (n *Node) Send(PubKey []byte, privKey ecdsa.PrivateKey, to string, amount f
 	}
 
 	tx, err := n.GetTransactionsManager().CreateCurrencyTransaction(PubKey, privKey, to, amount)
+
+	if err != nil {
+		return nil, err
+	}
+	n.SendTransactionToAll(tx)
+
+	return tx.GetID(), nil
+}
+
+// Execute SQL query
+// This adds a transaction directly to the DB. Can be executed when a node server is not running
+// This creates SQL transaction . Currency part can be present if SQL query "costs money"
+func (n *Node) SQLTransaction(PubKey []byte, privKey ecdsa.PrivateKey, sqlcommand string) ([]byte, error) {
+
+	tx, err := n.GetDBQueryManager().StartSQLQueryTransaction(PubKey, privKey, sqlcommand)
 
 	if err != nil {
 		return nil, err
@@ -407,6 +427,7 @@ func (n *Node) TryToMakeBlock(newTransactionID []byte) ([]byte, error) {
 // It can be executed when new block was created locally or received from other node
 
 func (n *Node) AddBlock(block *structures.Block) (uint, error) {
+	n.Logger.Trace.Printf("Add block 1. %x", block.Hash)
 	bcm, err := n.GetBCManager()
 
 	if err != nil {
@@ -415,7 +436,7 @@ func (n *Node) AddBlock(block *structures.Block) (uint, error) {
 
 	n.locks.blockAddLock.Lock()
 	defer n.locks.blockAddLock.Unlock()
-
+	n.Logger.Trace.Printf("Add block. Lock passed. %x", block.Hash)
 	curLastHash, _, err := bcm.GetState()
 
 	// we need to know how the block was added to managed transactions caches correctly

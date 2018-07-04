@@ -202,7 +202,7 @@ func (n *NodeBlockMaker) CompleteBlock() (*structures.Block, error) {
 
 // this builds a block object from given transactions list
 // adds coinbase transacion (prize for miner)
-func (n *NodeBlockMaker) makeNewBlockFromTransactions(transactions []*structures.Transaction) (*structures.Block, error) {
+func (n *NodeBlockMaker) makeNewBlockFromTransactions(transactions []structures.Transaction) (*structures.Block, error) {
 	// get last block info
 	lastHash, lastHeight, err := n.getBlockchainManager().GetState()
 
@@ -217,7 +217,7 @@ func (n *NodeBlockMaker) makeNewBlockFromTransactions(transactions []*structures
 		return nil, errc
 	}
 
-	transactions = append(transactions, cbTx)
+	transactions = append(transactions, *cbTx)
 	/*
 		txlist := []*transaction.Transaction{}
 
@@ -282,7 +282,7 @@ func (n *NodeBlockMaker) VerifyBlock(block *structures.Block) error {
 	// 1
 	coinbaseused := false
 
-	prevTXs := []*structures.Transaction{}
+	prevTXs := []structures.Transaction{}
 
 	for _, tx := range block.Transactions {
 		if tx.IsCoinbaseTransfer() {
@@ -294,14 +294,14 @@ func (n *NodeBlockMaker) VerifyBlock(block *structures.Block) error {
 		vtx, err := n.getTransactionsManager().VerifyTransaction(&tx, prevTXs, block.PrevBlockHash)
 
 		if err != nil {
-			return err
+			return errors.New(fmt.Sprintf("TX verify during block verify. Error: %s", err.Error()))
 		}
 
 		if !vtx {
 			return errors.New(fmt.Sprintf("Transaction in a block is not valid: %x", tx.GetID()))
 		}
-
-		prevTXs = append(prevTXs, &tx)
+		n.Logger.Trace.Printf("checked %x . add it to previous list", tx.GetID())
+		prevTXs = append(prevTXs, tx)
 	}
 	// 1.
 	if !coinbaseused {

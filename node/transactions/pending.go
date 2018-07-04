@@ -60,8 +60,11 @@ func (u *unApprovedTransactions) CheckInputsArePrepared(inputs map[int]structure
 // Check conflicts too. Same output can not be repeated twice
 
 func (u *unApprovedTransactions) CheckCurrencyInputsWereBefore(
-	inputs map[int]structures.TXCurrencyInput, prevTXs []*structures.Transaction,
+	inputs map[int]structures.TXCurrencyInput,
+	prevTXs []structures.Transaction,
 	inputTXs map[int]*structures.Transaction) (map[int]*structures.Transaction, error) {
+
+	u.Logger.Trace.Printf("Check inputs were before. inputs %d, prev %d", len(inputs), len(prevTXs))
 
 	checked := map[string][]int{}
 
@@ -84,8 +87,9 @@ func (u *unApprovedTransactions) CheckCurrencyInputsWereBefore(
 		exists := false
 
 		for _, tx := range prevTXs {
+			u.Logger.Trace.Printf("compare input %x and previous %x", vin.Txid, tx.GetID())
 			if bytes.Compare(vin.Txid, tx.GetID()) == 0 {
-				inputTXs[vind] = tx
+				inputTXs[vind] = &tx
 				exists = true
 				break
 			}
@@ -130,15 +134,12 @@ func (u *unApprovedTransactions) GetCurrencyTXsPreparedBy(PubKeyHash []byte) ([]
 		sender := []byte{}
 
 		if !tx.IsCoinbaseTransfer() {
-			sender = tx.Vin[0].PubKey
+			sender = tx.ByPubKey
 
-			for _, vin := range tx.Vin {
-				if vin.UsesKey(PubKeyHash) {
-					// this input is signed by this pub key.
-					// the input can be from confirmed TX or from pending
-					inputs = append(inputs, vin)
-				}
+			if tx.CreatedByPubKeyHash(PubKeyHash) {
+				inputs = append(inputs, tx.Vin...)
 			}
+
 		}
 		for indV, vout := range tx.Vout {
 			if vout.IsLockedWithKey(PubKeyHash) {
@@ -486,13 +487,13 @@ func (u *unApprovedTransactions) DetectConflictsForNew(txcheck *structures.Trans
 // For building of a block we should use only one of them.
 // Transaction can be used more 1 time in a block. But each time must be differeent output index
 // TODO should work for different types of ransactions
-func (u *unApprovedTransactions) DetectConflicts(txs []*structures.Transaction) ([]*structures.Transaction, []*structures.Transaction, error) {
+func (u *unApprovedTransactions) DetectConflicts(txs []structures.Transaction) ([]structures.Transaction, []structures.Transaction, error) {
 	return u.detectConflictsForCurrentcy(txs)
 }
 
-func (u *unApprovedTransactions) detectConflictsForCurrentcy(txs []*structures.Transaction) ([]*structures.Transaction, []*structures.Transaction, error) {
-	goodtransactions := []*structures.Transaction{}
-	conflicts := []*structures.Transaction{}
+func (u *unApprovedTransactions) detectConflictsForCurrentcy(txs []structures.Transaction) ([]structures.Transaction, []structures.Transaction, error) {
+	goodtransactions := []structures.Transaction{}
+	conflicts := []structures.Transaction{}
 
 	usedoutputs := map[string][]int{}
 

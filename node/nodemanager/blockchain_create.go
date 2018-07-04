@@ -175,7 +175,7 @@ func (n *makeBlockchain) prepareGenesisBlock(address, genesisCoinbaseData string
 	}
 
 	genesis := &structures.Block{}
-	genesis.PrepareNewBlock([]*structures.Transaction{cbtx}, []byte{}, 0)
+	genesis.PrepareNewBlock([]structures.Transaction{*cbtx}, []byte{}, 0)
 
 	return genesis, nil
 }

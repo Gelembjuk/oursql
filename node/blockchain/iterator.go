@@ -81,16 +81,10 @@ func (i *BlockchainIterator) GetAddressHistory(pubKeyHash []byte, address string
 			income := float64(0)
 
 			spent := false
-			spentaddress := ""
+			spentaddress, _ := utils.PubKeyToAddres(tx.ByPubKey)
 
-			// we presume all inputs in tranaction are always from same wallet
-			for _, in := range tx.Vin {
-				spentaddress, _ = utils.PubKeyToAddres(in.PubKey)
-
-				if in.UsesKey(pubKeyHash) {
-					spent = true
-					break
-				}
+			if tx.CreatedByPubKeyHash(pubKeyHash) {
+				spent = true
 			}
 
 			if spent {

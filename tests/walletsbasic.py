@@ -82,7 +82,7 @@ def test(testfilter):
     # we control how blocks are created. here we wait on a block started and then send another 3 TX
     # we will get 2 more blocks here
     #blocks = _blocks.WaitBlocks(datadir, blockslen + 1)
-    time.sleep(1)
+    time.sleep(3)
     #_lib.FatalAssert(len(blocks) == blockslen + 1, "Expected "+str(blockslen + 1)+" blocks")
     
     # 7 TX are required  for next block
