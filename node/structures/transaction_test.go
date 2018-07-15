@@ -2,34 +2,36 @@ package structures
 
 import (
 	"bytes"
-	"encoding/hex"
 
 	"time"
 
 	"testing"
 )
 
-func makeTestTX() CurrencyTransaction {
+func makeTestTX() Transaction {
 	PubKey := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
 
-	inputs := []TXInput{
-		TXInput{[]byte{1, 2, 3}, 0, []byte{}, PubKey},
-		TXInput{[]byte{4, 5, 6}, 1, []byte{}, PubKey},
+	inputs := []TXCurrencyInput{
+		TXCurrencyInput{[]byte{1, 2, 3}, 0},
+		TXCurrencyInput{[]byte{4, 5, 6}, 1},
 	}
 
-	outputs := []TXOutput{
-		TXOutput{1, []byte{4, 3, 2, 1}},
-		TXOutput{2, PubKey},
+	outputs := []TXCurrrencyOutput{
+		TXCurrrencyOutput{1, []byte{4, 3, 2, 1}},
+		TXCurrrencyOutput{2, PubKey},
 	}
 
-	newTX := CurrencyTransaction{nil, inputs, outputs, 0}
+	newTX, _ := NewTransaction(inputs, outputs)
 
 	layout := "2006-01-02T15:04:05.000Z"
 	str := "2014-11-12T11:45:26.371Z"
 	time, _ := time.Parse(layout, str)
 	newTX.Time = time.UnixNano()
-	return newTX
+	newTX.ByPubKey = PubKey
+	return *newTX
 }
+
+/*
 func TestHash(t *testing.T) {
 	newTX := makeTestTX()
 
@@ -47,10 +49,11 @@ func TestHash(t *testing.T) {
 		t.Fatalf("Got \n%x\nexpected\n%x", newTX.ID, expectedBytes)
 	}
 }
+*/
 func TestSerialize(t *testing.T) {
 	newTX := makeTestTX()
 
-	_, err := newTX.Hash()
+	err := newTX.CompleteTransaction([]byte{1, 2, 3}) // fake signature
 
 	if err != nil {
 		t.Fatalf("Hash error %s", err.Error())
@@ -71,6 +74,29 @@ func TestSerialize(t *testing.T) {
 	if bytes.Compare(tx.GetID(), newTX.ID) != 0 {
 		t.Fatalf("IDs are not same. Got \n%x\nexpected\n%x", tx.GetID(), newTX.GetID())
 	}
+}
+
+func TestToBytes(t *testing.T) {
+	newTX := makeTestTX()
+
+	err := newTX.CompleteTransaction([]byte{1, 2, 3}) // fake signature
+
+	if err != nil {
+		t.Fatalf("Hash error %s", err.Error())
+	}
+
+	txBytes, err := newTX.ToBytes()
+
+	if err != nil {
+		t.Fatalf("ToBytes error %s", err.Error())
+	}
+
+	if len(txBytes) != 95 {
+		t.Fatalf("ToBytes result length is wrong")
+	}
+}
+func TestSignature(t *testing.T) {
+
 }
 
 /*

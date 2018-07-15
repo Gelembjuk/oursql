@@ -3,6 +3,8 @@ package consensus
 import (
 	"bytes"
 	"crypto/sha256"
+	"errors"
+	"fmt"
 	"math"
 	"math/big"
 
@@ -78,7 +80,7 @@ func (pow *ProofOfWork) Run() (int, []byte, error) {
 	predata, err := pow.prepareData()
 
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, errors.New(fmt.Sprintf("Pow run: %s", err.Error()))
 	}
 
 	for nonce < maxNonce {

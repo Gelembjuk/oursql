@@ -174,10 +174,12 @@ func (b *Block) HashTransactions() ([]byte, error) {
 		txser, err := tx.ToBytes()
 
 		if err != nil {
+
 			return nil, err
 		}
 		transactions = append(transactions, txser)
 	}
+
 	mTree := utils.NewMerkleTree(transactions)
 
 	return mTree.RootNode.Data, nil

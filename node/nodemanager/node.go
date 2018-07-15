@@ -13,7 +13,6 @@ import (
 	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/blockchain"
 	"github.com/gelembjuk/oursql/node/consensus"
-	"github.com/gelembjuk/oursql/node/dbquery"
 	"github.com/gelembjuk/oursql/node/structures"
 	"github.com/gelembjuk/oursql/node/transactions"
 )
@@ -95,11 +94,6 @@ func (n *Node) GetTransactionsManager() transactions.TransactionsManagerInterfac
 	return transactions.NewManager(n.DBConn.DB(), n.Logger)
 }
 
-// Build Db query manager object
-func (n *Node) GetDBQueryManager() dbquery.DbQueryInterface {
-	return dbquery.NewManager(n.DBConn.DB(), n.Logger)
-}
-
 // Build BC manager structure
 func (n *Node) GetBCManager() (*blockchain.Blockchain, error) {
 	return blockchain.NewBlockchainManager(n.DBConn.DB(), n.Logger)
@@ -111,8 +105,13 @@ func (n *Node) GetBlockChainIterator() (*blockchain.BlockchainIterator, error) {
 }
 
 // Init block maker object. It is used to make new blocks
-func (n *Node) getBlockMakeManager() (consensus.ConsensusInterface, error) {
-	return consensus.NewConsensusManager(n.MinterAddress, n.DBConn.DB(), n.Logger)
+func (n *Node) getBlockMakeManager() (consensus.BlockMakerInterface, error) {
+	return consensus.NewBlockMakerManager(n.MinterAddress, n.DBConn.DB(), n.Logger)
+}
+
+// Init SQL transactions manager
+func (n *Node) getSQLQueryManager() (consensus.SQLTransactionsInterface, error) {
+	return consensus.NewSQLQueryManager(n.DBConn.DB(), n.Logger, []byte{}, ecdsa.PrivateKey{})
 }
 
 // Init block maker object. It is used to make new blocks
@@ -336,15 +335,23 @@ func (n *Node) Send(PubKey []byte, privKey ecdsa.PrivateKey, to string, amount f
 // This adds a transaction directly to the DB. Can be executed when a node server is not running
 // This creates SQL transaction . Currency part can be present if SQL query "costs money"
 func (n *Node) SQLTransaction(PubKey []byte, privKey ecdsa.PrivateKey, sqlcommand string) ([]byte, error) {
+	qm, err := n.getSQLQueryManager()
+	if err != nil {
+		return nil, err
+	}
 
-	tx, err := n.GetDBQueryManager().StartSQLQueryTransaction(PubKey, privKey, sqlcommand)
+	_, tx, err := qm.NewQueryByNode(sqlcommand, PubKey, privKey)
 
 	if err != nil {
 		return nil, err
 	}
-	n.SendTransactionToAll(tx)
+	if tx != nil {
+		n.SendTransactionToAll(tx)
 
-	return tx.GetID(), nil
+		return tx.GetID(), nil
+	}
+	// if TX is nil it means TX was not created but query executed
+	return nil, nil
 }
 
 // Try to make a block. If no enough transactions, send new transaction to all other nodes
@@ -455,6 +462,10 @@ func (n *Node) AddBlock(block *structures.Block) (uint, error) {
 		addstate == blockchain.BCBAddState_addedToParallelTop {
 
 		n.GetTransactionsManager().BlockAdded(block, addstate == blockchain.BCBAddState_addedToTop)
+	}
+	if addstate == blockchain.BCBAddState_addedToTop {
+		qm, _ := n.getSQLQueryManager()
+		qm.ExecuteOnBlockAdd(block.Transactions)
 	}
 
 	if addstate == blockchain.BCBAddState_addedToParallelTop {

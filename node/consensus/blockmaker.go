@@ -182,7 +182,7 @@ func (n *NodeBlockMaker) CompleteBlock() (*structures.Block, error) {
 	nonce, hash, err := pow.Run()
 
 	if err != nil {
-		return nil, err
+		return nil, errors.New(fmt.Sprintf("Pow error: %s", err))
 	}
 
 	b.Hash = hash[:]

@@ -2,6 +2,7 @@ package structures
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 
 	"github.com/gelembjuk/oursql/lib"
@@ -30,13 +31,36 @@ func NewBlockFromBytes(bsdata []byte) (*Block, error) {
 }
 
 // New "currency" transaction.
-func NewTransaction(sqlcommand string, inputs []TXCurrencyInput, outputs []TXCurrrencyOutput) (*Transaction, error) {
+func NewTransaction(inputs []TXCurrencyInput, outputs []TXCurrrencyOutput) (*Transaction, error) {
 	tx := &Transaction{}
 	tx.Vin = inputs
 	tx.Vout = outputs
-	tx.SQLCommand = []byte(sqlcommand)
+	tx.SQLCommand = SQLUpdate{}
 	tx.initNewTX() // init new object
 	return tx, nil
+}
+
+// New "SQL" transaction.
+func NewSQLTransaction(sql SQLUpdate, inputs []TXCurrencyInput, outputs []TXCurrrencyOutput) (*Transaction, error) {
+	if sql.IsEmpty() {
+		return nil, errors.New("EMpty SQL trsnaction info")
+	}
+	tx := &Transaction{}
+	tx.Vin = inputs
+	tx.Vout = outputs
+	tx.SQLCommand = sql
+	tx.initNewTX() // init new object
+	return tx, nil
+}
+
+func NewSQLUpdate(sql string, referenceID string, rollbackSQL string) SQLUpdate {
+
+	s := SQLUpdate{}
+	s.Query = []byte(sql)
+	s.RollbackQuery = []byte(rollbackSQL)
+	s.ReferenceID = []byte(referenceID)
+
+	return s
 }
 
 // Serialize Transaction

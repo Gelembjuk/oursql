@@ -26,6 +26,7 @@ type DBManager interface {
 
 	Dump(file string) error
 	Restore(file string) error
+	ExecuteSQL(sql string) error
 }
 
 // locker interface. is empty for now. maybe in future we will have some methods

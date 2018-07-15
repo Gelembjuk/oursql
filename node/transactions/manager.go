@@ -342,10 +342,61 @@ func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction) error {
 // This function should find good input transactions for this amount
 // Including inputs from unapproved transactions if no good approved transactions yet
 func (n *txManager) PrepareNewCurrencyTransaction(PubKey []byte, to string, amount float64) ([]byte, []byte, error) {
-	amount, err := strconv.ParseFloat(fmt.Sprintf("%.8f", amount), 64)
+	PubKey, to, amount, inputs, totalamount, prevTXs, err := n.prepareNewCurrencyTransactionStart(PubKey, to, amount)
 
 	if err != nil {
 		return nil, nil, err
+	}
+
+	txBytes, stringtosign, _, err := n.prepareNewCurrencyTransactionComplete(PubKey, to, amount, inputs, totalamount, prevTXs)
+	return txBytes, stringtosign, err
+}
+
+// Make new transaction  for "paid" SQL command
+func (n *txManager) PrepareNewSQLTransaction(PubKey []byte, sqlUpdate structures.SQLUpdate, amount float64, to string) ([]byte, []byte, error) {
+	PubKey, to, amount, inputs, totalamount, prevTXs, err := n.prepareNewCurrencyTransactionStart(PubKey, to, amount)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	txBytes, _, inputsTX, err := n.prepareNewCurrencyTransactionComplete(PubKey, to, amount, inputs, totalamount, prevTXs)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tx, err := structures.DeserializeTransaction(txBytes)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tx.SetSQLPart(sqlUpdate)
+
+	datatosign, err := tx.PrepareSignData(PubKey, inputsTX)
+
+	txBytes, err = structures.SerializeTransaction(tx)
+
+	if err != nil {
+		return nil, nil, errors.New(fmt.Sprintf("Error serialyxing prepared TX: %s", err.Error()))
+	}
+
+	return txBytes, datatosign, nil
+}
+
+//
+func (n *txManager) prepareNewCurrencyTransactionStart(PubKey []byte, to string, amount float64) ([]byte, string, float64,
+	[]structures.TXCurrencyInput, float64, map[string]*structures.Transaction, error) {
+
+	localError := func(err error) ([]byte, string, float64,
+		[]structures.TXCurrencyInput, float64, map[string]*structures.Transaction, error) {
+		return nil, "", 0, nil, 0, nil, err
+	}
+	amount, err := strconv.ParseFloat(fmt.Sprintf("%.8f", amount), 64)
+
+	if err != nil {
+		return localError(err)
 	}
 	PubKeyHash, _ := utils.HashPubKey(PubKey)
 	// get from pending transactions. find outputs used by this pubkey
@@ -355,7 +406,7 @@ func (n *txManager) PrepareNewCurrencyTransaction(PubKey []byte, to string, amou
 	inputs, prevTXs, totalamount, err := n.getUnspentOutputsManager().GetNewTransactionInputs(PubKey, to, amount, pendinginputs)
 
 	if err != nil {
-		return nil, nil, err
+		return localError(err)
 	}
 
 	n.Logger.Trace.Printf("First step prepared amount %f of %f", totalamount, amount)
@@ -366,29 +417,28 @@ func (n *txManager) PrepareNewCurrencyTransaction(PubKey []byte, to string, amou
 
 		if len(pendingoutputs) == 0 {
 			// nothing to add
-			return nil, nil, errors.New("No enough funds for requested transaction")
+			return localError(errors.New("No enough funds for requested transaction"))
 		}
 		inputs, prevTXs, totalamount, err =
 			n.getUnspentOutputsManager().ExtendNewTransactionInputs(PubKey, amount, totalamount,
 				inputs, prevTXs, pendingoutputs)
 
 		if err != nil {
-			return nil, nil, err
+			return localError(err)
 		}
 	}
 
 	n.Logger.Trace.Printf("Second step prepared amount %f of %f", totalamount, amount)
 
 	if totalamount < amount {
-		return nil, nil, errors.New("No anough funds to make new transaction")
+		return localError(errors.New("No anough funds to make new transaction"))
 	}
-
-	return n.prepareNewCurrencyTransactionComplete(PubKey, to, amount, inputs, totalamount, prevTXs)
+	return PubKey, to, amount, inputs, totalamount, prevTXs, nil
 }
 
 //
 func (n *txManager) prepareNewCurrencyTransactionComplete(PubKey []byte, to string, amount float64,
-	inputs []structures.TXCurrencyInput, totalamount float64, prevTXs map[string]*structures.Transaction) ([]byte, []byte, error) {
+	inputs []structures.TXCurrencyInput, totalamount float64, prevTXs map[string]*structures.Transaction) ([]byte, []byte, map[int]*structures.Transaction, error) {
 
 	var outputs []structures.TXCurrrencyOutput
 
@@ -407,22 +457,22 @@ func (n *txManager) prepareNewCurrencyTransactionComplete(PubKey []byte, to stri
 		inputTXs[vinInd] = tx
 	}
 
-	tx, _ := structures.NewTransaction("", inputs, outputs)
+	tx, _ := structures.NewTransaction(inputs, outputs)
 
 	signdata, err := tx.PrepareSignData(PubKey, inputTXs)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	n.Logger.Trace.Printf("Serialise prepated TX")
 	n.Logger.Trace.Println(tx)
 	txBytes, err := structures.SerializeTransaction(tx)
 
 	if err != nil {
-		return nil, nil, errors.New(fmt.Sprintf("Error serialyxing prepared TX: %s", err.Error()))
+		return nil, nil, nil, errors.New(fmt.Sprintf("Error serialyxing prepared TX: %s", err.Error()))
 	}
 	n.Logger.Trace.Printf("TX prepared. Return TX bytes and sign data")
-	return txBytes, signdata, nil
+	return txBytes, signdata, inputTXs, nil
 }
 
 // check if transaction exists. it checks in all places. in approved and pending

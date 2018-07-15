@@ -111,7 +111,7 @@ func (n *NodeBlockchain) AddBlock(block *structures.Block) (uint, error) {
 		return blockchain.BCBAddState_notAddedNoPrev, nil
 	}
 
-	Minter, err := consensus.NewConsensusManager(n.MinterAddress, n.DBConn.DB(), n.Logger)
+	Minter, err := consensus.NewBlockMakerManager(n.MinterAddress, n.DBConn.DB(), n.Logger)
 
 	if err != nil {
 		return 0, err

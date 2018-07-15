@@ -333,3 +333,12 @@ func (bdm *MySQLDBManager) Restore(file string) error {
 
 	return err
 }
+func (bdm MySQLDBManager) ExecuteSQL(sql string) error {
+	db, err := bdm.getConnection()
+
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(sql)
+	return err
+}

@@ -1,11 +1,28 @@
 package dbquery
 
 import (
-	"crypto/ecdsa"
-
+	"github.com/gelembjuk/oursql/lib/utils"
+	"github.com/gelembjuk/oursql/node/database"
 	"github.com/gelembjuk/oursql/node/structures"
 )
 
-type DbQueryInterface interface {
-	StartSQLQueryTransaction(PubKey []byte, privKey ecdsa.PrivateKey, sqlcommand string) (*structures.Transaction, error)
+const (
+	QueryKindSelect = "select"
+	QueryKindUpdate = "update"
+	QueryKindInsert = "insert"
+	QueryKindDelete = "delete"
+	QueryKindCreate = "create"
+	QueryKindOther  = "other"
+)
+
+type QueryProcessorInterface interface {
+	ParseQuery(sqlquery string) (QueryParsed, error)
+	CheckQuerySyntax(sql string) error
+	ExecteQuery(sql string) error
+	FormatSpecialErrorMessage(errorKind uint, txdata []byte, datatosign []byte) (string, error)
+	MakeSQLUpdateStructure(sql string) (structures.SQLUpdate, error)
+}
+
+func NewQueryProcessor(DB database.DBManager, Logger *utils.LoggerMan) QueryProcessorInterface {
+	return &queryProcessor{DB, Logger}
 }

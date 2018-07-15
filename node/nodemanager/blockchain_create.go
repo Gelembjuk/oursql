@@ -1,6 +1,7 @@
 package nodemanager
 
 import (
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 
@@ -32,8 +33,13 @@ func (n *makeBlockchain) getTransactionsManager() transactions.TransactionsManag
 }
 
 // Init block maker object. It is used to make new blocks
-func (n *makeBlockchain) getBlockMakeManager() (consensus.ConsensusInterface, error) {
-	return consensus.NewConsensusManager(n.MinterAddress, n.DBConn.DB(), n.Logger)
+func (n *makeBlockchain) getBlockMakeManager() (consensus.BlockMakerInterface, error) {
+	return consensus.NewBlockMakerManager(n.MinterAddress, n.DBConn.DB(), n.Logger)
+}
+
+// Init SQL transactions manager
+func (n *makeBlockchain) getSQLQueryManager() (consensus.SQLTransactionsInterface, error) {
+	return consensus.NewSQLQueryManager(n.DBConn.DB(), n.Logger, []byte{}, ecdsa.PrivateKey{})
 }
 
 // Create new blockchain, add genesis block witha given text
@@ -144,6 +150,9 @@ func (n *makeBlockchain) InitBlockchainFromOther(addr net.NodeAddr, nodeclient *
 			}
 
 			TXMan.BlockAdded(block, true)
+
+			qm, _ := n.getSQLQueryManager()
+			qm.ExecuteOnBlockAdd(block.Transactions)
 
 			MH = block.Height
 		}

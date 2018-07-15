@@ -28,6 +28,7 @@ type TransactionsManagerInterface interface {
 	PrepareNewCurrencyTransaction(PubKey []byte, to string, amount float64) ([]byte, []byte, error)
 	ReceivedNewCurrencyTransactionData(txBytes []byte, Signature []byte) (*structures.Transaction, error)
 	ReceivedNewTransaction(tx *structures.Transaction) error
+	PrepareNewSQLTransaction(PubKey []byte, sqlUpdate structures.SQLUpdate, amount float64, to string) ([]byte, []byte, error)
 
 	// new block was created in blockchain DB. It must not be on top of primary blockchain
 	BlockAdded(block *structures.Block, ontopofchain bool) error

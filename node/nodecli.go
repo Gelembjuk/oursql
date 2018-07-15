@@ -841,7 +841,11 @@ func (c *NodeCLI) commandSQL() error {
 		return err
 	}
 
-	fmt.Printf("Success. New transaction: %x\n", txid)
+	if txid == nil {
+		fmt.Printf("The query was executed without a transaction\n")
+	} else {
+		fmt.Printf("Success. New transaction: %x\n", txid)
+	}
 
 	return nil
 }

@@ -24,7 +24,7 @@ type Transaction struct {
 	ByPubKey   []byte
 	Vin        []TXCurrencyInput
 	Vout       []TXCurrrencyOutput
-	SQLCommand []byte
+	SQLCommand SQLUpdate
 }
 
 // execute when new tranaction object is created
@@ -52,11 +52,7 @@ func (tx Transaction) IsCurrencyTransfer() bool {
 
 // IsCoinbase checks whether the transaction is coinbase
 func (tx Transaction) IsSQLCommand() bool {
-	if len(tx.SQLCommand) > 0 {
-		return true
-	}
-
-	return false
+	return !tx.SQLCommand.IsEmpty()
 }
 
 // check if TX is coin base
@@ -88,51 +84,6 @@ func (tx *Transaction) makeHash() ([]byte, error) {
 	return tx.ID, nil
 }
 
-// String returns a human-readable representation of a transaction
-func (tx Transaction) String() string {
-	var lines []string
-	from := "Coin Base"
-	fromhash := []byte{}
-
-	if !tx.IsCoinbaseTransfer() {
-		from, _ = utils.PubKeyToAddres(tx.ByPubKey)
-		fromhash, _ = utils.HashPubKey(tx.ByPubKey)
-	}
-
-	to := ""
-	amount := 0.0
-
-	for _, output := range tx.Vout {
-		if bytes.Compare(fromhash, output.PubKeyHash) != 0 {
-			to, _ = utils.PubKeyHashToAddres(output.PubKeyHash)
-			amount = output.Value
-			break
-		}
-	}
-
-	lines = append(lines, fmt.Sprintf("--- Transaction %x:", tx.ID))
-	lines = append(lines, fmt.Sprintf("    FROM %s TO %s VALUE %f", from, to, amount))
-	lines = append(lines, fmt.Sprintf("    Time %d (%s)", tx.Time, time.Unix(0, tx.Time)))
-
-	if !tx.IsCoinbaseTransfer() && !tx.IsSQLCommand() {
-		for i, input := range tx.Vin {
-			lines = append(lines, fmt.Sprintf("     Input %d:", i))
-			lines = append(lines, fmt.Sprintf("       TXID:      %x", input.Txid))
-			lines = append(lines, fmt.Sprintf("       Out:       %d", input.Vout))
-		}
-	}
-
-	for i, output := range tx.Vout {
-		address, _ := utils.PubKeyHashToAddres(output.PubKeyHash)
-		lines = append(lines, fmt.Sprintf("     Output %d:", i))
-		lines = append(lines, fmt.Sprintf("       Value:  %f", output.Value))
-		lines = append(lines, fmt.Sprintf("       Script: %x", output.PubKeyHash))
-		lines = append(lines, fmt.Sprintf("       Address: %s", address))
-	}
-
-	return strings.Join(lines, "\n")
-}
-
 // TrimmedCopy creates a trimmed copy of Transaction to be used in signing
 func (tx Transaction) Copy() (*Transaction, error) {
 	//if tx.IsCoinbase() {
@@ -146,6 +97,7 @@ func (tx Transaction) Copy() (*Transaction, error) {
 	txCopy.Vout = tx.Vout
 	txCopy.Signature = tx.Signature
 	txCopy.ByPubKey = tx.ByPubKey
+	txCopy.SQLCommand = tx.SQLCommand
 
 	return txCopy, nil
 }
@@ -270,7 +222,7 @@ func (tx *Transaction) Verify(prevTXs map[int]*Transaction) error {
 func (tx Transaction) serialize() ([]byte, error) {
 	// to remove any references to other ponters
 	// do full copy of the TX
-
+	gob.Register(SQLUpdate{})
 	var encoded bytes.Buffer
 	enc := gob.NewEncoder(&encoded)
 	err := enc.Encode(tx)
@@ -283,6 +235,7 @@ func (tx Transaction) serialize() ([]byte, error) {
 
 // DeserializeTransaction deserializes a transaction
 func (tx *Transaction) DeserializeTransaction(data []byte) error {
+	gob.Register(SQLUpdate{})
 	decoder := gob.NewDecoder(bytes.NewReader(data))
 	err := decoder.Decode(tx)
 
@@ -344,7 +297,7 @@ func (tx Transaction) ToBytes() ([]byte, error) {
 		return nil, err
 	}
 
-	err = binary.Write(buff, binary.BigEndian, tx.SQLCommand)
+	err = binary.Write(buff, binary.BigEndian, tx.SQLCommand.ToBytes())
 
 	if err != nil {
 		return nil, err
@@ -371,4 +324,68 @@ func (tx Transaction) CreatedByPubKeyHash(pubKeyHash []byte) bool {
 //
 func (tx Transaction) GetTime() int64 {
 	return tx.Time
+}
+
+//
+func (tx *Transaction) SetSQLPart(sql SQLUpdate) {
+	tx.SQLCommand = sql
+}
+
+// returns SQL command as string
+func (tx Transaction) GetSQLQuery() string {
+	if len(tx.SQLCommand.Query) > 0 {
+		return string(tx.SQLCommand.Query)
+	}
+	return ""
+}
+
+// String returns a human-readable representation of a transaction
+func (tx Transaction) String() string {
+	var lines []string
+	from := "Coin Base"
+	fromhash := []byte{}
+
+	if !tx.IsCoinbaseTransfer() {
+		from, _ = utils.PubKeyToAddres(tx.ByPubKey)
+		fromhash, _ = utils.HashPubKey(tx.ByPubKey)
+	}
+
+	to := ""
+	amount := 0.0
+
+	for _, output := range tx.Vout {
+		if bytes.Compare(fromhash, output.PubKeyHash) != 0 {
+			to, _ = utils.PubKeyHashToAddres(output.PubKeyHash)
+			amount = output.Value
+			break
+		}
+	}
+
+	lines = append(lines, fmt.Sprintf("--- Transaction %x:", tx.ID))
+	if amount > 0 {
+		lines = append(lines, fmt.Sprintf("    FROM %s TO %s VALUE %f", from, to, amount))
+	}
+	lines = append(lines, fmt.Sprintf("    Time %d (%s)", tx.Time, time.Unix(0, tx.Time)))
+
+	if !tx.IsCoinbaseTransfer() && !tx.IsSQLCommand() {
+		for i, input := range tx.Vin {
+			lines = append(lines, fmt.Sprintf("     Input %d:", i))
+			lines = append(lines, fmt.Sprintf("       TXID:      %x", input.Txid))
+			lines = append(lines, fmt.Sprintf("       Out:       %d", input.Vout))
+		}
+	}
+
+	for i, output := range tx.Vout {
+		address, _ := utils.PubKeyHashToAddres(output.PubKeyHash)
+		lines = append(lines, fmt.Sprintf("     Output %d:", i))
+		lines = append(lines, fmt.Sprintf("       Value:  %f", output.Value))
+		lines = append(lines, fmt.Sprintf("       Script: %x", output.PubKeyHash))
+		lines = append(lines, fmt.Sprintf("       Address: %s", address))
+	}
+
+	if tx.IsSQLCommand() {
+		lines = append(lines, fmt.Sprintf("    SQL: %s", tx.GetSQLQuery()))
+	}
+
+	return strings.Join(lines, "\n")
 }
