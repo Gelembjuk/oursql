@@ -6,19 +6,13 @@ import (
 	"github.com/gelembjuk/oursql/node/structures"
 )
 
-const (
-	QueryKindSelect = "select"
-	QueryKindUpdate = "update"
-	QueryKindInsert = "insert"
-	QueryKindDelete = "delete"
-	QueryKindCreate = "create"
-	QueryKindOther  = "other"
-)
-
 type QueryProcessorInterface interface {
 	ParseQuery(sqlquery string) (QueryParsed, error)
 	CheckQuerySyntax(sql string) error
-	ExecteQuery(sql string) error
+	ExecuteQuery(sql string) (*structures.SQLUpdate, error)
+	ExecuteParsedQuery(qp QueryParsed) (*structures.SQLUpdate, error)
+	ExecuteQueryFromTX(sql structures.SQLUpdate) error
+	ExecuteRollbackQueryFromTX(sql structures.SQLUpdate) error
 	FormatSpecialErrorMessage(errorKind uint, txdata []byte, datatosign []byte) (string, error)
 	MakeSQLUpdateStructure(sql string) (structures.SQLUpdate, error)
 }

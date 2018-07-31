@@ -130,7 +130,7 @@ func (q queryManager) ExecuteOnBlockAdd(txlist []structures.Transaction) error {
 	for _, tx := range txlist {
 		if tx.IsSQLCommand() {
 			q.Logger.Trace.Printf("Execute: %s", tx.GetSQLQuery())
-			err := q.getQueryParser().ExecteQuery(tx.GetSQLQuery())
+			_, err := q.getQueryParser().ExecuteQuery(tx.GetSQLQuery())
 			if err != nil {
 				return err
 			}
@@ -182,7 +182,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, executeifallowed b
 		}
 		// no need to have TX
 		if qparsed.IsUpdate() {
-			err := qp.ExecteQuery(qparsed.SQL)
+			_, err := qp.ExecuteQuery(qparsed.SQL)
 			if err != nil {
 				return localError(err)
 			}
@@ -302,7 +302,7 @@ func (q queryManager) processQueryWithSignature(txEncoded []byte, signature []by
 	if executeifallowed {
 		q.Logger.Trace.Printf("Go to execute query: %s", tx.GetSQLQuery())
 		qp := q.getQueryParser()
-		err = qp.ExecteQuery(tx.GetSQLQuery())
+		_, err = qp.ExecuteQuery(tx.GetSQLQuery())
 		if err != nil {
 			return nil, err
 		}

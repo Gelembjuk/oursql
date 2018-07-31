@@ -5,6 +5,8 @@ import (
 )
 
 type DBManager interface {
+	QM() DBQueryManager // get QueryManager object
+
 	SetConfig(config DatabaseConfig) error
 	SetLogger(logger *utils.LoggerMan) error
 	GetLockerObject() DatabaseLocker
@@ -23,10 +25,29 @@ type DBManager interface {
 	GetUnapprovedTransactionsObject() (UnapprovedTransactionsInterface, error)
 	GetUnspentOutputsObject() (UnspentOutputsInterface, error)
 	GetNodesObject() (NodesInterface, error)
+}
 
+type DBQueryManager interface {
 	Dump(file string) error
 	Restore(file string) error
 	ExecuteSQL(sql string) error
+	ExecuteSQLFirstly(sql string, queryType string) (int64, error) // int value is last insert ID or number of affected rows in case of update/delete
+	ExecuteSQLExplain(sql string) (SQLExplainInfo, error)
+}
+
+type SQLExplainInfo struct {
+	Id           string
+	SelectType   string
+	Table        string
+	Partitions   string
+	Type         string
+	PossibleKeys string
+	Key          string
+	KeyLen       int
+	Ref          string
+	Rows         int
+	Filtered     string
+	Extra        string
 }
 
 // locker interface. is empty for now. maybe in future we will have some methods

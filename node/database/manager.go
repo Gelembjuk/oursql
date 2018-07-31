@@ -10,6 +10,7 @@ import (
 	"database/sql"
 
 	"github.com/JamesStewy/go-mysqldump"
+	"github.com/gelembjuk/oursql/lib"
 	"github.com/gelembjuk/oursql/lib/utils"
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -28,6 +29,10 @@ type MySQLDBManager struct {
 	conn       *sql.DB
 	openedConn bool
 	SessID     string
+}
+
+func (bdm *MySQLDBManager) QM() DBQueryManager {
+	return bdm
 }
 
 func (bdm *MySQLDBManager) SetConfig(config DatabaseConfig) error {
@@ -333,6 +338,8 @@ func (bdm *MySQLDBManager) Restore(file string) error {
 
 	return err
 }
+
+// execute query.
 func (bdm MySQLDBManager) ExecuteSQL(sql string) error {
 	db, err := bdm.getConnection()
 
@@ -341,4 +348,50 @@ func (bdm MySQLDBManager) ExecuteSQL(sql string) error {
 	}
 	_, err = db.Exec(sql)
 	return err
+}
+
+// execute SQL first time (by initiator of this SQL)
+// this will return key value of new inserted row (if it is auto_increment)
+func (bdm MySQLDBManager) ExecuteSQLFirstly(sql string, queryType string) (int64, error) {
+	db, err := bdm.getConnection()
+
+	if err != nil {
+		return 0, err
+	}
+	res, err := db.Exec(sql)
+
+	if err != nil {
+		return 0, err
+	}
+
+	if queryType == lib.QueryKindInsert {
+		id, err := res.LastInsertId()
+
+		if err == nil {
+			return id, nil
+		}
+	} else if queryType == lib.QueryKindDelete || queryType == lib.QueryKindUpdate {
+		num, err := res.RowsAffected()
+
+		if err == nil {
+			return num, nil
+		}
+	}
+	return 0, nil
+}
+
+//
+func (bdm MySQLDBManager) ExecuteSQLExplain(sql string) (SQLExplainInfo, error) {
+	db, err := bdm.getConnection()
+
+	r := SQLExplainInfo{}
+
+	if err != nil {
+		return r, err
+	}
+
+	err = db.QueryRow("EXPLAIN "+sql).Scan(&r.Id,
+		&r.SelectType, &r.Table, &r.Partitions, &r.Type, &r.PossibleKeys, &r.Key, &r.KeyLen, &r.Ref, &r.Rows, &r.Filtered, &r.Extra)
+
+	return r, err
 }

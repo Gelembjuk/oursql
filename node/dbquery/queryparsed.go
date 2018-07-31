@@ -1,5 +1,9 @@
 package dbquery
 
+import (
+	"github.com/gelembjuk/oursql/node/database"
+)
+
 type QueryParsed struct {
 	SQL              string
 	SQLKind          string
@@ -17,11 +21,11 @@ type QueryStructure struct {
 }
 
 func (qp QueryParsed) IsSelect() bool {
-	return qp.SQLKind == QueryKindSelect
+	return qp.SQLKind == database.QueryKindSelect
 }
 
 func (qp QueryParsed) IsUpdate() bool {
-	return qp.SQLKind != QueryKindSelect
+	return qp.SQLKind != database.QueryKindSelect
 }
 
 /*

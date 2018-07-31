@@ -54,6 +54,11 @@ func CreateLogger() *LoggerMan {
 
 	return &logger
 }
+func CreateLoggerStdout() *LoggerMan {
+	logger := CreateLogger()
+	logger.LogToStdout()
+	return logger
+}
 
 // change enabled logs state
 func (logger *LoggerMan) EnableLogs(logs string) {

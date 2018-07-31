@@ -143,10 +143,10 @@ func (db *Database) CheckConnectionIsOpen() bool {
 
 // dump DB to file
 func (db *Database) Dump(file string) error {
-	return db.DB().Dump(file)
+	return db.DB().QM().Dump(file)
 }
 
 // restore from dump
 func (db *Database) Restore(file string) error {
-	return db.DB().Restore(file)
+	return db.DB().QM().Restore(file)
 }
