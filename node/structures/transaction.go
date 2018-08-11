@@ -385,6 +385,7 @@ func (tx Transaction) String() string {
 
 	if tx.IsSQLCommand() {
 		lines = append(lines, fmt.Sprintf("    SQL: %s", tx.GetSQLQuery()))
+		lines = append(lines, fmt.Sprintf("    By: %s", from))
 	}
 
 	return strings.Join(lines, "\n")

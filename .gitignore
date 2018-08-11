@@ -15,3 +15,6 @@ node/conf1/
 node/conf2/
 node/conf3/
 wallet/*/
+
+tests/packagestests/dbquery/config.json
+tests/packagestests/dbquery/dbquery

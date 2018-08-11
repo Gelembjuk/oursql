@@ -5,7 +5,8 @@ import (
 )
 
 type mockMySQLDBManager struct {
-	ER *SQLExplainInfo
+	ER        *SQLExplainInfo
+	KeyColumn string
 }
 
 func GetDBManagerMock() mockMySQLDBManager {
@@ -73,9 +74,6 @@ func (bdm mockMySQLDBManager) Restore(file string) error {
 func (bdm mockMySQLDBManager) ExecuteSQL(sql string) error {
 	return nil
 }
-func (bdm mockMySQLDBManager) ExecuteSQLFirstly(sql string, queryType string) (int64, error) {
-	return 0, nil
-}
 
 // set explain info to return when requested
 func (bdm *mockMySQLDBManager) SetSQLExplain(si *SQLExplainInfo) {
@@ -86,4 +84,20 @@ func (bdm mockMySQLDBManager) ExecuteSQLExplain(sql string) (SQLExplainInfo, err
 		return *bdm.ER, nil
 	}
 	return SQLExplainInfo{}, nil
+}
+func (bdm mockMySQLDBManager) ExecuteSQLPrimaryKey(table string) (column string, err error) {
+
+	return bdm.KeyColumn, nil
+}
+
+func (bdm mockMySQLDBManager) ExecuteSQLSelectRow(sqlcommand string) (data map[string]string, err error) {
+	return
+}
+
+func (bdm mockMySQLDBManager) ExecuteSQLNextKeyValue(table string) (string, error) {
+	return "", nil
+}
+
+func (bdm mockMySQLDBManager) Quote(value string) string {
+	return value
 }

@@ -124,6 +124,9 @@ func (s *NodeServer) handleConnection(conn net.Conn) {
 	case "txcurrequest":
 		rerr = requestobj.handleTxCurRequest()
 
+	case "txsqlrequest":
+		rerr = requestobj.handleTxSQLRequest()
+
 	case "getnodes":
 		rerr = requestobj.handleGetNodes()
 

@@ -91,12 +91,40 @@ def GetDBCredentials(testdatadir = ""):
         s['database'] = os.path.basename(testdatadir)
     return s
 
-def GetDBConnection(testdatadir = ""):
+def DBGetRow(datadir, sql):
+    cnx = GetDBConnection(datadir, True)
+    cursor = cnx.cursor()
+    cursor.execute(sql)
+    result = cursor.fetchone()
+    return result
+    
+def DBGetRows(datadir, sql):
+    cnx = GetDBConnection(datadir, True)
+    cursor = cnx.cursor()
+    cursor.execute(sql)
+    result = cursor.fetchall()
+    return result
+    
+def DBExecute(datadir, sql):
+    cnx = GetDBConnection(datadir, True)
+    cursor = cnx.cursor()
+    cursor.execute(sql)
+    
+    
+def GetDBConnection(testdatadir = "", usedb = False):
     s = GetDBCredentials(testdatadir)
+    
+    db = ""
+    
+    if usedb and 'database' in s:
+        db = s['database']
+    
     cnx = mysql.connector.connect(user=s['user'], 
                                 password=s['password'],
                                 host=s['host'],
-                                port=s['port'])
+                                port=s['port'],
+                                database=db)
+
     return cnx
 
 def Execute(command, verbose = False):

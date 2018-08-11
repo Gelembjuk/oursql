@@ -110,7 +110,7 @@ func (n *Node) getBlockMakeManager() (consensus.BlockMakerInterface, error) {
 }
 
 // Init SQL transactions manager
-func (n *Node) getSQLQueryManager() (consensus.SQLTransactionsInterface, error) {
+func (n *Node) GetSQLQueryManager() (consensus.SQLTransactionsInterface, error) {
 	return consensus.NewSQLQueryManager(n.DBConn.DB(), n.Logger, []byte{}, ecdsa.PrivateKey{})
 }
 
@@ -335,7 +335,7 @@ func (n *Node) Send(PubKey []byte, privKey ecdsa.PrivateKey, to string, amount f
 // This adds a transaction directly to the DB. Can be executed when a node server is not running
 // This creates SQL transaction . Currency part can be present if SQL query "costs money"
 func (n *Node) SQLTransaction(PubKey []byte, privKey ecdsa.PrivateKey, sqlcommand string) ([]byte, error) {
-	qm, err := n.getSQLQueryManager()
+	qm, err := n.GetSQLQueryManager()
 	if err != nil {
 		return nil, err
 	}
@@ -464,7 +464,7 @@ func (n *Node) AddBlock(block *structures.Block) (uint, error) {
 		n.GetTransactionsManager().BlockAdded(block, addstate == blockchain.BCBAddState_addedToTop)
 	}
 	if addstate == blockchain.BCBAddState_addedToTop {
-		qm, _ := n.getSQLQueryManager()
+		qm, _ := n.GetSQLQueryManager()
 		qm.ExecuteOnBlockAdd(block.Transactions)
 	}
 

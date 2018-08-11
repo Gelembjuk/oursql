@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"database/sql"
 
 	"github.com/JamesStewy/go-mysqldump"
-	"github.com/gelembjuk/oursql/lib"
 	"github.com/gelembjuk/oursql/lib/utils"
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -350,48 +350,103 @@ func (bdm MySQLDBManager) ExecuteSQL(sql string) error {
 	return err
 }
 
-// execute SQL first time (by initiator of this SQL)
-// this will return key value of new inserted row (if it is auto_increment)
-func (bdm MySQLDBManager) ExecuteSQLFirstly(sql string, queryType string) (int64, error) {
-	db, err := bdm.getConnection()
+// execute EXPLAIN query to check if sql query is correct and what is type and which table it affects
+func (bdm MySQLDBManager) ExecuteSQLExplain(sql string) (r SQLExplainInfo, err error) {
+	explainRes, err := bdm.ExecuteSQLSelectRow("EXPLAIN " + sql)
 
 	if err != nil {
-		return 0, err
+		return
 	}
-	res, err := db.Exec(sql)
-
-	if err != nil {
-		return 0, err
-	}
-
-	if queryType == lib.QueryKindInsert {
-		id, err := res.LastInsertId()
-
-		if err == nil {
-			return id, nil
-		}
-	} else if queryType == lib.QueryKindDelete || queryType == lib.QueryKindUpdate {
-		num, err := res.RowsAffected()
-
-		if err == nil {
-			return num, nil
-		}
-	}
-	return 0, nil
-}
-
-//
-func (bdm MySQLDBManager) ExecuteSQLExplain(sql string) (SQLExplainInfo, error) {
-	db, err := bdm.getConnection()
-
-	r := SQLExplainInfo{}
-
-	if err != nil {
-		return r, err
-	}
-
-	err = db.QueryRow("EXPLAIN "+sql).Scan(&r.Id,
-		&r.SelectType, &r.Table, &r.Partitions, &r.Type, &r.PossibleKeys, &r.Key, &r.KeyLen, &r.Ref, &r.Rows, &r.Filtered, &r.Extra)
+	r.Id = explainRes["Id"]
+	r.SelectType = explainRes["SelectType"]
+	r.Table = explainRes["Table"]
+	r.Partitions = explainRes["Partitions"]
+	r.Type = explainRes["Type"]
+	r.PossibleKeys = explainRes["PossibleKeys"]
+	r.Key = explainRes["Key"]
+	r.KeyLen, _ = strconv.Atoi(explainRes["KeyLen"])
+	r.Ref = explainRes["Ref"]
+	r.Rows, _ = strconv.Atoi(explainRes["Rows"])
+	r.Filtered = explainRes["Filtered"]
+	r.Extra = explainRes["Extra"]
 
 	return r, err
+}
+
+// get primary key column name for a table
+func (bdm MySQLDBManager) ExecuteSQLPrimaryKey(table string) (column string, err error) {
+	row, err := bdm.ExecuteSQLSelectRow("SHOW KEYS FROM " + table + " WHERE Key_name = 'PRIMARY'")
+
+	if err != nil {
+		return
+	}
+	column = row["Column_name"]
+	return
+}
+
+// get row by table name and primary key value
+func (bdm MySQLDBManager) ExecuteSQLRowByKey(table string, priKeyVal string) (data map[string]string, err error) {
+	return
+}
+
+// get single row as a map
+func (bdm MySQLDBManager) ExecuteSQLSelectRow(sqlcommand string) (data map[string]string, err error) {
+	db, err := bdm.getConnection()
+
+	if err != nil {
+		return
+	}
+
+	rows, err := db.Query(sqlcommand)
+
+	if err != nil {
+		return
+	}
+
+	cols, err := rows.Columns()
+
+	if err != nil {
+		return
+	}
+
+	data = make(map[string]string)
+
+	if rows.Next() {
+		columns := make([]sql.NullString, len(cols))
+		columnPointers := make([]interface{}, len(cols))
+		for i, _ := range columns {
+			columnPointers[i] = &columns[i]
+		}
+
+		err = rows.Scan(columnPointers...)
+
+		if err != nil {
+			return
+		}
+		for i, colName := range cols {
+			val := ""
+
+			if columns[i].Valid {
+				val = columns[i].String
+			}
+
+			data[colName] = val
+		}
+	}
+
+	return
+}
+
+func (bdm MySQLDBManager) ExecuteSQLNextKeyValue(table string) (string, error) {
+	row, err := bdm.ExecuteSQLSelectRow("SHOW TABLE STATUS LIKE '" + table + "'")
+
+	if err != nil {
+		return "", err
+	}
+	return row["Auto_increment"], nil
+}
+
+// quote data to use in SQL queries
+func (bdm MySQLDBManager) Quote(value string) string {
+	return value
 }

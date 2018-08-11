@@ -6,12 +6,19 @@ import (
 	"strings"
 
 	"github.com/gelembjuk/oursql/lib"
+	"github.com/gelembjuk/oursql/node/database"
+)
+
+const (
+	querySubKindInsertSet    = "insertset"
+	querySubKindInsertValues = "insertvalues"
 )
 
 type sqlParser struct {
 	originalQuery    string
 	canonicalQuery   string
 	kind             string
+	subkind          string
 	table            string
 	comments         []string
 	updateColumns    map[string]string
@@ -23,6 +30,7 @@ func (q *sqlParser) Parse(sqlquery string) (err error) {
 	q.originalQuery = sqlquery
 	q.canonicalQuery = ""
 	q.kind = ""
+	q.subkind = ""
 	q.table = ""
 	q.comments = []string{}
 	q.updateColumns = map[string]string{}
@@ -53,7 +61,6 @@ func (q *sqlParser) Parse(sqlquery string) (err error) {
 	if err != nil {
 		return
 	}
-
 	q.conditonText, q.conditionColumns, err = q.parseCondition(sqlquery, q.kind)
 
 	if err != nil {
@@ -61,6 +68,58 @@ func (q *sqlParser) Parse(sqlquery string) (err error) {
 	}
 
 	return
+}
+
+// updates already parsed query if it is insert
+// adds one more column to a query
+func (q *sqlParser) ExtendInsert(column string, value string, coltype string) error {
+	if q.GetKind() != lib.QueryKindInsert {
+		return errors.New("Now insert query")
+	}
+
+	// check if column is already in the list of columns
+	if _, ok := q.updateColumns[column]; ok {
+		// column already is present in a condition
+		return nil
+	}
+
+	if q.subkind == querySubKindInsertSet {
+		extraCond := column + "="
+
+		if coltype == "int" {
+			extraCond = extraCond + database.Quote(value)
+		} else {
+			extraCond = extraCond + "'" + database.Quote(value) + "'"
+		}
+		q.canonicalQuery = q.canonicalQuery + ", " + extraCond
+
+		return nil
+
+	}
+	if q.subkind == querySubKindInsertValues {
+		var extraCond string
+		if coltype == "int" {
+			extraCond = database.Quote(value)
+		} else {
+			extraCond = "'" + database.Quote(value) + "'"
+		}
+		// insert as a first column
+		re, err := regexp.Compile("(?i)^(.+into\\s+" + q.GetTable() + "\\s+\\()(.+\\)\\s+values\\s+\\()(.+)$")
+
+		if err != nil {
+			return err
+		}
+		s := re.FindStringSubmatch(q.canonicalQuery)
+
+		if len(s) < 3 {
+			return errors.New("Can not parse INSERT query")
+		}
+		q.canonicalQuery = s[1] + column + ", " + s[2] + extraCond + ", " + s[3]
+
+		return nil
+	}
+
+	return errors.New("Unknown query type")
 }
 
 // ================== PARSERS =============================
@@ -169,6 +228,7 @@ func (q *sqlParser) parseUpdateColumns(sqlquery string, kind string) (data map[s
 		sr := r.FindStringSubmatch(sqlquery)
 
 		if len(sr) >= 2 {
+			q.subkind = querySubKindInsertSet
 			return q.parseKeyValueSet(sr[1])
 		}
 
@@ -181,6 +241,7 @@ func (q *sqlParser) parseUpdateColumns(sqlquery string, kind string) (data map[s
 		sr = r.FindStringSubmatch(sqlquery)
 
 		if len(sr) >= 3 {
+			q.subkind = querySubKindInsertValues
 			return q.parseValueList(sr[1], sr[2])
 		}
 
@@ -424,6 +485,7 @@ func (q *sqlParser) parseConditionString(conditionstring string) (columns map[st
 	complicated := 0
 
 	for _, s := range st {
+
 		sl := strings.ToLower(s)
 
 		if sl == "and" || sl == "or" || sl == "not" {

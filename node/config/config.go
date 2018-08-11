@@ -61,64 +61,78 @@ type AppConfig struct {
 	Database database.DatabaseConfig
 }
 
-// Parses inout and config file. Command line arguments ovverride config file options
+// Parses input and config file. Command line arguments ovverride config file options
 func GetAppInput() (AppInput, error) {
+	return parseConfig("")
+}
+
+func GetAppInputFromDir(dirpath string) (AppInput, error) {
+	return parseConfig(dirpath)
+}
+
+// Parses input
+func parseConfig(dirpath string) (AppInput, error) {
 	input := AppInput{}
 
 	if len(os.Args) < 2 {
 		input.Command = "help"
-		return input, nil
-	}
+	} else {
+		input.Command = os.Args[1]
 
-	input.Command = os.Args[1]
+		cmd := flag.NewFlagSet(input.Command, flag.ExitOnError)
 
-	cmd := flag.NewFlagSet(input.Command, flag.ExitOnError)
+		cmd.StringVar(&input.Args.Address, "address", "", "Address of operation")
+		cmd.StringVar(&input.Logs, "logs", "", "List of enabled logs groups")
+		cmd.StringVar(&input.MinterAddress, "minter", "", "Wallet address which signs blocks")
+		cmd.StringVar(&input.Args.Genesis, "genesis", "", "Genesis block text")
+		cmd.StringVar(&input.Args.Transaction, "transaction", "", "Transaction ID")
+		cmd.StringVar(&input.Args.From, "from", "", "Address to send money from")
+		cmd.StringVar(&input.Args.To, "to", "", "Address to send money to")
+		cmd.StringVar(&input.Args.Host, "host", "", "Node Server Host")
+		cmd.StringVar(&input.Args.NodeHost, "nodehost", "", "Remote Node Server Host")
+		cmd.IntVar(&input.Args.Port, "port", 0, "Node Server port")
+		cmd.IntVar(&input.Args.NodePort, "nodeport", 0, "Remote Node Server port")
+		cmd.Float64Var(&input.Args.Amount, "amount", 0, "Amount money to send")
+		cmd.StringVar(&input.Args.LogDest, "logdest", "file", "Destination of logs. file or stdout")
+		cmd.StringVar(&input.Args.View, "view", "", "View format")
+		cmd.BoolVar(&input.Args.Clean, "clean", false, "Clean data/cache")
 
-	cmd.StringVar(&input.Args.Address, "address", "", "Address of operation")
-	cmd.StringVar(&input.Logs, "logs", "", "List of enabled logs groups")
-	cmd.StringVar(&input.MinterAddress, "minter", "", "Wallet address which signs blocks")
-	cmd.StringVar(&input.Args.Genesis, "genesis", "", "Genesis block text")
-	cmd.StringVar(&input.Args.Transaction, "transaction", "", "Transaction ID")
-	cmd.StringVar(&input.Args.From, "from", "", "Address to send money from")
-	cmd.StringVar(&input.Args.To, "to", "", "Address to send money to")
-	cmd.StringVar(&input.Args.Host, "host", "", "Node Server Host")
-	cmd.StringVar(&input.Args.NodeHost, "nodehost", "", "Remote Node Server Host")
-	cmd.IntVar(&input.Args.Port, "port", 0, "Node Server port")
-	cmd.IntVar(&input.Args.NodePort, "nodeport", 0, "Remote Node Server port")
-	cmd.Float64Var(&input.Args.Amount, "amount", 0, "Amount money to send")
-	cmd.StringVar(&input.Args.LogDest, "logdest", "file", "Destination of logs. file or stdout")
-	cmd.StringVar(&input.Args.View, "view", "", "View format")
-	cmd.BoolVar(&input.Args.Clean, "clean", false, "Clean data/cache")
+		cmd.StringVar(&input.Args.MySQLHost, "mysqlhost", "", "MySQL server host name")
+		cmd.IntVar(&input.Args.MySQLPort, "mysqlport", 3306, "MySQL server port")
+		cmd.StringVar(&input.Args.MySQLUser, "mysqluser", "", "MySQL user")
+		cmd.StringVar(&input.Args.MySQLPassword, "mysqlpass", "", "MySQL password")
+		cmd.StringVar(&input.Args.MySQLDBName, "mysqldb", "", "MySQL database")
+		cmd.StringVar(&input.Args.DBTablesPrefix, "tablesprefix", "", "MySQL blockchain tables prefix")
+		cmd.StringVar(&input.Args.DumpFile, "dumpfile", "", "File where to dump DB")
+		cmd.StringVar(&input.Args.SQL, "sql", "", "SQL command to execute")
 
-	cmd.StringVar(&input.Args.MySQLHost, "mysqlhost", "", "MySQL server host name")
-	cmd.IntVar(&input.Args.MySQLPort, "mysqlport", 3306, "MySQL server port")
-	cmd.StringVar(&input.Args.MySQLUser, "mysqluser", "", "MySQL user")
-	cmd.StringVar(&input.Args.MySQLPassword, "mysqlpass", "", "MySQL password")
-	cmd.StringVar(&input.Args.MySQLDBName, "mysqldb", "", "MySQL database")
-	cmd.StringVar(&input.Args.DBTablesPrefix, "tablesprefix", "", "MySQL blockchain tables prefix")
-	cmd.StringVar(&input.Args.DumpFile, "dumpfile", "", "File where to dump DB")
-	cmd.StringVar(&input.Args.SQL, "sql", "", "SQL command to execute")
+		configdirPtr := cmd.String("configdir", "", "Location of config files")
+		err := cmd.Parse(os.Args[2:])
 
-	configdirPtr := cmd.String("configdir", "", "Location of config files")
-	err := cmd.Parse(os.Args[2:])
+		if err != nil {
+			return input, err
+		}
 
-	if err != nil {
-		return input, err
-	}
-
-	if *configdirPtr != "" {
-		input.ConfigDir = *configdirPtr
-		if input.ConfigDir[len(input.ConfigDir)-1:] != "/" {
-			input.ConfigDir += "/"
+		if *configdirPtr != "" {
+			input.ConfigDir = *configdirPtr
 		}
 	}
+
+	if input.ConfigDir == "" && dirpath != "" {
+		input.ConfigDir = dirpath
+	}
+
 	if input.ConfigDir == "" {
 		dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
 
 		if err == nil {
 			input.ConfigDir = dir + "/conf/"
 		}
-
+	}
+	if input.ConfigDir != "" {
+		if input.ConfigDir[len(input.ConfigDir)-1:] != "/" {
+			input.ConfigDir += "/"
+		}
 	}
 
 	if _, err := os.Stat(input.ConfigDir); os.IsNotExist(err) {
@@ -174,6 +188,7 @@ func GetAppInput() (AppInput, error) {
 
 	return input, nil
 }
+
 func (c *AppInput) completeDBConfig() {
 	if c.Database.DatabaseName == "" && c.Args.MySQLDBName != "" {
 		c.Database.DatabaseName = c.Args.MySQLDBName

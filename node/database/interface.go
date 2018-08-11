@@ -30,9 +30,12 @@ type DBManager interface {
 type DBQueryManager interface {
 	Dump(file string) error
 	Restore(file string) error
+	Quote(value string) string
 	ExecuteSQL(sql string) error
-	ExecuteSQLFirstly(sql string, queryType string) (int64, error) // int value is last insert ID or number of affected rows in case of update/delete
 	ExecuteSQLExplain(sql string) (SQLExplainInfo, error)
+	ExecuteSQLPrimaryKey(table string) (string, error)
+	ExecuteSQLNextKeyValue(table string) (string, error)
+	ExecuteSQLSelectRow(sqlcommand string) (data map[string]string, err error)
 }
 
 type SQLExplainInfo struct {

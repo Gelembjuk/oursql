@@ -10,6 +10,7 @@ import (
 	"github.com/gelembjuk/oursql/lib/nodeclient"
 	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/blockchain"
+	"github.com/gelembjuk/oursql/node/consensus"
 	"github.com/gelembjuk/oursql/node/nodemanager"
 	"github.com/gelembjuk/oursql/node/structures"
 	"github.com/gelembjuk/oursql/node/transactions"
@@ -224,6 +225,48 @@ func (s *NodeServerRequest) handleTxCurRequest() error {
 
 	if err != nil {
 		return err
+	}
+
+	result.DataToSign = DataToSign
+	result.TX = TXBytes
+
+	s.Response, err = net.GobEncode(result)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Prepares SQL transaction for a query
+func (s *NodeServerRequest) handleTxSQLRequest() error {
+	s.HasResponse = true
+
+	var payload nodeclient.ComRequestSQLTransaction
+
+	err := s.parseRequestData(&payload)
+
+	if err != nil {
+		return err
+	}
+
+	result := nodeclient.ComRequestTransactionData{}
+
+	qm, err := s.Node.GetSQLQueryManager()
+
+	if err != nil {
+		return err
+	}
+
+	status, TXBytes, DataToSign, _, err := qm.NewQuery(payload.SQL, payload.PubKey)
+
+	if err != nil {
+		return err
+	}
+
+	if status != consensus.SQLProcessingResultSignatureRequired {
+		return errors.New("Unexpected response on tranaction preparing")
 	}
 
 	result.DataToSign = DataToSign
@@ -611,7 +654,7 @@ func (s *NodeServerRequest) handleTx() error {
 	}
 	s.Logger.Trace.Printf("Received transaction. It does not exists: %x ", tx.GetID())
 	// this will also verify a transaction
-	err = s.Node.GetTransactionsManager().ReceivedNewTransaction(tx)
+	err = s.Node.GetTransactionsManager().ReceivedNewTransaction(tx, true)
 
 	if err != nil {
 		// if error is because some input transaction is not found, then request it and after it this TX again

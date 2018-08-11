@@ -149,6 +149,10 @@ def GetUnapprovedTransactions(datadir):
     
     txinfo = re.findall(regex, res)
     
+    if len(txinfo) < len(transactions):
+        regex = ur"SQL: ([^\n]+)\n"
+        txinfo = re.findall(regex, res)
+    
     txlist={}
     
     for i in range(len(transactions)):

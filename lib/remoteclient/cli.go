@@ -317,12 +317,9 @@ func (wc *WalletCLI) commandSQL() error {
 	if !w.ValidateAddress(wc.Input.Address) {
 		return errors.New("From Address is not valid")
 	}
-	if !w.ValidateAddress(wc.Input.ToAddress) {
-		return errors.New("To Address is not valid")
-	}
 
-	if wc.Input.Amount <= 0 {
-		return errors.New("The amount of transaction must be more 0")
+	if wc.Input.SQL == "" {
+		return errors.New("SQL command missing")
 	}
 
 	wc.Logger.Trace.Printf("Prepare wallet %s to send data to node %s", wc.Input.Address, wc.Node.NodeAddrToString())
@@ -336,8 +333,8 @@ func (wc *WalletCLI) commandSQL() error {
 
 	// Prepares new transaction without signatures
 	// This is just request to a node and it returns prepared transaction
-	TXBytes, DataToSign, err := wc.NodeCLI.SendRequestNewCurrencyTransaction(wc.Node,
-		walletobj.GetPublicKey(), wc.Input.ToAddress, wc.Input.Amount)
+	TXBytes, DataToSign, err := wc.NodeCLI.SendRequestNewSQLTransaction(wc.Node,
+		walletobj.GetPublicKey(), wc.Input.SQL)
 
 	if err != nil {
 		return err

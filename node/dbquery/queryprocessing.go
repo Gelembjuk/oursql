@@ -2,11 +2,12 @@ package dbquery
 
 import (
 	"errors"
-	"strconv"
-	"strings"
+	"fmt"
 
+	"github.com/gelembjuk/oursql/lib"
 	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/database"
+	"github.com/gelembjuk/oursql/node/dbquery/sqlparser"
 	"github.com/gelembjuk/oursql/node/structures"
 )
 import b64 "encoding/base64"
@@ -17,135 +18,172 @@ type queryProcessor struct {
 }
 
 // checks if this query is syntax correct , return altered query if needed
-func (qp queryProcessor) ParseQuery(sqlquery string) (QueryParsed, error) {
-	sqlquery = strings.TrimSpace(sqlquery)
+func (qp queryProcessor) ParseQuery(sqlquery string) (r QueryParsed, err error) {
+	r.Structure = sqlparser.NewSqlParser()
 
-	r := QueryParsed{}
+	err = r.Structure.Parse(sqlquery)
 
-	// detect comments and remove them
-	//re := regexp.MustCompile("\/\*.*\*\/")
-	sqlquery, err := qp.parseQueryComments(sqlquery, &r)
 	if err != nil {
-		return r, err
+		return
 	}
 
-	err = qp.parseQueryKind(sqlquery, &r)
+	// check syntax
+	err = qp.checkQuerySyntax(r.Structure)
+
 	if err != nil {
-		return r, err
+		return
 	}
 
-	r.Structure, err = qp.parseQueryStructure(sqlquery)
+	// this will extract key column, its value, check if it is present
+	err = qp.patchRowInfo(&r)
+
 	if err != nil {
-		return r, err
+		return
 	}
 
-	err = qp.parseQueryReferenceID(sqlquery, &r)
+	r.PubKey, r.Signature, r.TransactionBytes, err = r.parseInfoFromComments()
+
 	if err != nil {
-		return r, err
+		return
 	}
 
-	r.SQL = sqlquery
+	r.SQL = r.Structure.GetCanonicalQuery()
 
 	return r, nil
 }
 
-// Parse query structure. gets table, ID, fields etc
-func (qp queryProcessor) parseQueryStructure(sqlquery string) (QueryStructure, error) {
-	r := QueryStructure{}
+// checks if this query is syntax correct
+func (qp queryProcessor) checkQuerySyntax(sqlparsed sqlparser.SQLQueryParserInterface) error {
+	if sqlparsed.GetKind() == lib.QueryKindInsert ||
+		sqlparsed.GetKind() == lib.QueryKindDelete ||
+		sqlparsed.GetKind() == lib.QueryKindUpdate {
 
-	return r, nil
+		_, err := qp.DB.QM().ExecuteSQLExplain(sqlparsed.GetCanonicalQuery())
+
+		if err != nil {
+			return errors.New(fmt.Sprintf("Syntax check error: %s", err.Error()))
+		}
+	}
+
+	return nil
 }
 
-// Parse comments
-func (qp queryProcessor) parseQueryComments(sqlquery string, r *QueryParsed) (updsql string, rerr error) {
-	updsql = sqlquery
+// return info for a row that will be affected by a query. If that is update or delete
+// return a row
+// if it is insert, try to get next autoincrement
+func (qp queryProcessor) patchRowInfo(parsed *QueryParsed) (err error) {
+	if parsed.Structure.GetKind() != lib.QueryKindUpdate &&
+		parsed.Structure.GetKind() != lib.QueryKindDelete &&
+		parsed.Structure.GetKind() != lib.QueryKindInsert {
+		return
+	}
+
+	keyCol, err := qp.DB.QM().ExecuteSQLPrimaryKey(parsed.Structure.GetTable())
+
+	if err != nil {
+		return
+	}
+
+	parsed.KeyCol = keyCol
+
+	if parsed.Structure.GetKind() == lib.QueryKindUpdate ||
+		parsed.Structure.GetKind() == lib.QueryKindDelete {
+
+		cKey, cVal := parsed.Structure.GetOneColumnCondition()
+
+		if cKey != keyCol {
+			err = errors.New("Query condition has no a primary key")
+			return
+		}
+
+		sqlquery := "SELECT * FROM " + parsed.Structure.GetTable() + " WHERE " + keyCol + "='" + qp.DB.QM().Quote(cVal) + "'"
+
+		var currentRow map[string]string
+
+		currentRow, err = qp.DB.QM().ExecuteSQLSelectRow(sqlquery)
+
+		if err != nil {
+			return
+		}
+		parsed.RowBeforeQuery = currentRow
+		parsed.KeyVal = cVal
+
+	} else if parsed.Structure.GetKind() == lib.QueryKindInsert {
+		// there can be different primary key and it can be in list of insert columns
+
+		cols := parsed.Structure.GetUpdateColumns()
+
+		if val, ok := cols[keyCol]; ok {
+			parsed.KeyVal = val
+
+			return
+		}
+		// try to predict key value
+		// try to get next auto_increment
+		var nextID string
+		nextID, err = qp.DB.QM().ExecuteSQLNextKeyValue(parsed.Structure.GetTable())
+
+		if err != nil {
+			return
+		}
+
+		if nextID == "" {
+			err = errors.New("Can not build reference ID for inserted row. Table has no auto_increment key")
+			return
+		}
+
+		err = parsed.Structure.ExtendInsert(keyCol, nextID, "string")
+
+		if err != nil {
+			return
+		}
+
+		parsed.KeyVal = nextID
+		parsed.SQL = parsed.Structure.GetCanonicalQuery()
+
+	}
 
 	return
 }
 
-// Parse kind
-func (qp queryProcessor) parseQueryKind(sqlquery string, r *QueryParsed) error {
-	lcase := strings.ToLower(sqlquery)
-
-	if strings.HasPrefix(lcase, "select ") {
-		r.SQLKind = database.QueryKindSelect
-	} else if strings.HasPrefix(lcase, "update ") {
-		r.SQLKind = database.QueryKindUpdate
-	} else if strings.HasPrefix(lcase, "insert ") {
-		r.SQLKind = database.QueryKindUpdate
-	} else if strings.HasPrefix(lcase, "delete ") {
-		r.SQLKind = database.QueryKindUpdate
-	} else if strings.HasPrefix(lcase, "create table ") {
-		r.SQLKind = database.QueryKindCreate
-	} else if strings.HasPrefix(lcase, "drop table ") {
-		r.SQLKind = database.QueryKindDrop
-	} else {
-		return errors.New("Unknown query type")
-	}
-
-	return nil
-}
-
-// get reference ID from the query. look on condition
-func (qp queryProcessor) parseQueryReferenceID(sqlquery string, r *QueryParsed) error {
-	if r.SQLKind == database.QueryKindSelect {
-		return nil
-	}
-	return nil
-}
-
-// checks if this query is syntax correct , return altered query if needed
-func (qp queryProcessor) CheckQuerySyntax(sql string) error {
-	return nil
-}
-
 // execute query against a DB, returns SQLUpdate. Detects RefID and builds rollback
-func (q queryProcessor) ExecuteQuery(sql string) (*structures.SQLUpdate, error) {
-	qp, err := q.ParseQuery(sql)
+func (qp queryProcessor) ExecuteQuery(sql string) (*structures.SQLUpdate, error) {
+	qparsed, err := qp.ParseQuery(sql)
+
 	if err != nil {
 		return nil, err
 	}
-	return q.ExecuteParsedQuery(qp)
+	return qp.ExecuteParsedQuery(qparsed)
 }
 
 // execute query from QueryParsed data.
-func (q queryProcessor) ExecuteParsedQuery(qp QueryParsed) (*structures.SQLUpdate, error) {
-	// must get refID
-	id, err := q.DB.QM().ExecuteSQLFirstly(qp.SQL, qp.SQLKind)
+func (qp queryProcessor) ExecuteParsedQuery(parsed QueryParsed) (*structures.SQLUpdate, error) {
+	su, err := qp.MakeSQLUpdateStructure(parsed)
 
 	if err != nil {
 		return nil, err
 	}
-	su := &structures.SQLUpdate{}
-	su.Query = []byte(qp.SQL)
 
-	if qp.SQLKind == database.QueryKindInsert {
-		// refID is TABLE:KEYVAL
-		su.ReferenceID = []byte(qp.Structure.Table)
-		su.ReferenceID = append(su.ReferenceID, []byte(":")...)
-		su.ReferenceID = append(su.ReferenceID, []byte(strconv.FormatInt(id, 10))...)
-	} else if qp.SQLKind == database.QueryKindCreate {
-		su.ReferenceID = []byte(qp.Structure.Table)
-		su.ReferenceID = append(su.ReferenceID, []byte(":*")...)
-	} else {
-		// in other cases we already must have a refID
-		su.ReferenceID = []byte(qp.ReferenceID)
+	err = qp.DB.QM().ExecuteSQL(parsed.SQL)
+
+	if err != nil {
+		return nil, err
 	}
-	return su, nil
+	return &su, err
 }
 
 // Execute query from TX
-func (q queryProcessor) ExecuteQueryFromTX(sql structures.SQLUpdate) error {
-	return q.DB.QM().ExecuteSQL(string(sql.Query))
+func (qp queryProcessor) ExecuteQueryFromTX(sql structures.SQLUpdate) error {
+	return qp.DB.QM().ExecuteSQL(string(sql.Query))
 }
 
 // Execute rollback query from TX
-func (q queryProcessor) ExecuteRollbackQueryFromTX(sql structures.SQLUpdate) error {
-	return q.DB.QM().ExecuteSQL(string(sql.RollbackQuery))
+func (qp queryProcessor) ExecuteRollbackQueryFromTX(sql structures.SQLUpdate) error {
+	return qp.DB.QM().ExecuteSQL(string(sql.RollbackQuery))
 }
 
 // errorKind possible values: 2 - pubkey required, 3 - data sign required
-func (q queryProcessor) FormatSpecialErrorMessage(errorKind uint, txdata []byte, datatosign []byte) (string, error) {
+func (qp queryProcessor) FormatSpecialErrorMessage(errorKind uint, txdata []byte, datatosign []byte) (string, error) {
 	if errorKind == 2 {
 		return "Error(2): Public Key required", nil
 	}
@@ -158,10 +196,15 @@ func (q queryProcessor) FormatSpecialErrorMessage(errorKind uint, txdata []byte,
 }
 
 // Builds SQL update structure. It fins ID of a record, and build rollback query
-func (q queryProcessor) MakeSQLUpdateStructure(sql string) (structures.SQLUpdate, error) {
-	refID := "aaa"
-	rollbackSQL := "BBB"
-	s := structures.NewSQLUpdate(sql, refID, rollbackSQL)
+func (qp queryProcessor) MakeSQLUpdateStructure(parsed QueryParsed) (sqlupdate structures.SQLUpdate, err error) {
+	// get RefID info
 
-	return s, nil
+	rollSQL, err := parsed.buildRollbackSQL()
+
+	if err != nil {
+		return
+	}
+	sqlupdate = structures.NewSQLUpdate(parsed.SQL, parsed.ReferenceID(), rollSQL)
+
+	return
 }

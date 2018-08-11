@@ -12,6 +12,7 @@ import (
 	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/blockchain"
 	"github.com/gelembjuk/oursql/node/database"
+	"github.com/gelembjuk/oursql/node/dbquery"
 	"github.com/gelembjuk/oursql/node/structures"
 )
 
@@ -22,6 +23,11 @@ type txManager struct {
 
 func NewManager(DB database.DBManager, Logger *utils.LoggerMan) TransactionsManagerInterface {
 	return &txManager{DB, Logger}
+}
+
+// make SQL query manager
+func (n txManager) getQueryParser() dbquery.QueryProcessorInterface {
+	return dbquery.NewQueryProcessor(n.DB, n.Logger)
 }
 
 // Create tx index object to use in this package
@@ -314,7 +320,7 @@ func (n *txManager) ReceivedNewCurrencyTransactionData(txBytes []byte, Signature
 		return nil, err
 	}
 
-	err = n.ReceivedNewTransaction(tx)
+	err = n.ReceivedNewTransaction(tx, true)
 
 	if err != nil {
 		return nil, err
@@ -324,7 +330,7 @@ func (n *txManager) ReceivedNewCurrencyTransactionData(txBytes []byte, Signature
 }
 
 // New transaction reveived from other node. We need to verify and add to cache of unapproved
-func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction) error {
+func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction, sqltoexecute bool) error {
 	// verify this transaction
 	good, err := n.verifyTransactionQuick(tx)
 
@@ -333,6 +339,15 @@ func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction) error {
 	}
 	if !good {
 		return errors.New("Transaction verification failed")
+	}
+	// if this is SQL transaction, execute it now.
+	if tx.IsSQLCommand() && sqltoexecute {
+		n.Logger.Trace.Printf("Execute: %s", tx.GetSQLQuery())
+
+		_, err := n.getQueryParser().ExecuteQuery(tx.GetSQLQuery())
+		if err != nil {
+			return err
+		}
 	}
 	// if all is ok, add it to the list of unapproved
 	return n.getUnapprovedTransactionsManager().Add(tx)

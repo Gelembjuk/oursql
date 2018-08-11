@@ -43,6 +43,8 @@ func (q queryManager) getTransactionsManager() transactions.TransactionsManagerI
 // PubKey is optional. It can be used to make the flow to be faster. In case if
 // query needs external signature, this pubKey is used to build new TX and return data to sign by this key
 // can return prepared TX with data to sign or complete TX. if TX is complete, it is added to the pool and query executed
+// @return
+// status int, txBytes []byte, datatosign []byte, transaction structure ref, error
 func (q queryManager) NewQuery(sql string, pubKey []byte) (uint, []byte, []byte, *structures.Transaction, error) {
 	return q.processQuery(sql, pubKey, true)
 }
@@ -221,7 +223,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, executeifallowed b
 		return localError(err)
 	}
 	// prepare SQL part of a TX
-	sqlUpdate, err := qp.MakeSQLUpdateStructure(qparsed.SQL)
+	sqlUpdate, err := qp.MakeSQLUpdateStructure(qparsed)
 
 	if err != nil {
 		return localError(err)
@@ -298,20 +300,12 @@ func (q queryManager) processQueryWithSignature(txEncoded []byte, signature []by
 	// verify
 	// TODO
 
-	// execute
-	if executeifallowed {
-		q.Logger.Trace.Printf("Go to execute query: %s", tx.GetSQLQuery())
-		qp := q.getQueryParser()
-		_, err = qp.ExecuteQuery(tx.GetSQLQuery())
-		if err != nil {
-			return nil, err
-		}
-	}
 	q.Logger.Trace.Printf("Adding TX to pool")
 	//return nil, errors.New("Temp err ")
 	// add to pool
 	// if fails , execute rollback ???
-	err = q.getTransactionsManager().ReceivedNewTransaction(tx)
+	// query wil be executed inside transactions manager before adding to a pool
+	err = q.getTransactionsManager().ReceivedNewTransaction(tx, executeifallowed)
 
 	if err != nil {
 		return nil, err

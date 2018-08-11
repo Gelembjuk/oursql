@@ -81,10 +81,16 @@ type ComNewTransactionData struct {
 // Wallet sends address where to send and amount to send
 // and own pubkey. Server returns transaction but wihout signatures
 type ComRequestTransaction struct {
-	PubKey    []byte
-	To        string
-	Amount    float64
-	Signature []byte // to confirm request is from owner of PubKey (TODO)
+	PubKey []byte
+	To     string
+	Amount float64
+}
+
+// To Request new SQL transaction by wallet.
+// Wallet sends SQL command and own pubkey. Server returns transaction but wihout signatures
+type ComRequestSQLTransaction struct {
+	PubKey []byte
+	SQL    string
 }
 
 // Response on prepare transaction request. Returns transaction without signs
@@ -374,6 +380,33 @@ func (c *NodeClient) SendRequestNewCurrencyTransaction(addr netlib.NodeAddr,
 	data.Amount = amount
 
 	request, err := c.BuildCommandData("txcurrequest", &data)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	datapayload := ComRequestTransactionData{}
+
+	err = c.SendDataWaitResponse(addr, request, &datapayload)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return datapayload.TX, datapayload.DataToSign, nil
+}
+
+// Request to prepare new transaction by wallet.
+// It returns a transaction without signature.
+// Wallet has to sign it and then use SendNewTransaction to send completed transaction
+func (c *NodeClient) SendRequestNewSQLTransaction(addr netlib.NodeAddr,
+	PubKey []byte, sqlcommand string) ([]byte, []byte, error) {
+
+	data := ComRequestSQLTransaction{}
+	data.PubKey = PubKey
+	data.SQL = sqlcommand
+
+	request, err := c.BuildCommandData("txsqlrequest", &data)
 
 	if err != nil {
 		return nil, nil, err

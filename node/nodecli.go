@@ -295,6 +295,7 @@ func (c *NodeCLI) getWalletsCLI() (*remoteclient.WalletCLI, error) {
 	winput.NodeHost = "localhost"
 	winput.Amount = c.Input.Args.Amount
 	winput.ToAddress = c.Input.Args.To
+	winput.SQL = c.Input.Args.SQL
 
 	if c.Input.Args.From != "" {
 		winput.Address = c.Input.Args.From

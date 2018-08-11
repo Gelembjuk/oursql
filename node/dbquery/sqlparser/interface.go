@@ -12,6 +12,7 @@ const (
 
 type SQLQueryParserInterface interface {
 	Parse(sqlquery string) error
+	ExtendInsert(column string, value string, coltype string) error
 	GetCanonicalQuery() string
 	GetKind() string
 	IsSingeTable() bool

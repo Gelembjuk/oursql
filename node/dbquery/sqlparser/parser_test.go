@@ -131,13 +131,16 @@ func TestConditionString(t *testing.T) {
 	p := &sqlParser{}
 
 	tests := map[string]map[string][]string{
-		"a='b' AND c = 'X\\\"q' OR `d` = 2":                                 map[string][]string{"a": []string{"b", "="}, "c": []string{"X\"q", "="}, "d": []string{"2", "="}},
-		"a <> 'b'":                                                          map[string][]string{"a": []string{"b", "<>"}},
-		"id='2' and y='x'":                                                  map[string][]string{"id": []string{"2", "="}, "y": []string{"x", "="}},
+		"a='b' AND c = 'X\\\"q' OR `d` = 2": map[string][]string{"a": []string{"b", "="}, "c": []string{"X\"q", "="}, "d": []string{"2", "="}},
+		"a <> 'b'":                          map[string][]string{"a": []string{"b", "<>"}},
+		"id='2' and y='x'":                  map[string][]string{"id": []string{"2", "="}, "y": []string{"x", "="}},
+
 		"id='2' and y!='x' and z = 2 OR p= 3 OR p <>3":                      map[string][]string{"id": []string{"2", "="}, "y": []string{"x", "!="}, "z": []string{"2", "="}, "p": []string{"3", "<>"}},
 		"id='2' and y = 'x' OR z=\"bbb\"":                                   map[string][]string{"id": []string{"2", "="}, "y": []string{"x", "="}, "z": []string{"bbb", "="}},
 		"id='2' and y='x' OR z=\"bbb\" AND (x=1 or y=2)":                    map[string][]string{"id": []string{"2", "="}, "y": []string{"x", "="}, "z": []string{"bbb", "="}},
 		"id='2' and y='x' OR z=\"bbb\" AND (x=1 or y=2 and (a=1 or b = 2))": map[string][]string{"id": []string{"2", "="}, "y": []string{"x", "="}, "z": []string{"bbb", "="}}}
+	// TODO . this test fails. Query parser needs improvement
+	//"id='2' and y='tt\\\"oo\\''":                                        map[string][]string{"id": []string{"2", "="}, "y": []string{"tt\"oo'", "="}},
 
 	for s, res := range tests {
 		data, err := p.parseConditionString(s)
@@ -148,6 +151,32 @@ func TestConditionString(t *testing.T) {
 
 		if !reflect.DeepEqual(res, data) {
 			t.Fatalf("Fail for: %s : expected: %s , got: %s", s, res, data)
+		}
+
+	}
+}
+
+func TestInsert(t *testing.T) {
+	p := NewSqlParser()
+	sqls := map[string][]string{
+		"INSERT into t SET a='b',c = 'X', kc = 2":                      []string{"INSERT into t SET a='b',c = 'X', kc = 2"},
+		"INSERT into t SET a='b',c = 'X', d = 2  /*PUBKEY:ZZZZZZZZ;*/": []string{"INSERT into t SET a='b',c = 'X', d = 2, kc='5'"},
+		"INSERT into t (a,`b`, c) values (2,'oooo\\\"', \"123 \\n\" )": []string{"INSERT into t (kc, a,`b`, c) values ('5', 2,'oooo\\\"', \"123 \\n\" )"}}
+
+	for sql, res := range sqls {
+		err := p.Parse(sql)
+
+		if err != nil {
+			t.Fatalf("Error: %s for %s", err.Error(), sql)
+		}
+
+		err = p.ExtendInsert("kc", "5", "string")
+
+		if err != nil {
+			t.Fatalf("Error Processing: %s for %s", err.Error(), sql)
+		}
+		if res[0] != p.GetCanonicalQuery() {
+			t.Fatalf("Canonical different: %s vs %s", p.GetCanonicalQuery(), res[0])
 		}
 
 	}
