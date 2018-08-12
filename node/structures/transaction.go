@@ -25,6 +25,7 @@ type Transaction struct {
 	Vin        []TXCurrencyInput
 	Vout       []TXCurrrencyOutput
 	SQLCommand SQLUpdate
+	SQLBaseTX  []byte // ID of transaction where same row was affected last time
 }
 
 // execute when new tranaction object is created
@@ -40,6 +41,11 @@ func (tx *Transaction) completeNewTX() {
 // Return ID of transaction
 func (tx Transaction) GetID() []byte {
 	return tx.ID
+}
+
+// returns base TX for this SQL update TX
+func (tx Transaction) GetSQLBaseTX() []byte {
+	return tx.SQLBaseTX
 }
 
 // IsCoinbase checks whether the transaction is currency transaction
@@ -98,6 +104,7 @@ func (tx Transaction) Copy() (*Transaction, error) {
 	txCopy.Signature = tx.Signature
 	txCopy.ByPubKey = tx.ByPubKey
 	txCopy.SQLCommand = tx.SQLCommand
+	txCopy.SQLBaseTX = tx.SQLBaseTX
 
 	return txCopy, nil
 }
@@ -303,6 +310,12 @@ func (tx Transaction) ToBytes() ([]byte, error) {
 		return nil, err
 	}
 
+	err = binary.Write(buff, binary.BigEndian, tx.SQLBaseTX)
+
+	if err != nil {
+		return nil, err
+	}
+
 	return buff.Bytes(), nil
 }
 
@@ -386,6 +399,7 @@ func (tx Transaction) String() string {
 	if tx.IsSQLCommand() {
 		lines = append(lines, fmt.Sprintf("    SQL: %s", tx.GetSQLQuery()))
 		lines = append(lines, fmt.Sprintf("    By: %s", from))
+		lines = append(lines, fmt.Sprintf("    Based On: %x", tx.SQLBaseTX))
 	}
 
 	return strings.Join(lines, "\n")

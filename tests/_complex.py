@@ -5,6 +5,7 @@ import _transfers
 import _blocks
 import re
 import os
+import os.path
 import time
 import json
 import random
@@ -259,6 +260,9 @@ def copyConfig(datadir, destfile,minter, port, port2, port3):
     
  
 def DumpBCDB(datadir, dumpfile):
+    if os.path.isfile(dumpfile):
+        os.remove(dumpfile)
+        
     _lib.StartTest("Dump BC DB for future tests")
     res = _lib.ExecuteNode(['dumpblockchain','-configdir',datadir,'-dumpfile',dumpfile])
     _lib.FatalAssertSubstr(res,"Blockchain DB was dumped to a file","Dump was not succes")
