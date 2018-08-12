@@ -97,7 +97,3 @@ func (bdm mockMySQLDBManager) ExecuteSQLSelectRow(sqlcommand string) (data map[s
 func (bdm mockMySQLDBManager) ExecuteSQLNextKeyValue(table string) (string, error) {
 	return "", nil
 }
-
-func (bdm mockMySQLDBManager) Quote(value string) string {
-	return value
-}

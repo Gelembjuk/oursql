@@ -7,7 +7,7 @@ def ExecuteSQL(datadir,fromaddr,sqlcommand):
 
     res = _lib.ExecuteNode(['sql','-configdir',datadir,'-from',fromaddr,'-sql',sqlcommand])
     
-    _lib.FatalAssertSubstr(res,"Success. New transaction:","Executing SQL failes. NO info about new transaction")
+    _lib.FatalAssertSubstr(res,"Success. New transaction:","Executing SQL failes. NO info about new transaction. SQL error")
     
     # get transaction from this response 
     match = re.search( r'Success. New transaction: (.+)', res)
@@ -18,5 +18,22 @@ def ExecuteSQL(datadir,fromaddr,sqlcommand):
     txid = match.group(1)
 
     return txid
+
+def ExecuteSQLFailure(datadir,fromaddr,sqlcommand):
+    _lib.StartTest("Execute SQL by "+fromaddr+" "+sqlcommand+" , expect failure")
+
+    res = _lib.ExecuteNode(['sql','-configdir',datadir,'-from',fromaddr,'-sql',sqlcommand])
+    
+    _lib.FatalAssertSubstr(res,"Error: ","Error was expected")
+    
+    # get transaction from this response 
+    match = re.search( r'Error: (.+)', res)
+
+    if not match:
+        _lib.Fatal("No error message")
+        
+    error = match.group(1)
+
+    return error
 
     

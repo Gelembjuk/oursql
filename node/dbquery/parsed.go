@@ -2,6 +2,8 @@ package dbquery
 
 import (
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"regexp"
 
 	"github.com/gelembjuk/oursql/lib"
@@ -52,7 +54,15 @@ func (qp QueryParsed) buildRollbackSQL() (string, error) {
 	}
 	if qp.Structure.GetKind() == lib.QueryKindInsert {
 
-		return "DELETE FROM " + qp.Structure.GetTable() + " WHERE " + qp.KeyCol + "='" + database.Quote(qp.KeyVal) + "'", nil
+		return qp.makeInsertRollback()
+	}
+	if qp.Structure.GetKind() == lib.QueryKindDelete {
+
+		return qp.makeDeleteRollback()
+	}
+	if qp.Structure.GetKind() == lib.QueryKindUpdate {
+
+		return qp.makeUpdateRollback()
 	}
 	return "", nil
 }
@@ -119,6 +129,58 @@ func (qp QueryParsed) parseInfoFromComments() (PubKey []byte, Signature []byte, 
 		if err != nil {
 			return
 		}
+	}
+
+	return
+}
+
+// Build Insert operation rollback
+func (qp QueryParsed) makeInsertRollback() (sql string, err error) {
+	return "DELETE FROM " + qp.Structure.GetTable() + " WHERE " + qp.KeyCol + "='" + database.Quote(qp.KeyVal) + "'", nil
+}
+
+// Build Update operation rollback
+func (qp QueryParsed) makeUpdateRollback() (sql string, err error) {
+	sql = "UPDATE " + qp.Structure.GetTable() + " SET "
+
+	first := true
+
+	for col, _ := range qp.Structure.GetUpdateColumns() {
+		// for each column to be updated we have current values and we use it
+
+		if curVal, ok := qp.RowBeforeQuery[col]; ok {
+			if !first {
+				sql = sql + ", "
+			} else {
+				first = false
+			}
+
+			sql = sql + " " + col + "='" + database.Quote(curVal) + "'"
+		} else {
+			err = errors.New(fmt.Sprintf("Can not find current value for column %s", col))
+			return
+		}
+	}
+
+	sql = sql + " WHERE " + qp.KeyCol + "='" + database.Quote(qp.KeyVal) + "'"
+
+	return
+}
+
+// Build Delete operation rollback
+func (qp QueryParsed) makeDeleteRollback() (sql string, err error) {
+	sql = "INSERT INTO " + qp.Structure.GetTable() + " SET "
+
+	first := true
+
+	for col, curVal := range qp.RowBeforeQuery {
+		if !first {
+			sql = sql + ", "
+		} else {
+			first = false
+		}
+
+		sql = sql + " " + col + "='" + database.Quote(curVal) + "'"
 	}
 
 	return

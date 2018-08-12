@@ -30,7 +30,6 @@ type DBManager interface {
 type DBQueryManager interface {
 	Dump(file string) error
 	Restore(file string) error
-	Quote(value string) string
 	ExecuteSQL(sql string) error
 	ExecuteSQLExplain(sql string) (SQLExplainInfo, error)
 	ExecuteSQLPrimaryKey(table string) (string, error)

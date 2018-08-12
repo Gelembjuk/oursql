@@ -96,7 +96,7 @@ func (qp queryProcessor) patchRowInfo(parsed *QueryParsed) (err error) {
 			return
 		}
 
-		sqlquery := "SELECT * FROM " + parsed.Structure.GetTable() + " WHERE " + keyCol + "='" + qp.DB.QM().Quote(cVal) + "'"
+		sqlquery := "SELECT * FROM " + parsed.Structure.GetTable() + " WHERE " + keyCol + "='" + database.Quote(cVal) + "'"
 
 		var currentRow map[string]string
 
@@ -205,6 +205,6 @@ func (qp queryProcessor) MakeSQLUpdateStructure(parsed QueryParsed) (sqlupdate s
 		return
 	}
 	sqlupdate = structures.NewSQLUpdate(parsed.SQL, parsed.ReferenceID(), rollSQL)
-
+	qp.Logger.Trace.Printf("rollback for %s is %s", parsed.SQL, rollSQL)
 	return
 }

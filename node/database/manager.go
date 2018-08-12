@@ -445,8 +445,3 @@ func (bdm MySQLDBManager) ExecuteSQLNextKeyValue(table string) (string, error) {
 	}
 	return row["Auto_increment"], nil
 }
-
-// quote data to use in SQL queries
-func (bdm MySQLDBManager) Quote(value string) string {
-	return value
-}

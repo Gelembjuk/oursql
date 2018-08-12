@@ -175,6 +175,34 @@ func (n *txManager) GetUnapprovedTransactionsForNewBlock(number int) ([]structur
 * and can be added to next block
  */
 func (n *txManager) CancelTransaction(txid []byte) error {
+	// before to delete from a cache, we need to execute rollback query
+	// alo before to delete we need to delete all other transactions that are based on this
+	// (it can be only 1 next TX, but some other based on that)
+	// go up and deleete top fiest and get down back
+	// TODO
+	// find there is other TXin a pool that has this as a SQL input
+	// delete it first
+
+	n.Logger.Trace.Printf("Cancel TX: %x", txid)
+	// check if this is SQL TX and execute rollback SQL
+	tx, err := n.getUnapprovedTransactionsManager().GetIfExists(txid)
+
+	if err != nil {
+		return err
+	}
+
+	if tx == nil {
+		return errors.New("TX not found")
+	}
+	n.Logger.Trace.Printf("Check if is SQL TX")
+	if tx.IsSQLCommand() {
+		n.Logger.Trace.Printf("This is cancel of SQL TX. Rollback it: %s", string(tx.SQLCommand.RollbackQuery))
+		err = n.getQueryParser().ExecuteRollbackQueryFromTX(tx.SQLCommand)
+
+		if err != nil {
+			return err
+		}
+	}
 
 	found, err := n.getUnapprovedTransactionsManager().Delete(txid)
 

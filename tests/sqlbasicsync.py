@@ -6,22 +6,28 @@ import re
 import time
 import startnode
 import transactions
+import initblockchain
 
 datadir = ""
+datadir2 = ""
 
 def aftertest(testfilter):
-    global datadir
+    global datadir,datadir2
     
     if datadir != "":
         startnode.StopNode(datadir)
+    if datadir2 != "":
+        startnode.StopNode(datadir2)
         
 def test(testfilter):
-    global datadir
+    global datadir,datadir2
     
     _lib.StartTestGroup("SQL basic")
 
     _lib.CleanTestFolders()
-    datadir = _lib.CreateTestFolder()
+    
+    datadir = _lib.CreateTestFolder('_1_')
+    datadir2 = _lib.CreateTestFolder('_2_')
 
     startnode.StartNodeWithoutBlockchain(datadir)
     address = startnode.InitBockchain(datadir)
@@ -86,18 +92,31 @@ def test(testfilter):
     rows = _lib.DBGetRows(datadir,"SELECT * FROM test")
     _lib.FatalAssert(len(rows) == 2, "Must be 2 rows in a table")
     
-    #cancel transaction. rollback should affect
-    transactions.CancelTransaction(datadir,txid);
+    address2 = initblockchain.ImportBockchain(datadir2,"localhost",'30000')
     
-    # should be 0 unapproved transactions
-    transactions.GetUnapprovedTransactionsEmpty(datadir)
+    startnode.StartNode(datadir2, address2,'30001', "Server 2")
+    blocks = _blocks.WaitBlocks(datadir2, 4)
     
-    # should be 3 rows again
-    rows = _lib.DBGetRows(datadir,"SELECT * FROM test")
+    # must be 3 rows because delete transaction was not posted to that node
+    rows = _lib.DBGetRows(datadir2,"SELECT * FROM test")
     _lib.FatalAssert(len(rows) == 3, "Must be 3 rows in a table")
+    
+    txid = _sql.ExecuteSQL(datadir,address," DELETE  from   test where a=2")
+    
+    # should be 1 row on first node
+    rows = _lib.DBGetRows(datadir,"SELECT * FROM test")
+    _lib.FatalAssert(len(rows) == 1, "Must be 1 rows in a table")
+    
+    time.sleep(1)# give time to send transaction
+    # and 2 row on second
+    rows = _lib.DBGetRows(datadir2,"SELECT * FROM test")
+    _lib.FatalAssert(len(rows) == 2, "Must be 2 rows in a table")
     
     startnode.StopNode(datadir)
     datadir = ""
+    
+    startnode.StopNode(datadir2)
+    datadir2 = ""
     
     #_lib.RemoveTestFolder(datadir)
     _lib.EndTestGroupSuccess()
