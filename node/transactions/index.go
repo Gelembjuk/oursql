@@ -465,3 +465,41 @@ func (ti *transactionsIndex) GetCurrencyTransactionAllInfo(txID []byte, topHash 
 
 	return tx, spentOuts, blockHash, nil
 }
+
+// Get TX object from BC under given topHash
+func (ti *transactionsIndex) GetTransaction(txID []byte, topHash []byte) (*structures.Transaction, error) {
+	localError := func(err error) (*structures.Transaction, error) {
+		return nil, err
+	}
+
+	blockHashes, err := ti.GetTranactionBlocks(txID)
+
+	if err != nil {
+		return localError(err)
+	}
+
+	bcMan, err := blockchain.NewBlockchainManager(ti.DB, ti.Logger)
+
+	if err != nil {
+		return localError(err)
+	}
+
+	// find which of hashes corresponds to provied top
+	blockHash, err := bcMan.ChooseHashUnderTip(blockHashes, topHash)
+
+	if err != nil {
+		return localError(err)
+	}
+
+	if blockHash == nil {
+		return localError(nil)
+	}
+
+	tx, err := bcMan.GetTransactionFromBlock(txID, blockHash)
+
+	if err != nil {
+		return localError(err)
+	}
+
+	return tx, nil
+}

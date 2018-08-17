@@ -23,6 +23,10 @@ type QueryParsed struct {
 }
 
 func (qp QueryParsed) ReferenceID() string {
+	if qp.Structure.GetKind() == lib.QueryKindCreate ||
+		qp.Structure.GetKind() == lib.QueryKindDrop {
+		return qp.Structure.GetTable() + ":*"
+	}
 	return qp.Structure.GetTable() + ":" + qp.KeyVal
 }
 func (qp QueryParsed) GetKeyValue() string {

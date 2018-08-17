@@ -45,6 +45,11 @@ func (n txManager) getUnspentOutputsManager() *unspentTransactions {
 	return &unspentTransactions{n.DB, n.Logger}
 }
 
+// Create unspent outputx manage object to use in this package
+func (n txManager) getDataRowsAndTransacionsManager() *rowsToTransactions {
+	return &rowsToTransactions{n.DB, n.Logger}
+}
+
 // Reindex caches
 func (n *txManager) ReindexData() (map[string]int, error) {
 	err := n.getIndexManager().Reindex()
@@ -267,8 +272,13 @@ func (n *txManager) BlockAdded(block *structures.Block, ontopofchain bool) error
 	n.getIndexManager().BlockAdded(block)
 
 	if ontopofchain {
+		// execute TXs that were not in pool
+		n.transactionsFromAddedBlock(block.Transactions)
+		// remove all TXs from pool
 		n.getUnapprovedTransactionsManager().DeleteFromBlock(block)
 		n.getUnspentOutputsManager().UpdateOnBlockAdd(block)
+		// add association of transactions and SQL references
+		n.getDataRowsAndTransacionsManager().UpdateOnBlockAdd(block)
 	}
 	return nil
 }
@@ -276,6 +286,10 @@ func (n *txManager) BlockAdded(block *structures.Block, ontopofchain bool) error
 // Block was removed from the top of primary blockchain branch
 func (n *txManager) BlockRemoved(block *structures.Block) error {
 	n.Logger.Trace.Printf("TX Man. block removed %x", block.Hash)
+	// for this operations we don't rollback SQL update
+	// query is added back to pool
+	// there should not be conflicts, as allqueries in pool were based on queries
+	// in a block chain. this list will be before current pool
 	n.getUnapprovedTransactionsManager().AddFromCanceled(block)
 	n.getUnspentOutputsManager().UpdateOnBlockCancel(block)
 	n.getIndexManager().BlockRemoved(block)
@@ -285,16 +299,76 @@ func (n *txManager) BlockRemoved(block *structures.Block) error {
 // block is now added to primary chain. it existed in DB before
 func (n *txManager) BlockAddedToPrimaryChain(block *structures.Block) error {
 	n.Logger.Trace.Printf("TX Man. block added to primary %x", block.Hash)
+
+	// execute TXs that were not in pool
+	n.transactionsFromAddedBlock(block.Transactions)
+
+	// delete all transactions from a pool
 	n.getUnapprovedTransactionsManager().DeleteFromBlock(block)
 	n.getUnspentOutputsManager().UpdateOnBlockAdd(block)
+
 	return nil
 }
 
 // block is removed from primary chain. it continued to be in DB on side branch
 func (n *txManager) BlockRemovedFromPrimaryChain(block *structures.Block) error {
 	n.Logger.Trace.Printf("TX Man. block removed from primary %x", block.Hash)
-	n.getUnapprovedTransactionsManager().AddFromCanceled(block)
+	// we need to reverse transactions slice. execution of rollback should go
+	// in reversed order
+
+	for _, tx := range block.Transactions {
+		if tx.IsCoinbaseTransfer() {
+			continue
+		}
+		if !tx.IsSQLCommand() {
+			continue
+		}
+
+		n.Logger.Trace.Printf("Execute On Block Remove: %s", string(tx.SQLCommand.RollbackQuery))
+
+		_, err := n.getQueryParser().ExecuteQuery(string(tx.SQLCommand.RollbackQuery))
+
+		if err != nil {
+			return err
+		}
+
+	}
+
 	n.getUnspentOutputsManager().UpdateOnBlockCancel(block)
+	return nil
+}
+
+// this is executed to add set of transactions to unapproved list (pool)
+// it is used to add transactions back to pool from canceled blocks in case if branches are switched
+func (n *txManager) TransactionsFromCanceledBlocks(txList []structures.Transaction) error {
+	for _, tx := range txList {
+		n.ReceivedNewTransaction(&tx, true)
+	}
+	return nil
+}
+
+// check every TX from a block if SQL should be executed when block added to top of chain
+func (n *txManager) transactionsFromAddedBlock(txList []structures.Transaction) error {
+	pendingPoolObj := n.getUnapprovedTransactionsManager()
+
+	for _, tx := range txList {
+		if tx.IsSQLCommand() {
+			// execute only if not in a pool
+			// else it was already executed when adding to a pool
+
+			if exists, err := pendingPoolObj.GetIfExists(tx.GetID()); exists != nil && err == nil {
+				n.Logger.Trace.Printf("Exists in poll. Skip SQL: %x", tx.GetID())
+				continue
+			}
+
+			n.Logger.Trace.Printf("Execute On Block Add: %s", tx.GetSQLQuery())
+
+			_, err := n.getQueryParser().ExecuteQuery(tx.GetSQLQuery())
+			if err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -370,7 +444,7 @@ func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction, sqltoexec
 	}
 	// if this is SQL transaction, execute it now.
 	if tx.IsSQLCommand() && sqltoexecute {
-		n.Logger.Trace.Printf("Execute: %s", tx.GetSQLQuery())
+		n.Logger.Trace.Printf("Execute: %s , refID is %s", tx.GetSQLQuery(), string(tx.SQLCommand.ReferenceID))
 
 		_, err := n.getQueryParser().ExecuteQuery(tx.GetSQLQuery())
 		if err != nil {
@@ -385,7 +459,7 @@ func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction, sqltoexec
 // This function should find good input transactions for this amount
 // Including inputs from unapproved transactions if no good approved transactions yet
 func (n *txManager) PrepareNewCurrencyTransaction(PubKey []byte, to string, amount float64) ([]byte, []byte, error) {
-	PubKey, to, amount, inputs, totalamount, prevTXs, err := n.prepareNewCurrencyTransactionStart(PubKey, to, amount)
+	PubKey, amount, inputs, totalamount, prevTXs, err := n.prepareNewCurrencyTransactionStart(PubKey, to, amount)
 
 	if err != nil {
 		return nil, nil, err
@@ -395,46 +469,90 @@ func (n *txManager) PrepareNewCurrencyTransaction(PubKey []byte, to string, amou
 	return txBytes, stringtosign, err
 }
 
-// Make new transaction  for "paid" SQL command
-func (n *txManager) PrepareNewSQLTransaction(PubKey []byte, sqlUpdate structures.SQLUpdate, amount float64, to string) ([]byte, []byte, error) {
-	PubKey, to, amount, inputs, totalamount, prevTXs, err := n.prepareNewCurrencyTransactionStart(PubKey, to, amount)
+// Make new transaction  for SQL command
+// amount to pay for TX can be 0
+func (n *txManager) PrepareNewSQLTransaction(PubKey []byte, sqlUpdate structures.SQLUpdate,
+	amount float64, to string) (txBytes []byte, datatosign []byte, err error) {
 
-	if err != nil {
-		return nil, nil, err
+	// find TX where thi refID was last updated and add it to sqlUpdate too
+
+	var inputsTX map[int]*structures.Transaction
+	var tx *structures.Transaction
+
+	if amount > 0 {
+		var inputs []structures.TXCurrencyInput
+		var totalamount float64
+		var prevTXs map[string]*structures.Transaction
+
+		PubKey, amount, inputs, totalamount, prevTXs, err = n.prepareNewCurrencyTransactionStart(PubKey, to, amount)
+
+		if err != nil {
+			return
+		}
+
+		txBytes, _, inputsTX, err = n.prepareNewCurrencyTransactionComplete(PubKey, to, amount, inputs, totalamount, prevTXs)
+
+		if err != nil {
+			return
+		}
+
+		tx, err = structures.DeserializeTransaction(txBytes)
+
+		if err != nil {
+			return
+		}
+
+		tx.SetSQLPart(sqlUpdate)
+	} else {
+		// currrency part will be empty in new TX
+		tx, err = structures.NewSQLTransaction(sqlUpdate, nil, nil)
+
+		if err != nil {
+			return
+		}
 	}
 
-	txBytes, _, inputsTX, err := n.prepareNewCurrencyTransactionComplete(PubKey, to, amount, inputs, totalamount, prevTXs)
+	// set previous TX ID.
+	inputSQLTX, err := n.getBaseTransaction(sqlUpdate)
 
 	if err != nil {
-		return nil, nil, err
+		return
 	}
+	if inputSQLTX == nil {
+		inputSQLTX = []byte{}
+	} else {
+		// we need to verify that current query can follow that previous update
+		// TODO . Get TXt by inputSQLTX, extract SQLUpdate info from it
+		// and call CheckUpdateCanFollow from dbqueey package
+		// NOTE this can work without that. we check if a row exists before this place and it gives error if no
+	}
+	// thsi si reference to a transaction where same database item was updated last time
+	n.Logger.Trace.Printf("Input transaction %x for %s", inputSQLTX, string(sqlUpdate.Query))
+	tx.SetSQLPreviousTX(inputSQLTX)
 
-	tx, err := structures.DeserializeTransaction(txBytes)
+	datatosign, err = tx.PrepareSignData(PubKey, inputsTX)
 
 	if err != nil {
-		return nil, nil, err
+		err = errors.New(fmt.Sprintf("Error serialyxing prepared TX: %s", err.Error()))
+		return
 	}
-
-	tx.SetSQLPart(sqlUpdate)
-
-	datatosign, err := tx.PrepareSignData(PubKey, inputsTX)
 
 	txBytes, err = structures.SerializeTransaction(tx)
 
 	if err != nil {
-		return nil, nil, errors.New(fmt.Sprintf("Error serialyxing prepared TX: %s", err.Error()))
+		return
 	}
 
-	return txBytes, datatosign, nil
+	return
 }
 
 //
-func (n *txManager) prepareNewCurrencyTransactionStart(PubKey []byte, to string, amount float64) ([]byte, string, float64,
+func (n *txManager) prepareNewCurrencyTransactionStart(PubKey []byte, to string, amount float64) ([]byte, float64,
 	[]structures.TXCurrencyInput, float64, map[string]*structures.Transaction, error) {
 
-	localError := func(err error) ([]byte, string, float64,
+	localError := func(err error) ([]byte, float64,
 		[]structures.TXCurrencyInput, float64, map[string]*structures.Transaction, error) {
-		return nil, "", 0, nil, 0, nil, err
+		return nil, 0, nil, 0, nil, err
 	}
 	amount, err := strconv.ParseFloat(fmt.Sprintf("%.8f", amount), 64)
 
@@ -476,7 +594,7 @@ func (n *txManager) prepareNewCurrencyTransactionStart(PubKey []byte, to string,
 	if totalamount < amount {
 		return localError(errors.New("No anough funds to make new transaction"))
 	}
-	return PubKey, to, amount, inputs, totalamount, prevTXs, nil
+	return PubKey, amount, inputs, totalamount, prevTXs, nil
 }
 
 //
@@ -718,4 +836,68 @@ func (n *txManager) getCurrencyInputTransactionsState(tx *structures.Transaction
 	}
 
 	return prevTXs, badinputs, nil
+}
+
+// Finds a transaction where a refID was last updated or which can be used as a base
+// Firstly looks in a pool of transactions ,if not found, looks in an index
+func (n *txManager) getBaseTransaction(sqlUpdate structures.SQLUpdate) (txID []byte, err error) {
+	// look on a pool
+	txID, err = n.getUnapprovedTransactionsManager().FindSQLReferenceTransaction(sqlUpdate)
+
+	if err != nil {
+		return
+	}
+
+	if len(txID) > 0 {
+		// found in a pool
+		return
+	}
+	// now look in a BC using an indes of references
+	sqlUpdateMan, err := dbquery.NewSQLUpdateManager(sqlUpdate)
+
+	if err != nil {
+		return
+	}
+
+	// check base TX required
+	if !sqlUpdateMan.RequiresBaseTransation() {
+		txID = []byte{} // empty bytes list means no need to have base TX.
+		return
+	}
+	// if not found, try to get alt ID
+	altRefID, err := sqlUpdateMan.GetAlternativeRefID()
+
+	if err != nil {
+		return
+	}
+	// look in a pool first
+
+	txID, err = n.getDataRowsAndTransacionsManager().GetTXForRefID(sqlUpdate.ReferenceID)
+
+	if err != nil {
+		return
+	}
+
+	if txID != nil {
+		// found in the index
+		return
+	}
+	// check if it makes sense to search by altID (alt ref can be for insert after table create)
+	if altRefID == nil {
+		err = errors.New(fmt.Sprintf("Base Trasaction can not be found for %s", string(sqlUpdate.Query)))
+		return
+	}
+
+	txID, err = n.getDataRowsAndTransacionsManager().GetTXForRefID(altRefID)
+
+	if err != nil {
+		return
+	}
+
+	if txID != nil {
+		return
+	}
+
+	err = errors.New(fmt.Sprintf("Base Trasaction can not be found for %s", string(sqlUpdate.Query)))
+	return
 }

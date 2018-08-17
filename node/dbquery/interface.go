@@ -16,6 +16,25 @@ type QueryProcessorInterface interface {
 	MakeSQLUpdateStructure(parsed QueryParsed) (structures.SQLUpdate, error)
 }
 
+type SQLUpdateInterface interface {
+	CheckUpdateCanFollow(sqlUpdPrev *structures.SQLUpdate) error
+	CheckAllowsMultipleSubtransactions(sqlUpdPrev *structures.SQLUpdate) (bool, error)
+	GetAlternativeRefID() ([]byte, error)
+	RequiresBaseTransation() bool
+}
+
 func NewQueryProcessor(DB database.DBManager, Logger *utils.LoggerMan) QueryProcessorInterface {
 	return &queryProcessor{DB, Logger}
+}
+
+func NewSQLUpdateManager(SQLUpdate structures.SQLUpdate) (SQLUpdateInterface, error) {
+	o := sqlUpdateManager{SQLUpdate, nil}
+
+	err := o.Init()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &o, nil
 }

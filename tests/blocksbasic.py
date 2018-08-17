@@ -81,7 +81,7 @@ def test(testfilter):
     
     _lib.FatalAssertFloat(amount1, txlist[txid4][2], "Amount of transaction 4 is wrong")
     
-    blockchash = MintBlock(datadir,address)
+    blockchash = _blocks.MintBlock(datadir,address)
     
     transactions.GetUnapprovedTransactionsEmpty(datadir)
     
@@ -114,7 +114,7 @@ def test(testfilter):
             
         time.sleep(1)
     
-    blockchash = MintBlock(datadir,address)
+    blockchash = _blocks.MintBlock(datadir,address)
     transactions.GetUnapprovedTransactionsEmpty(datadir)
     
     blockshashes = _blocks.GetBlocks(datadir)
@@ -150,7 +150,7 @@ def test(testfilter):
             
         time.sleep(1)
     
-    blockchash = MintBlock(datadir,address)
+    blockchash = _blocks.MintBlock(datadir,address)
     transactions.GetUnapprovedTransactionsEmpty(datadir)
     
     blockshashes = _blocks.GetBlocks(datadir)
@@ -160,19 +160,6 @@ def test(testfilter):
     #_lib.RemoveTestFolder(datadir)
     _lib.EndTestGroupSuccess()
     
-def MintBlock(datadir,minter):
-    _lib.StartTest("Force to Mint a block")
-    res = _lib.ExecuteNode(['makeblock','-configdir',datadir,'-minter',minter,'-logs','trace'])
-    _lib.FatalAssertSubstr(res,"New block mined with the hash","Block making failed")
-    
-    match = re.search( r'New block mined with the hash ([0-9a-zA-Z]+).', res)
-
-    if not match:
-        _lib.Fatal("New block hash can not be found in response "+res)
-        
-    blockhash = match.group(1)
-    
-    return blockhash
 
 def PrepareBlockchain(datadir,port):
     _lib.StartTestGroup("Create blockchain. Try to start a server")

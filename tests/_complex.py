@@ -346,7 +346,7 @@ def Make5BlocksBC():
     txlist = transactions.GetUnapprovedTransactions(datadir)
     _lib.FatalAssert(len(txlist) == 1,"Should be 1 unapproved transaction")
     
-    blockchash = blocksbasic.MintBlock(datadir,address)
+    blockchash = _blocks.MintBlock(datadir,address)
     
     blockshashes = _blocks.GetBlocks(datadir)
     
@@ -365,7 +365,7 @@ def Make5BlocksBC():
     
     _lib.FatalAssert(len(txlist) == 2,"Should be 2 unapproved transaction")
     
-    blockchash = blocksbasic.MintBlock(datadir,address)
+    blockchash = _blocks.MintBlock(datadir,address)
     
     blockshashes = _blocks.GetBlocks(datadir)
     
@@ -383,7 +383,7 @@ def Make5BlocksBC():
     
     _lib.FatalAssert(len(txlist) == 3,"Should be 3 unapproved transaction")
     
-    blockchash = blocksbasic.MintBlock(datadir,address)
+    blockchash = _blocks.MintBlock(datadir,address)
     transactions.GetUnapprovedTransactionsEmpty(datadir)
     
     blockshashes = _blocks.GetBlocks(datadir)
@@ -417,7 +417,7 @@ def Make5BlocksBC():
     if txid3 not in txlist.keys():
         _lib.Fatal("Transaction 3 is not in the list of transactions after iteration "+str(i))
         
-    blockchash = blocksbasic.MintBlock(datadir,address)
+    blockchash = _blocks.MintBlock(datadir,address)
     transactions.GetUnapprovedTransactionsEmpty(datadir)
     
     blockshashes = _blocks.GetBlocks(datadir)
@@ -432,7 +432,7 @@ def Make5BlocksBC():
     txid3 = _transfers.Send(datadir,address3,address,a1)
     txid1 = _transfers.Send(datadir,address,address2,a1)
     
-    blockchash = blocksbasic.MintBlock(datadir,address)
+    blockchash = _blocks.MintBlock(datadir,address)
     transactions.GetUnapprovedTransactionsEmpty(datadir)
     
     blockshashes = _blocks.GetBlocks(datadir)

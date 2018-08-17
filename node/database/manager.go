@@ -163,6 +163,17 @@ func (bdm *MySQLDBManager) InitDatabase() error {
 		return err
 	}
 
+	dr, err := bdm.GetDataReferencesObject()
+
+	if err != nil {
+		return err
+	}
+
+	err = dr.InitDB()
+
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -199,6 +210,19 @@ func (bdm *MySQLDBManager) GetBlockchainObject() (BlockchainInterface, error) {
 	bc.DB = &MySQLDB{conn, bdm.Config.TablesPrefix, bdm.Logger}
 
 	return &bc, nil
+}
+
+func (bdm *MySQLDBManager) GetDataReferencesObject() (DataReferencesaInterface, error) {
+	conn, err := bdm.getConnection()
+
+	if err != nil {
+		return nil, err
+	}
+
+	dr := dataReferences{}
+	dr.DB = &MySQLDB{conn, bdm.Config.TablesPrefix, bdm.Logger}
+
+	return &dr, nil
 }
 
 // returns Transaction Index Database structure. does al init
@@ -432,6 +456,8 @@ func (bdm MySQLDBManager) ExecuteSQLSelectRow(sqlcommand string) (data map[strin
 
 			data[colName] = val
 		}
+	} else {
+		err = errors.New("Row not found in a table")
 	}
 
 	return

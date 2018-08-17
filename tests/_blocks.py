@@ -45,3 +45,17 @@ def WaitBlocks(datadir, explen, maxtime = 10):
         i = i + 1
         
     return blocks
+
+def MintBlock(datadir,minter):
+    _lib.StartTest("Force to Mint a block")
+    res = _lib.ExecuteNode(['makeblock','-configdir',datadir,'-minter',minter,'-logs','trace'])
+    _lib.FatalAssertSubstr(res,"New block mined with the hash","Block making failed")
+    
+    match = re.search( r'New block mined with the hash ([0-9a-zA-Z]+).', res)
+
+    if not match:
+        _lib.Fatal("New block hash can not be found in response "+res)
+        
+    blockhash = match.group(1)
+    
+    return blockhash

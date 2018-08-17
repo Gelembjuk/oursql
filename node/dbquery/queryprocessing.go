@@ -105,6 +105,7 @@ func (qp queryProcessor) patchRowInfo(parsed *QueryParsed) (err error) {
 		if err != nil {
 			return
 		}
+
 		parsed.RowBeforeQuery = currentRow
 		parsed.KeyVal = cVal
 
@@ -142,7 +143,17 @@ func (qp queryProcessor) patchRowInfo(parsed *QueryParsed) (err error) {
 		parsed.SQL = parsed.Structure.GetCanonicalQuery()
 
 	}
+	// do extra verification.
+	// we don't allow to change a key column value with UPDATE query. It can break the system
 
+	if parsed.Structure.GetKind() == lib.QueryKindUpdate {
+		if val, ok := parsed.Structure.GetUpdateColumns()[keyCol]; ok {
+			if val != keyCol {
+				err = errors.New("Update of primary key value is not allowed")
+				return
+			}
+		}
+	}
 	return
 }
 
@@ -205,6 +216,6 @@ func (qp queryProcessor) MakeSQLUpdateStructure(parsed QueryParsed) (sqlupdate s
 		return
 	}
 	sqlupdate = structures.NewSQLUpdate(parsed.SQL, parsed.ReferenceID(), rollSQL)
-	qp.Logger.Trace.Printf("rollback for %s is %s", parsed.SQL, rollSQL)
+	qp.Logger.Trace.Printf("rollback for %s is %s and refID %s", parsed.SQL, rollSQL, parsed.ReferenceID())
 	return
 }

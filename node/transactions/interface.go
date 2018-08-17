@@ -38,6 +38,8 @@ type TransactionsManagerInterface interface {
 	BlockAddedToPrimaryChain(block *structures.Block) error
 	// block was in primary chain and now is not
 	BlockRemovedFromPrimaryChain(block *structures.Block) error
+	// add to pool from canceled blocks. this will add to a pool and execute SQL for SQL transactions
+	TransactionsFromCanceledBlocks(txList []structures.Transaction) error
 
 	CancelTransaction(txID []byte) error
 	ReindexData() (map[string]int, error)

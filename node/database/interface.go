@@ -25,6 +25,7 @@ type DBManager interface {
 	GetUnapprovedTransactionsObject() (UnapprovedTransactionsInterface, error)
 	GetUnspentOutputsObject() (UnspentOutputsInterface, error)
 	GetNodesObject() (NodesInterface, error)
+	GetDataReferencesObject() (DataReferencesaInterface, error)
 }
 
 type DBQueryManager interface {
@@ -90,6 +91,16 @@ type TranactionsInterface interface {
 	PutTXSpentOutputs(txID []byte, outputs []byte) error
 	GetTXSpentOutputs(txID []byte) ([]byte, error)
 	DeleteTXSpentData(txID []byte) error
+}
+
+// this is interface for DB of connects of SQL refernces to transactions
+// It keeps last transaction in a chain where a DB table row was updated
+type DataReferencesaInterface interface {
+	InitDB() error
+	TruncateDB() error
+	SetTXForRefID(RefID []byte, txID []byte) error
+	GetTXForRefID(RefID []byte) ([]byte, error)
+	DeleteRefID(RefID []byte) error
 }
 
 type UnapprovedTransactionsInterface interface {

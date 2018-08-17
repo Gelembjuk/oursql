@@ -344,6 +344,11 @@ func (tx *Transaction) SetSQLPart(sql SQLUpdate) {
 	tx.SQLCommand = sql
 }
 
+// set ID of previous TX where SQL item was updated
+func (tx *Transaction) SetSQLPreviousTX(baseTX []byte) {
+	tx.SQLBaseTX = baseTX
+}
+
 // returns SQL command as string
 func (tx Transaction) GetSQLQuery() string {
 	if len(tx.SQLCommand.Query) > 0 {

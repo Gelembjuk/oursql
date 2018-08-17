@@ -162,7 +162,7 @@ def MakeBlockchainWithBlocks(port):
     
     _lib.FatalAssertFloat(amount1, txlist[txid4][2], "Amount of transaction 4 is wrong")
     
-    blockchash = blocksbasic.MintBlock(datadir,address)
+    blockchash = _blocks.MintBlock(datadir,address)
     
     transactions.GetUnapprovedTransactionsEmpty(datadir)
     
@@ -191,7 +191,7 @@ def MakeBlockchainWithBlocks(port):
     if txid3 not in txlist.keys():
         _lib.Fatal("Transaction 3 is not in the list of transactions after iteration "+str(i))
            
-    blockchash = blocksbasic.MintBlock(datadir,address)
+    blockchash = _blocks.MintBlock(datadir,address)
     transactions.GetUnapprovedTransactionsEmpty(datadir)
     
     blockshashes = _blocks.GetBlocks(datadir)
@@ -223,7 +223,7 @@ def MakeBlockchainWithBlocks(port):
     if txid3 not in txlist.keys():
         _lib.Fatal("Transaction 3 is not in the list of transactions after iteration "+str(i))
         
-    blockchash = blocksbasic.MintBlock(datadir,address)
+    blockchash = _blocks.MintBlock(datadir,address)
     transactions.GetUnapprovedTransactionsEmpty(datadir)
     
     blockshashes = _blocks.GetBlocks(datadir)

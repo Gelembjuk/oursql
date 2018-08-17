@@ -9,6 +9,7 @@ import (
 
 	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/database"
+	"github.com/gelembjuk/oursql/node/dbquery"
 	"github.com/gelembjuk/oursql/node/structures"
 )
 
@@ -567,4 +568,89 @@ func (u *unApprovedTransactions) CleanUnapprovedCache() error {
 	}
 	return utdb.TruncateDB()
 
+}
+
+// Find if there is transaction in a pool that updates given Reference
+// can be used for some operations. INSERT can be based on a table create operation
+// for now this is the only case when altid is really used
+func (u *unApprovedTransactions) FindSQLReferenceTransaction(sqlUpdate structures.SQLUpdate) (txID []byte, err error) {
+	// it i needed to go over all tranactions in cache and check each of them
+	utdb, err := u.DB.GetUnapprovedTransactionsObject()
+
+	if err != nil {
+		return
+	}
+
+	sqlUpdateMan, err := dbquery.NewSQLUpdateManager(sqlUpdate)
+
+	if err != nil {
+		return
+	}
+
+	// if not found, try to get alt ID
+	altRefID, err := sqlUpdateMan.GetAlternativeRefID()
+
+	if err != nil {
+		return
+	}
+
+	var AlttxID []byte
+
+	u.Logger.Trace.Printf("Search base TX in the pool for RefID %s and AltID %s", string(sqlUpdate.ReferenceID), string(altRefID))
+
+	// this keeps list of transactions that were already used in other transations as a reference input
+	transactionsReused := [][]byte{}
+
+	err = utdb.ForEach(func(txid, txBytes []byte) error {
+		tx, err := structures.DeserializeTransaction(txBytes)
+
+		if err != nil {
+			return err
+		}
+
+		if !tx.IsSQLCommand() {
+			return nil
+		}
+
+		// RefID in a tarnsaction can not be empty
+
+		u.Logger.Trace.Printf("Check RefID %s in TX %x", string(tx.SQLCommand.ReferenceID), tx.GetID())
+
+		if bytes.Compare(tx.SQLCommand.ReferenceID, sqlUpdate.ReferenceID) == 0 {
+			// we found this refereence , check if input TX was not yet used as input in other tx
+			if !u.helperCheckTXInList(tx.GetID(), transactionsReused) {
+				txID = utils.CopyBytes(tx.GetID())
+			}
+		}
+		if bytes.Compare(tx.SQLCommand.ReferenceID, altRefID) == 0 {
+			// we found this refereence , check if input TX was not yet used as input in other tx
+			if !u.helperCheckTXInList(tx.GetID(), transactionsReused) {
+				AlttxID = tx.GetID()
+			}
+		}
+		if len(tx.GetSQLBaseTX()) > 0 {
+			transactionsReused = append(transactionsReused, tx.GetSQLBaseTX())
+		}
+
+		return nil
+	})
+	if err != nil {
+		return
+	}
+
+	if len(txID) == 0 && len(AlttxID) > 0 {
+		txID = AlttxID
+	}
+
+	return
+}
+
+// helper function to check if a TX is in the list of TXs
+func (u *unApprovedTransactions) helperCheckTXInList(tx []byte, transactionsReused [][]byte) bool {
+	for _, ttx := range transactionsReused {
+		if bytes.Compare(tx, ttx) == 0 {
+			return true
+		}
+	}
+	return false
 }

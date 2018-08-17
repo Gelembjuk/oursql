@@ -223,44 +223,23 @@ func (q queryManager) processQuery(sql string, pubKey []byte, executeifallowed b
 		return localError(err)
 	}
 	// prepare SQL part of a TX
+	// this builds RefID for a TX update
 	sqlUpdate, err := qp.MakeSQLUpdateStructure(qparsed)
 
 	if err != nil {
 		return localError(err)
 	}
 
-	// find TX where thi refID was last updated and add it to sqlUpdate too
-	// TODO
+	// prepare curency TX and add SQL part
 
-	var tx *structures.Transaction
-	var datatosign []byte
+	txBytes, datatosign, err := q.getTransactionsManager().PrepareNewSQLTransaction(pubKey, sqlUpdate, amount, "MINTER")
 
-	if amount > 0 {
-		// prepare curency TX and add SQL part
-		var txData []byte
-		txData, datatosign, err = q.getTransactionsManager().PrepareNewSQLTransaction(pubKey, sqlUpdate, amount, "MINTER")
-		if err != nil {
-			return localError(err)
-		}
-
-		tx, err = structures.DeserializeTransaction(txData)
-		if err != nil {
-			return localError(err)
-		}
-	} else {
-		// currrency part will be empty in new TX
-		tx, err = structures.NewSQLTransaction(sqlUpdate, nil, nil)
-
-		if err != nil {
-			return localError(err)
-		}
-		datatosign, err = tx.PrepareSignData(pubKey, nil)
-
-		if err != nil {
-			return localError(err)
-		}
+	if err != nil {
+		return localError(err)
 	}
-	txBytes, err := structures.SerializeTransaction(tx)
+
+	tx, err := structures.DeserializeTransaction(txBytes)
+
 	if err != nil {
 		return localError(err)
 	}

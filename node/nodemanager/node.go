@@ -463,10 +463,6 @@ func (n *Node) AddBlock(block *structures.Block) (uint, error) {
 
 		n.GetTransactionsManager().BlockAdded(block, addstate == blockchain.BCBAddState_addedToTop)
 	}
-	if addstate == blockchain.BCBAddState_addedToTop {
-		qm, _ := n.GetSQLQueryManager()
-		qm.ExecuteOnBlockAdd(block.Transactions)
-	}
 
 	if addstate == blockchain.BCBAddState_addedToParallelTop {
 		// get 2 blocks branches that replaced each other
@@ -477,14 +473,19 @@ func (n *Node) AddBlock(block *structures.Block) (uint, error) {
 		}
 
 		if newChain != nil && oldChain != nil {
-			for _, block := range oldChain {
+			// array in time order
+			txFromOld := []structures.Transaction{}
 
+			for _, block := range oldChain {
+				// tx list is returned in time order, blocks are in reversed
 				err := n.GetTransactionsManager().BlockRemovedFromPrimaryChain(block)
 
 				if err != nil {
 
 					return 0, err
 				}
+				// blocks are from reversed order
+				txFromOld = append(block.Transactions, txFromOld...)
 			}
 			for _, block := range newChain {
 
@@ -494,6 +495,14 @@ func (n *Node) AddBlock(block *structures.Block) (uint, error) {
 
 					return 0, err
 				}
+			}
+
+			// add TXs from canceled back to pool . some of them can fails, this is normal
+			err = n.GetTransactionsManager().TransactionsFromCanceledBlocks(txFromOld)
+
+			if err != nil {
+
+				return 0, err
 			}
 		}
 	}

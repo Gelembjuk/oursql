@@ -21,3 +21,11 @@ func (q SQLUpdate) ToBytes() []byte {
 	bs = append(bs, q.RollbackQuery[:]...)
 	return bs
 }
+
+/*
+*  it is difficult to do this here.
+func (q SQLUpdate) IsSingleRow() bool {
+
+	return bs
+}
+*/
