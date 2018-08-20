@@ -251,6 +251,8 @@ func (c NodeCLI) createDaemonManager() (*server.NodeDaemon, error) {
 	nd.Port = c.Input.Port
 	nd.Host = c.Input.Host
 	nd.Node = c.Node
+	nd.DBProxyAddr = c.Input.DBProxyAddress
+	nd.DBAddr = c.Input.Database.GetServerAddress()
 	nd.Init()
 
 	return &nd, nil

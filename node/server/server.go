@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gelembjuk/oursql/lib/dbproxy"
 	netlib "github.com/gelembjuk/oursql/lib/net"
 	"github.com/gelembjuk/oursql/lib/nodeclient"
 	"github.com/gelembjuk/oursql/lib/utils"
@@ -29,6 +30,10 @@ type NodeServer struct {
 	StopMainChan        chan struct{}
 	StopMainConfirmChan chan struct{}
 	BlockBilderChan     chan []byte
+
+	DBProxyAddr string
+	DBAddr      string
+	DBProxy     dbproxy.DBProxyInterface
 
 	NodeAuthStr string
 }
@@ -203,6 +208,14 @@ func (s *NodeServer) sendErrorBack(conn net.Conn, err error) {
 func (s *NodeServer) StartServer(serverStartResult chan string) error {
 	s.Logger.Trace.Println("Prepare server to start ", s.NodeAddress.NodeAddrToString())
 
+	err := s.StartDatabaseProxy()
+
+	if err != nil {
+		return err
+	}
+
+	defer s.StopDatabaseProxy()
+
 	ln, err := net.Listen(netlib.Protocol, ":"+strconv.Itoa(s.NodeAddress.Port))
 
 	if err != nil {
@@ -317,6 +330,54 @@ func (s *NodeServer) BlockBuilder() {
 
 		s.Logger.Trace.Printf("Attempt finished")
 	}
+}
+
+// MySQL proxy server. It is in the middle between a DB server and DB client an reads requests
+func (s *NodeServer) StartDatabaseProxy() (err error) {
+	s.DBProxy, err = dbproxy.NewMySQLProxy(s.DBProxyAddr, s.DBAddr)
+
+	if err != nil {
+		return
+	}
+
+	s.DBProxy.SetLoggers(s.Logger.Trace, s.Logger.Error)
+
+	s.DBProxy.SetCallbacks(
+		func(query, sessID string) error {
+			s.Logger.Trace.Printf("DB Proxy: %s , seeID %s", query, sessID)
+			fmt.Printf("Query: %s, sessID: %s\n", query, sessID)
+			return nil
+		},
+		func(sessID string, err error) {
+			s.Logger.Trace.Printf("DBProxy  Response sessID: %s", sessID)
+
+			if err != nil {
+				s.Logger.Trace.Printf("DB Proxy Error: %s", err.Error())
+				fmt.Printf("Error: %s\n", err.Error())
+			}
+			return
+		})
+	err = s.DBProxy.Init()
+
+	if err != nil {
+		return
+	}
+
+	err = s.DBProxy.Run()
+
+	s.Logger.Trace.Println("DB proxy started")
+
+	return
+}
+
+// MySQL proxy server. It is in the middle between a DB server and DB client an reads requests
+func (s *NodeServer) StopDatabaseProxy() (err error) {
+	s.Logger.Trace.Println("Stop DB proxy")
+
+	s.DBProxy.Stop()
+
+	s.Logger.Trace.Println("DB proxy stopped")
+	return
 }
 
 // Reads and parses request from network data

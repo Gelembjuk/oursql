@@ -36,7 +36,7 @@ func (p *mysqlProxy) Init() error {
 	}
 
 	if p.errorLog == nil {
-		return errors.New("No trace logger object!")
+		return errors.New("No error logger object!")
 	}
 	p.stopChan = make(chan bool)
 	p.completeChan = make(chan bool)
@@ -229,6 +229,18 @@ func (pp *requestPacketParser) Write(p []byte) (n int, err error) {
 		io.Copy(pp.server, bytes.NewReader(p))
 	} else {
 		// send error response to client
+		pp.traceLog.Printf("Custom error response: %s", clientErr)
+
+		var errResp []byte
+
+		if rerr, ok := clientErr.(ResponseError); ok {
+			errResp = rerr.getMySQLError()
+		} else {
+			rerr := NewMySQLError(clientErr.Error(), 3001)
+			errResp = rerr.getMySQLError()
+		}
+
+		io.Copy(pp.client, bytes.NewReader(errResp))
 	}
 
 	return len(p), nil
@@ -248,7 +260,6 @@ func (pp *responsePacketParser) Write(p []byte) (n int, err error) {
 	switch getPacketType(p) {
 
 	case responseErr:
-
 		decoded, _ := decodeErrResponse(p)
 		pp.traceLog.Printf("Server response error %s", decoded)
 

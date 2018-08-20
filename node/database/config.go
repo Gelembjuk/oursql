@@ -20,6 +20,10 @@ func (dbc *DatabaseConfig) HasMinimum() bool {
 	return true
 }
 
+func (dbc *DatabaseConfig) GetServerAddress() string {
+	return dbc.MysqlHost + ":" + strconv.Itoa(dbc.MysqlPort)
+}
+
 func (dbc *DatabaseConfig) GetMySQLConnString() string {
 	prefix := ""
 

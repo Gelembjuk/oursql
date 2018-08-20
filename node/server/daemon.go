@@ -20,12 +20,14 @@ import (
 )
 
 type NodeDaemon struct {
-	Port      int
-	Host      string
-	ConfigDir string
-	Server    *NodeServer
-	Logger    *utils.LoggerMan
-	Node      *nodemanager.Node
+	Port        int
+	Host        string
+	ConfigDir   string
+	Server      *NodeServer
+	Logger      *utils.LoggerMan
+	Node        *nodemanager.Node
+	DBProxyAddr string
+	DBAddr      string
 }
 
 func (n *NodeDaemon) Init() error {
@@ -62,6 +64,9 @@ func (n *NodeDaemon) createServer() error {
 	server.Transit.Init(n.Logger)
 
 	server.Node = n.Node
+
+	server.DBProxyAddr = n.DBProxyAddr
+	server.DBAddr = n.DBAddr
 
 	n.Server = &server
 

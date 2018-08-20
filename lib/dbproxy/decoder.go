@@ -21,10 +21,6 @@ func getPacketType(packet []byte) byte {
 	return packet[4]
 }
 
-type errResponse struct {
-	Message string
-}
-
 // DecodeOkResponse decodes ERR_Packet from server.
 // Part of basic packet structure shown below.
 //

@@ -41,24 +41,26 @@ type AllPossibleArgs struct {
 
 // Input summary
 type AppInput struct {
-	Command       string
-	MinterAddress string
-	Logs          string
-	Port          int
-	Host          string
-	ConfigDir     string
-	Nodes         []net.NodeAddr
-	Args          AllPossibleArgs
-	Database      database.DatabaseConfig
+	Command        string
+	MinterAddress  string
+	Logs           string
+	Port           int
+	Host           string
+	ConfigDir      string
+	Nodes          []net.NodeAddr
+	Args           AllPossibleArgs
+	Database       database.DatabaseConfig
+	DBProxyAddress string
 }
 
 type AppConfig struct {
-	Minter   string
-	Port     int
-	Host     string
-	Nodes    []net.NodeAddr
-	Logs     []string
-	Database database.DatabaseConfig
+	Minter         string
+	Port           int
+	Host           string
+	Nodes          []net.NodeAddr
+	Logs           []string
+	Database       database.DatabaseConfig
+	DBProxyAddress string
 }
 
 // Parses input and config file. Command line arguments ovverride config file options
@@ -103,6 +105,7 @@ func parseConfig(dirpath string) (AppInput, error) {
 		cmd.StringVar(&input.Args.MySQLPassword, "mysqlpass", "", "MySQL password")
 		cmd.StringVar(&input.Args.MySQLDBName, "mysqldb", "", "MySQL database")
 		cmd.StringVar(&input.Args.DBTablesPrefix, "tablesprefix", "", "MySQL blockchain tables prefix")
+		cmd.StringVar(&input.DBProxyAddress, "dbproxyaddr", "", "MySQL DB proxy address host:port")
 		cmd.StringVar(&input.Args.DumpFile, "dumpfile", "", "File where to dump DB")
 		cmd.StringVar(&input.Args.SQL, "sql", "", "SQL command to execute")
 
@@ -172,6 +175,10 @@ func parseConfig(dirpath string) (AppInput, error) {
 
 		if input.Logs == "" && len(config.Logs) > 0 {
 			input.Logs = strings.Join(config.Logs, ",")
+		}
+
+		if input.DBProxyAddress == "" && config.DBProxyAddress != "" {
+			input.DBProxyAddress = config.DBProxyAddress
 		}
 
 		input.Database = config.Database
@@ -291,6 +298,10 @@ func (c AppInput) UpdateConfig() error {
 	}
 	if c.Port > 0 {
 		config.Port = c.Port
+	}
+
+	if c.DBProxyAddress != "" {
+		config.DBProxyAddress = c.DBProxyAddress
 	}
 
 	if c.Args.NodeHost != "" && c.Args.NodePort > 0 {
