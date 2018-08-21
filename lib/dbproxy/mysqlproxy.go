@@ -121,14 +121,16 @@ func (p *mysqlProxy) Run() error {
 }
 
 func (p *mysqlProxy) Stop() error {
+
 	if p.state == 3 {
 		// already stopped
 		return nil
 	}
 
-	p.stopChan <- true
+	close(p.stopChan)
 
 	if p.state == 2 {
+
 		// open connection to itself to unblock listener
 		conn, err := net.Dial("tcp", p.proxyHost)
 

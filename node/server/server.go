@@ -214,12 +214,12 @@ func (s *NodeServer) StartServer(serverStartResult chan string) error {
 		return err
 	}
 
-	defer s.StopDatabaseProxy()
-
 	ln, err := net.Listen(netlib.Protocol, ":"+strconv.Itoa(s.NodeAddress.Port))
 
 	if err != nil {
 		serverStartResult <- err.Error()
+
+		s.StopDatabaseProxy()
 
 		close(s.StopMainConfirmChan)
 		s.Logger.Trace.Println("Fail to start port listening ", err.Error())
@@ -270,6 +270,8 @@ func (s *NodeServer) StartServer(serverStartResult chan string) error {
 			ln.Close()
 
 			close(s.StopMainConfirmChan)
+
+			s.StopDatabaseProxy()
 
 			s.BlockBilderChan <- []byte{} // send signal to block building thread to exit
 			// empty slice means this is exit signal
@@ -334,6 +336,7 @@ func (s *NodeServer) BlockBuilder() {
 
 // MySQL proxy server. It is in the middle between a DB server and DB client an reads requests
 func (s *NodeServer) StartDatabaseProxy() (err error) {
+	s.Logger.Trace.Printf("DB Proxy Start on %s  %s", s.DBProxyAddr, s.DBAddr)
 	s.DBProxy, err = dbproxy.NewMySQLProxy(s.DBProxyAddr, s.DBAddr)
 
 	if err != nil {
