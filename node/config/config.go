@@ -43,6 +43,7 @@ type AllPossibleArgs struct {
 type AppInput struct {
 	Command        string
 	MinterAddress  string
+	ProxyKey       string
 	Logs           string
 	Port           int
 	Host           string
@@ -55,6 +56,7 @@ type AppInput struct {
 
 type AppConfig struct {
 	Minter         string
+	ProxyKey       string
 	Port           int
 	Host           string
 	Nodes          []net.NodeAddr
@@ -86,6 +88,7 @@ func parseConfig(dirpath string) (AppInput, error) {
 		cmd.StringVar(&input.Args.Address, "address", "", "Address of operation")
 		cmd.StringVar(&input.Logs, "logs", "", "List of enabled logs groups")
 		cmd.StringVar(&input.MinterAddress, "minter", "", "Wallet address which signs blocks")
+		cmd.StringVar(&input.ProxyKey, "proxykey", "", "Wallet address which is used to sign SQL transactions in a proxy")
 		cmd.StringVar(&input.Args.Genesis, "genesis", "", "Genesis block text")
 		cmd.StringVar(&input.Args.Transaction, "transaction", "", "Transaction ID")
 		cmd.StringVar(&input.Args.From, "from", "", "Address to send money from")
@@ -161,6 +164,9 @@ func parseConfig(dirpath string) (AppInput, error) {
 			input.MinterAddress = config.Minter
 		}
 
+		if input.ProxyKey == "" && config.ProxyKey != "" {
+			input.ProxyKey = config.ProxyKey
+		}
 		if input.Port < 1 && config.Port > 0 {
 			input.Port = config.Port
 		}
@@ -293,6 +299,9 @@ func (c AppInput) UpdateConfig() error {
 	if c.MinterAddress != "" {
 		config.Minter = c.MinterAddress
 	}
+	if c.ProxyKey != "" {
+		config.ProxyKey = c.ProxyKey
+	}
 	if c.Host != "" {
 		config.Host = c.Host
 	}
@@ -390,7 +399,7 @@ func (c AppInput) PrintUsage() {
 	fmt.Println("  importblockchain [-nodehost HOST] [-nodeport PORT] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Loads a blockchain from other node to init the DB.")
 	fmt.Println("  restoreblockchain -dumpfile FILEPATH [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Loads a blockchain from dump file and restores it to given DB. A DB credentials can be optional if they are present in config file")
 	fmt.Println("  dumpblockchain -dumpfile FILEPATH\n\t- Dump blockchain DB to a file. This fle can be used to restore a BC")
-	fmt.Println("  updateconfig [-minter ADDRESS] [-host HOST] [-port PORT] [-nodehost HOST] [-nodeport PORT] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX] [-dbproxyaddr ADDR]\n\t- Update config file. Allows to set this node minter address, host and port and remote node host and port")
+	fmt.Println("  updateconfig [-minter ADDRESS] [-proxykey ADDRESS] [-host HOST] [-port PORT] [-nodehost HOST] [-nodeport PORT] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX] [-dbproxyaddr ADDR]\n\t- Update config file. Allows to set this node minter address, host and port and remote node host and port")
 
 	fmt.Println("=[Blockchain manage operations]")
 	fmt.Println("  printchain [-view short|long]\n\t- Print all the blocks of the blockchain. Default view is long")
@@ -414,8 +423,8 @@ func (c AppInput) PrintUsage() {
 	fmt.Println("  unapprovedtransactions [-clean]\n\t- Print the list of transactions not included in any block yet. If the option -clean provided then cleans the cache")
 
 	fmt.Println("=[Node server operations]")
-	fmt.Println("  startnode [-minter ADDRESS] [-host HOST] [-port PORT] [-dbproxyaddr ADDR]\n\t- Start a node server. -minter defines minting address, -host - hostname of the node server , -port - listening port, -dbproxyaddr mysql proxy listening address `host:port`")
-	fmt.Println("  startintnode [-minter ADDRESS] [-port PORT] [-dbproxyaddr ADDR]\n\t- Start a node server in interactive mode (no deamon). -minter defines minting address and -port - listening port")
+	fmt.Println("  startnode [-minter ADDRESS] [-host HOST] [-port PORT] [-proxykey ADDRESS] [-dbproxyaddr ADDR]\n\t- Start a node server. -minter defines minting address, -host - hostname of the node server , -port - listening port, -dbproxyaddr mysql proxy listening address `host:port`")
+	fmt.Println("  startintnode [-minter ADDRESS] [-port PORT] [-proxykey ADDRESS] [-dbproxyaddr ADDR]\n\t- Start a node server in interactive mode (no deamon). -minter defines minting address and -port - listening port")
 	fmt.Println("  stopnode\n\t- Stop runnning node")
 	fmt.Println("  nodestate\n\t- Print state of the node process")
 

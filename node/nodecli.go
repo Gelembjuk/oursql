@@ -87,6 +87,20 @@ func (c *NodeCLI) CreateNode() {
 
 	node.NodeClient.SetAuthStr(c.NodeAuthStr)
 
+	if c.Input.ProxyKey != "" {
+		walletscli, err := c.getWalletsCLI()
+
+		if err == nil {
+			walletobj, err := walletscli.WalletsObj.GetWallet(c.Input.ProxyKey)
+
+			if err == nil {
+				node.ProxyPubKey = walletobj.GetPublicKey()
+				node.ProxyPrivateKey = walletobj.GetPrivateKey()
+			}
+		}
+
+	}
+
 	c.Node = &node
 }
 

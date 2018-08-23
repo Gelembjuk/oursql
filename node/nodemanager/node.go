@@ -19,17 +19,21 @@ import (
 
 // This structure is central part of the application. only it can acces to blockchain and inside it all operation are done
 type Node struct {
-	NodeBC    NodeBlockchain
-	NodeNet   net.NodeNetwork
-	Logger    *utils.LoggerMan
-	ConfigDir string
+	NodeBC     NodeBlockchain
+	NodeNet    net.NodeNetwork
+	Logger     *utils.LoggerMan
+	NodeClient *nodeclient.NodeClient
+	DBConn     *Database
 
-	MinterAddress string
-	NodeClient    *nodeclient.NodeClient
-	OtherNodes    []net.NodeAddr
-	DBConn        *Database
-	SessionID     string
-	locks         *NodeLocks
+	ConfigDir       string
+	MinterAddress   string
+	ProxyPubKey     []byte
+	ProxyPrivateKey ecdsa.PrivateKey
+
+	OtherNodes []net.NodeAddr
+
+	SessionID string
+	locks     *NodeLocks
 }
 type NodeLocks struct {
 	blockAddLock *sync.Mutex
@@ -111,7 +115,13 @@ func (n *Node) getBlockMakeManager() (consensus.BlockMakerInterface, error) {
 
 // Init SQL transactions manager
 func (n *Node) GetSQLQueryManager() (consensus.SQLTransactionsInterface, error) {
-	return consensus.NewSQLQueryManager(n.DBConn.DB(), n.Logger, []byte{}, ecdsa.PrivateKey{})
+	// get key pair from config
+	if len(n.ProxyPubKey) > 0 {
+		n.Logger.Trace.Printf("Make query manager with proxy key %x", n.ProxyPubKey)
+	} else {
+		n.Logger.Trace.Printf("Make query manager without proxy key")
+	}
+	return consensus.NewSQLQueryManager(n.DBConn.DB(), n.Logger, n.ProxyPubKey, n.ProxyPrivateKey)
 }
 
 // Init block maker object. It is used to make new blocks

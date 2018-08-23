@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 )
@@ -14,6 +15,7 @@ type mysqlProxy struct {
 	proxyHost        string
 	requestCallback  RequestQueryFilterCallback
 	responseCallback ResponseFilterCallback
+	queryFilter      DBProxyFilter
 	traceLog         *log.Logger
 	errorLog         *log.Logger
 	state            byte
@@ -25,6 +27,9 @@ func NewMySQLProxy(proxyHost, mysqlHost string) (DBProxyInterface, error) {
 	obj := &mysqlProxy{}
 	obj.mysqlHost = mysqlHost
 	obj.proxyHost = proxyHost
+
+	obj.SetLoggers(log.New(ioutil.Discard, "", 0),
+		log.New(ioutil.Discard, "", 0))
 	return obj, nil
 }
 
@@ -44,9 +49,15 @@ func (p *mysqlProxy) Init() error {
 	return nil
 }
 
+// Set filtering callback function
 func (p *mysqlProxy) SetCallbacks(requestCallback RequestQueryFilterCallback, responseCallback ResponseFilterCallback) {
 	p.requestCallback = requestCallback
 	p.responseCallback = responseCallback
+}
+
+// Set query filter structure
+func (p *mysqlProxy) SetFilter(filterObj DBProxyFilter) {
+	p.queryFilter = filterObj
 }
 
 func (p *mysqlProxy) SetLoggers(t *log.Logger, e *log.Logger) {
@@ -188,12 +199,12 @@ func (p *mysqlProxy) handleConnection(client net.Conn) {
 
 // Build requestPacketParser object
 func (p *mysqlProxy) getRequestManager(server net.Conn, client net.Conn, sessID string) *requestPacketParser {
-	return &requestPacketParser{server, client, sessID, p.requestCallback, p.traceLog, p.errorLog}
+	return &requestPacketParser{server, client, sessID, p.requestCallback, p.queryFilter, p.traceLog, p.errorLog}
 }
 
 // Build responsePacketParser object
 func (p *mysqlProxy) getResponseManager(client net.Conn, sessID string) *responsePacketParser {
-	return &responsePacketParser{client, sessID, p.responseCallback, p.traceLog, p.errorLog}
+	return &responsePacketParser{client, sessID, p.responseCallback, p.queryFilter, p.traceLog, p.errorLog}
 }
 
 type requestPacketParser struct {
@@ -201,6 +212,7 @@ type requestPacketParser struct {
 	client          net.Conn
 	sessionID       string
 	requestCallback RequestQueryFilterCallback
+	queryFilter     DBProxyFilter
 	traceLog        *log.Logger
 	errorLog        *log.Logger
 }
@@ -220,7 +232,11 @@ func (pp *requestPacketParser) Write(p []byte) (n int, err error) {
 		decoded, err := decodeQueryRequest(p)
 
 		if err == nil {
-			if pp.requestCallback != nil {
+			// pass through filters
+			if pp.queryFilter != nil {
+				clientErr = pp.queryFilter.RequestCallback(decoded.Query, pp.sessionID)
+			}
+			if clientErr == nil && pp.requestCallback != nil {
 				clientErr = pp.requestCallback(decoded.Query, pp.sessionID)
 			}
 
@@ -252,6 +268,7 @@ type responsePacketParser struct {
 	client           net.Conn
 	sessionID        string
 	responseCallback ResponseFilterCallback
+	queryFilter      DBProxyFilter
 	traceLog         *log.Logger
 	errorLog         *log.Logger
 }
@@ -265,13 +282,18 @@ func (pp *responsePacketParser) Write(p []byte) (n int, err error) {
 		decoded, _ := decodeErrResponse(p)
 		pp.traceLog.Printf("Server response error %s", decoded)
 
+		if pp.queryFilter != nil {
+			pp.queryFilter.ResponseCallback(pp.sessionID, errors.New(decoded))
+		}
 		if pp.responseCallback != nil {
 			pp.responseCallback(pp.sessionID, errors.New(decoded))
 		}
 
 	default:
 		pp.traceLog.Printf("Response OK")
-
+		if pp.queryFilter != nil {
+			pp.queryFilter.ResponseCallback(pp.sessionID, nil)
+		}
 		if pp.responseCallback != nil {
 			pp.responseCallback(pp.sessionID, nil)
 		}

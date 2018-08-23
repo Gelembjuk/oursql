@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gelembjuk/oursql/lib/dbproxy"
 	netlib "github.com/gelembjuk/oursql/lib/net"
 	"github.com/gelembjuk/oursql/lib/nodeclient"
 	"github.com/gelembjuk/oursql/lib/utils"
@@ -33,7 +32,7 @@ type NodeServer struct {
 
 	DBProxyAddr string
 	DBAddr      string
-	DBProxy     dbproxy.DBProxyInterface
+	QueryFlter  *queryFilter
 
 	NodeAuthStr string
 }
@@ -336,51 +335,14 @@ func (s *NodeServer) BlockBuilder() {
 
 // MySQL proxy server. It is in the middle between a DB server and DB client an reads requests
 func (s *NodeServer) StartDatabaseProxy() (err error) {
-	s.Logger.Trace.Printf("DB Proxy Start on %s  %s", s.DBProxyAddr, s.DBAddr)
-	s.DBProxy, err = dbproxy.NewMySQLProxy(s.DBProxyAddr, s.DBAddr)
-
-	if err != nil {
-		return
-	}
-
-	s.DBProxy.SetLoggers(s.Logger.Trace, s.Logger.Error)
-
-	s.DBProxy.SetCallbacks(
-		func(query, sessID string) error {
-			s.Logger.Trace.Printf("DB Proxy: %s , seeID %s", query, sessID)
-			fmt.Printf("Query: %s, sessID: %s\n", query, sessID)
-			return nil
-		},
-		func(sessID string, err error) {
-			s.Logger.Trace.Printf("DBProxy  Response sessID: %s", sessID)
-
-			if err != nil {
-				s.Logger.Trace.Printf("DB Proxy Error: %s", err.Error())
-				fmt.Printf("Error: %s\n", err.Error())
-			}
-			return
-		})
-	err = s.DBProxy.Init()
-
-	if err != nil {
-		return
-	}
-
-	err = s.DBProxy.Run()
-
-	s.Logger.Trace.Println("DB proxy started")
-
+	s.QueryFlter, err = InitQueryFilter(s.DBProxyAddr, s.DBAddr, s.Node.Clone(), s.Logger)
 	return
 }
 
 // MySQL proxy server. It is in the middle between a DB server and DB client an reads requests
 func (s *NodeServer) StopDatabaseProxy() (err error) {
-	s.Logger.Trace.Println("Stop DB proxy")
 
-	s.DBProxy.Stop()
-
-	s.Logger.Trace.Println("DB proxy stopped")
-	return
+	return s.QueryFlter.Stop()
 }
 
 // Reads and parses request from network data

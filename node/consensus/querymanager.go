@@ -127,22 +127,6 @@ func (q queryManager) NewQueryFromProxy(sql string) (*structures.Transaction, er
 
 	return nil, errors.New(errStr)
 }
-func (q queryManager) ExecuteOnBlockAdd(txlist []structures.Transaction) error {
-
-	for _, tx := range txlist {
-		if tx.IsSQLCommand() {
-			q.Logger.Trace.Printf("Execute: %s", tx.GetSQLQuery())
-			_, err := q.getQueryParser().ExecuteQuery(tx.GetSQLQuery())
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-func (q queryManager) ExecuteOnBlockCancel(txlist []structures.Transaction) error {
-	return nil
-}
 
 // ========================================================================================
 // this does all work. It checks query, decides if ll data are present and creates transaction
