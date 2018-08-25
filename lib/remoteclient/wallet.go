@@ -5,8 +5,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"encoding/gob"
-	"log"
+	"crypto/x509"
+	"encoding/hex"
+	"encoding/pem"
 
 	"github.com/gelembjuk/oursql/lib"
 	"github.com/gelembjuk/oursql/lib/utils"
@@ -26,6 +27,29 @@ type WalletBalance struct {
 	Pending  float64
 }
 
+func MakeWalletFromEncoded(pubkeyenc, prikeyenc string) (wallet Wallet, err error) {
+	wallet.PublicKey, err = hex.DecodeString(pubkeyenc)
+
+	if err != nil {
+		return
+	}
+
+	// parse private key
+	prikeybytes := []byte(prikeyenc)
+
+	p, _ := pem.Decode(prikeybytes)
+
+	prikey, err := x509.ParseECPrivateKey(p.Bytes)
+
+	if err != nil {
+		return
+	}
+
+	wallet.PrivateKey = *prikey
+
+	return
+}
+
 // MakeWallet creates Wallet. It generates new keys pair and assign to the object
 func (w *Wallet) MakeWallet() {
 	var private ecdsa.PrivateKey
@@ -39,7 +63,12 @@ func (w *Wallet) MakeWallet() {
 			// somethign must be very wrong here
 			break
 		}
-		private, public = w.newKeyPair()
+		var err error
+		private, public, err = w.newKeyPair()
+
+		if err != nil {
+			continue
+		}
 
 		signature, err := utils.SignData(private, []byte(keysTestString))
 
@@ -72,6 +101,25 @@ func (w Wallet) GetPublicKey() []byte {
 // Reurns private key of a wallet
 func (w Wallet) GetPrivateKey() ecdsa.PrivateKey {
 	return w.PrivateKey
+}
+
+// Encode PubKey to string.
+// We will use this for easy storing in a file
+func (w Wallet) GetPublicKeyEncoded() string {
+	return hex.EncodeToString(w.PublicKey)
+}
+
+// Encode PrivateKey to string.
+func (w Wallet) GetPrivateKeyEncoded() string {
+	marshalled, _ := x509.MarshalECPrivateKey(&w.PrivateKey)
+	pemdata := pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "PRIVATE KEY",
+			Bytes: marshalled,
+		},
+	)
+
+	return string(pemdata)
 }
 
 // GetAddress returns wallet address
@@ -107,35 +155,14 @@ func (w Wallet) ValidateAddress(address string) bool {
 }
 
 // Generate new key pair to create new wallet
-func (w *Wallet) newKeyPair() (ecdsa.PrivateKey, []byte) {
+func (w *Wallet) newKeyPair() (ecdsa.PrivateKey, []byte, error) {
 	curve := elliptic.P256()
 	private, err := ecdsa.GenerateKey(curve, rand.Reader)
+
 	if err != nil {
-		log.Panic(err)
+		return ecdsa.PrivateKey{}, nil, err
 	}
 	pubKey := append(private.PublicKey.X.Bytes(), private.PublicKey.Y.Bytes()...)
 
-	return *private, pubKey
-}
-func (w Wallet) Serialize() ([]byte, error) {
-	var encoded bytes.Buffer
-
-	enc := gob.NewEncoder(&encoded)
-	err := enc.Encode(w)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return encoded.Bytes(), nil
-}
-func (w *Wallet) Deserialize(data []byte) error {
-	decoder := gob.NewDecoder(bytes.NewReader(data))
-	err := decoder.Decode(w)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return *private, pubKey, nil
 }

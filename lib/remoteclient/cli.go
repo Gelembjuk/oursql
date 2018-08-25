@@ -53,10 +53,7 @@ func (wc *WalletCLI) Init(logger *utils.LoggerMan, input AppInput) {
 
 // Creates Wallets object and fills it from a file if it exists
 func (wc *WalletCLI) initWallets() error {
-	wallets := Wallets{}
-	wallets.Wallets = make(map[string]*Wallet)
-
-	wallets.ConfigDir = wc.ConfigDir
+	wallets := NewWallets(wc.ConfigDir)
 
 	err := wallets.LoadFromFile()
 

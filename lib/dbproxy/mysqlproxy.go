@@ -257,7 +257,7 @@ func (pp *requestPacketParser) Write(p []byte) (n int, err error) {
 			rerr := NewMySQLError(clientErr.Error(), 3001)
 			errResp = rerr.getMySQLError()
 		}
-
+		pp.traceLog.Printf("Send response to client on custom error. %d bytes", len(errResp))
 		io.Copy(pp.client, bytes.NewReader(errResp))
 	}
 
@@ -299,7 +299,7 @@ func (pp *responsePacketParser) Write(p []byte) (n int, err error) {
 		}
 
 	}
-	pp.traceLog.Printf("Send response to client")
+	pp.traceLog.Printf("Send response to client. %d bytes", len(p))
 
 	io.Copy(pp.client, bytes.NewReader(p))
 

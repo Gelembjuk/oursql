@@ -1,5 +1,13 @@
 package server
 
+/*
+Error codes
+Errors returned by the proxy must have MySQL codes.
+2 - Query requires public key
+3 - Query requires data to sign
+4 - Error preparing of query parsing
+
+*/
 import (
 	"github.com/gelembjuk/oursql/lib/dbproxy"
 	"github.com/gelembjuk/oursql/lib/utils"
@@ -50,9 +58,12 @@ func (q *queryFilter) RequestCallback(query string, sessionID string) error {
 	if err != nil {
 		return err
 	}
-	tx, err := qm.NewQueryFromProxy(query)
+	tx, errCode, err := qm.NewQueryFromProxy(query)
 
 	if err != nil {
+		if errCode > 0 {
+			return dbproxy.NewMySQLError(err.Error(), errCode)
+		}
 		return err
 	}
 	if tx != nil {

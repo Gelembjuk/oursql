@@ -1,12 +1,9 @@
 package remoteclient
 
 import (
-	"bytes"
-	"crypto/elliptic"
-	"encoding/gob"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/gelembjuk/oursql/lib/utils"
@@ -23,8 +20,21 @@ type Wallets struct {
 	WalletsFile string
 }
 
+type WalletsFileRec struct {
+	Address    string
+	PubKey     string
+	PrivateKey string
+}
 type WalletsFile struct {
-	Wallets map[string]*Wallet
+	Wallets []WalletsFileRec
+}
+
+func NewWallets(confdir string) Wallets {
+	wallets := Wallets{}
+	wallets.Wallets = make(map[string]*Wallet)
+
+	wallets.ConfigDir = confdir
+	return wallets
 }
 
 // CreateWallet adds a Wallet to Wallets
@@ -32,6 +42,7 @@ func (ws *Wallets) CreateWallet() (string, error) {
 	wallet := Wallet{}
 	wallet.MakeWallet()
 
+	//address := hex.EncodeToString(wallet.GetAddress())
 	address := fmt.Sprintf("%s", wallet.GetAddress())
 
 	ws.Wallets[address] = &wallet
@@ -73,52 +84,65 @@ func (ws *Wallets) LoadFromFile() error {
 	} else {
 		walletsFile = ws.ConfigDir + walletFile
 	}
+	file, errf := os.Open(walletsFile)
 
-	_, err := os.Stat(walletsFile)
+	if errf != nil && !os.IsNotExist(errf) {
+		return errf
+	}
+	if errf != nil {
+		// wallets file not found
+		return nil
+	}
+
+	wsc := WalletsFile{}
+	// we open a file only if it exists. in other case options can be set with command line
+	decoder := json.NewDecoder(file)
+	err := decoder.Decode(&wsc)
 
 	if err != nil {
 		return err
 	}
+	for _, w := range wsc.Wallets {
+		wallet, err := MakeWalletFromEncoded(w.PubKey, w.PrivateKey)
 
-	fileContent, err := ioutil.ReadFile(walletsFile)
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
+
+		ws.Wallets[w.Address] = &wallet
 	}
-
-	var wallets WalletsFile
-	gob.Register(elliptic.P256())
-	decoder := gob.NewDecoder(bytes.NewReader(fileContent))
-	err = decoder.Decode(&wallets)
-	if err != nil {
-
-		return err
-	}
-
-	ws.Wallets = wallets.Wallets
 
 	return nil
 }
 
 // SaveToFile saves wallets to a file
 func (ws Wallets) SaveToFile() error {
-	var content bytes.Buffer
+
 	walletsFile := ws.ConfigDir + walletFile
 
-	gob.Register(elliptic.P256())
-
 	wsc := WalletsFile{}
-	wsc.Wallets = ws.Wallets
+	wsc.Wallets = []WalletsFileRec{}
 
-	encoder := gob.NewEncoder(&content)
-	err := encoder.Encode(wsc)
+	for _, wallet := range ws.Wallets {
+		w := WalletsFileRec{string(wallet.GetAddress()), wallet.GetPublicKeyEncoded(), wallet.GetPrivateKeyEncoded()}
+		wsc.Wallets = append(wsc.Wallets, w)
+	}
+
+	file, errf := os.OpenFile(walletsFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+
+	if errf != nil {
+		return errf
+	}
+
+	encoder := json.NewEncoder(file)
+
+	err := encoder.Encode(&wsc)
+
 	if err != nil {
 		return err
 	}
 
-	err = ioutil.WriteFile(walletsFile, content.Bytes(), 0644)
-	if err != nil {
-		return err
-	}
+	file.Close()
 
 	return nil
 }

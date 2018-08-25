@@ -1,6 +1,7 @@
 package dbquery
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -10,7 +11,6 @@ import (
 	"github.com/gelembjuk/oursql/node/dbquery/sqlparser"
 	"github.com/gelembjuk/oursql/node/structures"
 )
-import b64 "encoding/base64"
 
 type queryProcessor struct {
 	DB     database.DBManager
@@ -194,16 +194,16 @@ func (qp queryProcessor) ExecuteRollbackQueryFromTX(sql structures.SQLUpdate) er
 }
 
 // errorKind possible values: 2 - pubkey required, 3 - data sign required
-func (qp queryProcessor) FormatSpecialErrorMessage(errorKind uint, txdata []byte, datatosign []byte) (string, error) {
+func (qp queryProcessor) FormatSpecialErrorMessage(errorKind uint, txdata []byte, datatosign []byte) (string, uint16, error) {
 	if errorKind == 2 {
-		return "Error(2): Public Key required", nil
+		return "Error(2): Public Key required", 2, nil
 	}
 	if errorKind == 3 {
-		txdataB64 := b64.StdEncoding.EncodeToString([]byte(txdata))
-		datatosignB64 := b64.StdEncoding.EncodeToString([]byte(datatosign))
-		return "Error(3): Signature required:" + txdataB64 + "::" + datatosignB64, nil
+		txdataHex := hex.EncodeToString(txdata)
+		datatosignHex := hex.EncodeToString(datatosign)
+		return "Error(3): Signature required:" + txdataHex + "::" + datatosignHex, 3, nil
 	}
-	return "", errors.New("Unknown error kind")
+	return "", 0, errors.New("Unknown error kind")
 }
 
 // Builds SQL update structure. It fins ID of a record, and build rollback query

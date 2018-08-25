@@ -22,7 +22,12 @@ func (e ResponseError) getMySQLError() []byte {
 	bs := make([]byte, 2)
 	binary.LittleEndian.PutUint16(bs, e.Code)
 
-	res := []byte{byte(payloadLen), 0, 0, 1, responseErr, bs[0], bs[1]}
+	length := make([]byte, 4)
+	binary.LittleEndian.PutUint32(length, uint32(payloadLen)) // problem can be if length is more uint16
+
+	// TODO if length is too big, try to truncate error message
+
+	res := []byte{length[0], length[1], length[2], 1, responseErr, bs[0], bs[1]}
 
 	res = append(res, errBytes...)
 	return res

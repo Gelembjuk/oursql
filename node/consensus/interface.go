@@ -36,7 +36,7 @@ type SQLTransactionsInterface interface {
 	NewQuery(sql string, pubKey []byte) (uint, []byte, []byte, *structures.Transaction, error)
 	NewQuerySigned(txEncoded []byte, signature []byte) (*structures.Transaction, error)
 	NewQueryByNode(sql string, pubKey []byte, privKey ecdsa.PrivateKey) (uint, *structures.Transaction, error)
-	NewQueryFromProxy(sql string) (*structures.Transaction, error)
+	NewQueryFromProxy(sql string) (*structures.Transaction, uint16, error)
 }
 
 func NewBlockMakerManager(minter string, DB database.DBManager, Logger *utils.LoggerMan) (BlockMakerInterface, error) {

@@ -105,27 +105,30 @@ func (q queryManager) NewQueryByNode(sql string, pubKey []byte, privKey ecdsa.Pr
 // Error can contains special instructions related to data signing.
 // returns transaction only in case if the object contains keys or client provided signature
 // the TX should be added to pool by a proxy after success execution of the query
-func (q queryManager) NewQueryFromProxy(sql string) (*structures.Transaction, error) {
+// TODO replace error and code with custom errror structure containing a code
+func (q queryManager) NewQueryFromProxy(sql string) (tx *structures.Transaction, errCode uint16, err error) {
 	r, txdata, datatosign, tx, err := q.processQuery(sql, []byte{}, false)
 	// formate error message
 	if err != nil {
-		return nil, err
+		errCode = 4
+		return
 	}
 	if r == SQLProcessingResultExecuted ||
 		r == SQLProcessingResultTranactionComplete ||
 		r == SQLProcessingResultTranactionCompleteInternally {
-		return tx, nil // no anymore actions are needed. Query can be passed to mysql server
+
+		return // no anymore actions are needed. Query can be passed to mysql server
 	}
 	// it is needed to return error of  specific formate. it an include TX and data to sign
 	qp := q.getQueryParser()
 
-	errStr, err := qp.FormatSpecialErrorMessage(r, txdata, datatosign)
+	errStr, errCode, err := qp.FormatSpecialErrorMessage(r, txdata, datatosign)
 
 	if err != nil {
-		return nil, err
+		return
 	}
-
-	return nil, errors.New(errStr)
+	err = errors.New(errStr)
+	return
 }
 
 // ========================================================================================

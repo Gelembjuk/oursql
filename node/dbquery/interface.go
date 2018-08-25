@@ -12,7 +12,7 @@ type QueryProcessorInterface interface {
 	ExecuteParsedQuery(qp QueryParsed) (*structures.SQLUpdate, error)
 	ExecuteQueryFromTX(sql structures.SQLUpdate) error
 	ExecuteRollbackQueryFromTX(sql structures.SQLUpdate) error
-	FormatSpecialErrorMessage(errorKind uint, txdata []byte, datatosign []byte) (string, error)
+	FormatSpecialErrorMessage(errorKind uint, txdata []byte, datatosign []byte) (string, uint16, error)
 	MakeSQLUpdateStructure(parsed QueryParsed) (structures.SQLUpdate, error)
 }
 

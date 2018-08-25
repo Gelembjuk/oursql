@@ -1,7 +1,7 @@
 package dbquery
 
 import (
-	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"regexp"
@@ -93,10 +93,10 @@ func (qp QueryParsed) parseInfoFromComments() (PubKey []byte, Signature []byte, 
 		return
 	}
 
-	s := r.FindAllString(comment, -1)
+	s := r.FindStringSubmatch(comment)
 
 	if len(s) == 2 {
-		Signature, err = base64.StdEncoding.DecodeString(s[1])
+		Signature, err = hex.DecodeString(s[1])
 
 		if err != nil {
 			return
@@ -109,10 +109,10 @@ func (qp QueryParsed) parseInfoFromComments() (PubKey []byte, Signature []byte, 
 		return
 	}
 
-	s = r.FindAllString(comment, -1)
+	s = r.FindStringSubmatch(comment)
 
 	if len(s) == 2 {
-		TransactionBytes, err = base64.StdEncoding.DecodeString(s[1])
+		TransactionBytes, err = hex.DecodeString(s[1])
 
 		if err != nil {
 			return
@@ -125,10 +125,11 @@ func (qp QueryParsed) parseInfoFromComments() (PubKey []byte, Signature []byte, 
 		return
 	}
 
-	s = r.FindAllString(comment, -1)
+	s = r.FindStringSubmatch(comment)
 
 	if len(s) == 2 {
-		PubKey, err = base64.StdEncoding.DecodeString(s[1])
+
+		PubKey, err = hex.DecodeString(s[1])
 
 		if err != nil {
 			return
