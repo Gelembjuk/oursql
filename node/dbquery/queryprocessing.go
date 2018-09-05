@@ -1,7 +1,6 @@
 package dbquery
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -191,19 +190,6 @@ func (qp queryProcessor) ExecuteQueryFromTX(sql structures.SQLUpdate) error {
 // Execute rollback query from TX
 func (qp queryProcessor) ExecuteRollbackQueryFromTX(sql structures.SQLUpdate) error {
 	return qp.DB.QM().ExecuteSQL(string(sql.RollbackQuery))
-}
-
-// errorKind possible values: 2 - pubkey required, 3 - data sign required
-func (qp queryProcessor) FormatSpecialErrorMessage(errorKind uint, txdata []byte, datatosign []byte) (string, uint16, error) {
-	if errorKind == 2 {
-		return "Error(2): Public Key required", 2, nil
-	}
-	if errorKind == 3 {
-		txdataHex := hex.EncodeToString(txdata)
-		datatosignHex := hex.EncodeToString(datatosign)
-		return "Error(3): Signature required:" + txdataHex + "::" + datatosignHex, 3, nil
-	}
-	return "", 0, errors.New("Unknown error kind")
 }
 
 // Builds SQL update structure. It fins ID of a record, and build rollback query

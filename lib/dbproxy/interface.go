@@ -15,12 +15,17 @@ type DBProxyInterface interface {
 	Stop() error
 }
 
-type RequestQueryFilterCallback func(query string, sessionID string) error
+type CustomResponseKeyValue struct {
+	Key   string
+	Value string
+}
+
+type RequestQueryFilterCallback func(query string, sessionID string) ([]CustomResponseKeyValue, error)
 type ResponseFilterCallback func(sessionID string, err error)
 
 // Interface for a filter structure
 // It is alternative for callbacks and can keep some state inside
 type DBProxyFilter interface {
-	RequestCallback(query string, sessionID string) error
+	RequestCallback(query string, sessionID string) ([]CustomResponseKeyValue, error)
 	ResponseCallback(sessionID string, err error)
 }

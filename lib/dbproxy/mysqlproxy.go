@@ -223,6 +223,7 @@ func (pp *requestPacketParser) Write(p []byte) (n int, err error) {
 	// pass request to server or return error response
 
 	var clientErr error
+	var clientRows []CustomResponseKeyValue
 
 	switch getPacketType(p) {
 
@@ -234,18 +235,17 @@ func (pp *requestPacketParser) Write(p []byte) (n int, err error) {
 		if err == nil {
 			// pass through filters
 			if pp.queryFilter != nil {
-				clientErr = pp.queryFilter.RequestCallback(decoded.Query, pp.sessionID)
+				clientRows, clientErr = pp.queryFilter.RequestCallback(decoded.Query, pp.sessionID)
 			}
-			if clientErr == nil && pp.requestCallback != nil {
-				clientErr = pp.requestCallback(decoded.Query, pp.sessionID)
+			if len(clientRows) == 0 && clientErr == nil && pp.requestCallback != nil {
+				clientRows, clientErr = pp.requestCallback(decoded.Query, pp.sessionID)
 			}
 
 			pp.traceLog.Printf("Request: %s", decoded)
 		}
 	}
-	if clientErr == nil {
-		io.Copy(pp.server, bytes.NewReader(p))
-	} else {
+
+	if clientErr != nil {
 		// send error response to client
 		pp.traceLog.Printf("Custom error response: %s", clientErr)
 
@@ -259,6 +259,15 @@ func (pp *requestPacketParser) Write(p []byte) (n int, err error) {
 		}
 		pp.traceLog.Printf("Send response to client on custom error. %d bytes", len(errResp))
 		io.Copy(pp.client, bytes.NewReader(errResp))
+
+	} else if len(clientRows) > 0 {
+		pp.traceLog.Printf("Custom rows response: %d", len(clientRows))
+
+		rowsResp := newMySQLDataKeyValues(clientRows)
+
+		io.Copy(pp.client, bytes.NewReader(rowsResp.getPacket()))
+	} else {
+		io.Copy(pp.server, bytes.NewReader(p))
 	}
 
 	return len(p), nil

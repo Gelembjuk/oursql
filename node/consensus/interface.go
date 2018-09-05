@@ -21,6 +21,18 @@ const (
 	SQLProcessingResultTranactionCompleteInternally = 5 // Query needs signature. TX was created with internal keys and completed
 )
 
+// The structure to return information on new query request from proxy
+// This includes a status , data to sign (if needed), new transaction (if was created)
+// The structure can include error, so no need to have error response separately
+type QueryFromProxyResult struct {
+	Status       uint8
+	TX           *structures.Transaction
+	TXData       []byte
+	StringToSign []byte
+	ErrorCode    uint16
+	Error        error
+}
+
 type BlockMakerInterface interface {
 	SetDBManager(DB database.DBManager)
 	SetLogManager(Logger *utils.LoggerMan)
@@ -36,7 +48,7 @@ type SQLTransactionsInterface interface {
 	NewQuery(sql string, pubKey []byte) (uint, []byte, []byte, *structures.Transaction, error)
 	NewQuerySigned(txEncoded []byte, signature []byte) (*structures.Transaction, error)
 	NewQueryByNode(sql string, pubKey []byte, privKey ecdsa.PrivateKey) (uint, *structures.Transaction, error)
-	NewQueryFromProxy(sql string) (*structures.Transaction, uint16, error)
+	NewQueryFromProxy(sql string) QueryFromProxyResult
 }
 
 func NewBlockMakerManager(minter string, DB database.DBManager, Logger *utils.LoggerMan) (BlockMakerInterface, error) {

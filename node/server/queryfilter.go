@@ -52,27 +52,32 @@ func InitQueryFilter(proxyAddr, dbAddr string, node *nodemanager.Node, logger *u
 
 	return
 }
-func (q *queryFilter) RequestCallback(query string, sessionID string) error {
+func (q *queryFilter) RequestCallback(query string, sessionID string) ([]dbproxy.CustomResponseKeyValue, error) {
 	qm, err := q.Node.GetSQLQueryManager()
 
 	if err != nil {
-		return err
+		return nil, err
 	}
-	tx, errCode, err := qm.NewQueryFromProxy(query)
+	result := qm.NewQueryFromProxy(query)
 
-	if err != nil {
-		if errCode > 0 {
-			return dbproxy.NewMySQLError(err.Error(), errCode)
+	if result.Error != nil {
+		if result.ErrorCode > 0 {
+			return nil, dbproxy.NewMySQLError(result.Error.Error(), result.ErrorCode)
 		}
-		return err
+		return nil, result.Error
 	}
-	if tx != nil {
-		q.Logger.Trace.Printf("Query: %s, sessID: %s, TX created %x\n", query, sessionID, tx.GetID())
+
+	if result.Status == 2 {
+		// return prepared signature data
+	}
+
+	if result.TX != nil {
+		q.Logger.Trace.Printf("Query: %s, sessID: %s, TX created %x\n", query, sessionID, result.TX.GetID())
 	} else {
 		q.Logger.Trace.Printf("Query: %s, sessID: %s, no TX needed\n", query, sessionID)
 	}
 
-	return nil
+	return nil, nil
 }
 func (q *queryFilter) ResponseCallback(sessionID string, err error) {
 
