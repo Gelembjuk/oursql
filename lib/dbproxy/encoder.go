@@ -13,17 +13,25 @@ type ResponseError struct {
 }
 
 type responseRowsKeyValues struct {
-	rows    []CustomResponseKeyValue
-	counter uint
+	protocol protocolInfo
+	rows     []CustomResponseKeyValue
+	counter  uint
+}
+
+type protocolInfo struct {
+	protocolVersion byte
+	clientInfo      *handshakeResponse41
+	serverInfo      *handshakeV10
 }
 
 func NewMySQLError(err string, code uint16) ResponseError {
 	return ResponseError{err, code}
 }
 
-func newMySQLDataKeyValues(rows []CustomResponseKeyValue) responseRowsKeyValues {
+func newMySQLDataKeyValues(rows []CustomResponseKeyValue, protInfo protocolInfo) responseRowsKeyValues {
 	r := responseRowsKeyValues{}
 	r.rows = rows
+	r.protocol = protInfo
 	return r
 }
 
@@ -62,15 +70,23 @@ func (r *responseRowsKeyValues) getPacket() []byte {
 
 	b.Write(r.getColumnDefPacket("BC", "CustomResponse", "Key"))
 	b.Write(r.getColumnDefPacket("BC", "CustomResponse", "Value"))
-	//b.Write(r.getColumnDefPacket("dbtest", "list", "Key"))
-	//b.Write(r.getColumnDefPacket("dbtest", "list", "Value"))
+
+	if !r.protocol.deprecateEOFSet() {
+		// EOF
+		b.Write(r.completePacket([]byte{0xfe, 0x00, 0x00, 0x22, 0x00, 0x00, 0x00}))
+	}
 
 	// send rows
 	for _, row := range r.rows {
 		b.Write(r.getRowData(row.Key, row.Value))
 	}
-
-	b.Write(r.completePacket([]byte{0xfe, 0x00, 0x00, 0x22, 0x00, 0x00, 0x00})) // EOF
+	if !r.protocol.deprecateEOFSet() {
+		// EOF
+		b.Write(r.completePacket([]byte{0xfe, 0x00, 0x00, 0x22, 0x00, 0x00, 0x00}))
+	} else {
+		// OK
+		b.Write(r.completePacket([]byte{0xfe, 0x00, 0x00, 0x22, 0x00}))
+	}
 
 	return b.Bytes()
 }
@@ -144,4 +160,9 @@ func (r *responseRowsKeyValues) getRowData(val1, val2 string) []byte {
 	row = append(row, r.getLengEncStr(val2)...)
 
 	return r.completePacket(row)
+}
+
+func (p protocolInfo) deprecateEOFSet() bool {
+	return ((clientDeprecateEOF & p.serverInfo.ServerCapabilities) != 0) &&
+		((clientDeprecateEOF & p.clientInfo.ClientCapabilities) != 0)
 }

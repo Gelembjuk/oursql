@@ -9,6 +9,8 @@ Errors returned by the proxy must have MySQL codes.
 
 */
 import (
+	"encoding/hex"
+
 	"github.com/gelembjuk/oursql/lib/dbproxy"
 	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/nodemanager"
@@ -60,6 +62,8 @@ func (q *queryFilter) RequestCallback(query string, sessionID string) ([]dbproxy
 	}
 	result := qm.NewQueryFromProxy(query)
 
+	q.Logger.Trace.Printf("Proxy Query process status %d", result.Status)
+
 	if result.Error != nil {
 		if result.ErrorCode > 0 {
 			return nil, dbproxy.NewMySQLError(result.Error.Error(), result.ErrorCode)
@@ -69,6 +73,15 @@ func (q *queryFilter) RequestCallback(query string, sessionID string) ([]dbproxy
 
 	if result.Status == 2 {
 		// return prepared signature data
+		response := []dbproxy.CustomResponseKeyValue{}
+
+		response = append(response, dbproxy.CustomResponseKeyValue{"Transaction", hex.EncodeToString(result.TXData)})
+
+		response = append(response, dbproxy.CustomResponseKeyValue{"StringToSign", hex.EncodeToString(result.StringToSign)})
+
+		q.Logger.Trace.Println("Return transaction prepare info")
+
+		return response, nil
 	}
 
 	if result.TX != nil {

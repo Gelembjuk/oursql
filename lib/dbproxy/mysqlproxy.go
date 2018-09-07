@@ -189,8 +189,8 @@ func (p *mysqlProxy) handleConnection(client net.Conn) {
 
 	// read request in parallel routine
 	go io.Copy(requestFilter, client)
-
-	responseFilter := p.getResponseManager(client, sessionID)
+	// response manager will be connected to request manager
+	responseFilter := p.getResponseManager(client, sessionID, requestFilter)
 
 	// read response. Response will be first operation
 	io.Copy(responseFilter, server)
@@ -199,27 +199,55 @@ func (p *mysqlProxy) handleConnection(client net.Conn) {
 
 // Build requestPacketParser object
 func (p *mysqlProxy) getRequestManager(server net.Conn, client net.Conn, sessID string) *requestPacketParser {
-	return &requestPacketParser{server, client, sessID, p.requestCallback, p.queryFilter, p.traceLog, p.errorLog}
+	r := requestPacketParser{}
+	r.server = server
+	r.client = client
+	r.sessionID = sessID
+	r.protocol = protocolInfo{}
+	r.requestCallback = p.requestCallback
+	r.queryFilter = p.queryFilter
+	r.traceLog = p.traceLog
+	r.errorLog = p.errorLog
+	return &r
 }
 
 // Build responsePacketParser object
-func (p *mysqlProxy) getResponseManager(client net.Conn, sessID string) *responsePacketParser {
-	return &responsePacketParser{client, sessID, p.responseCallback, p.queryFilter, p.traceLog, p.errorLog}
+func (p *mysqlProxy) getResponseManager(client net.Conn, sessID string, rParser *requestPacketParser) *responsePacketParser {
+	r := responsePacketParser{}
+	r.client = client
+	r.sessionID = sessID
+	r.responseCallback = p.responseCallback
+	r.queryFilter = p.queryFilter
+	r.traceLog = p.traceLog
+	r.errorLog = p.errorLog
+	r.initialResponseSet = false
+	r.requestParser = rParser
+	return &r
 }
 
+// Parse data sent from client to server
 type requestPacketParser struct {
-	server          net.Conn
-	client          net.Conn
-	sessionID       string
-	requestCallback RequestQueryFilterCallback
-	queryFilter     DBProxyFilter
-	traceLog        *log.Logger
-	errorLog        *log.Logger
+	server             net.Conn
+	client             net.Conn
+	sessionID          string
+	initialResponseSet bool
+	protocol           protocolInfo
+	requestCallback    RequestQueryFilterCallback
+	queryFilter        DBProxyFilter
+	traceLog           *log.Logger
+	errorLog           *log.Logger
 }
 
+// data posted from client to server
 func (pp *requestPacketParser) Write(p []byte) (n int, err error) {
-	pp.traceLog.Printf("Request: %d bytes", len(p))
+	pp.traceLog.Printf("Request: %d bytes with type %x", len(p), getPacketType(p))
 
+	if !pp.initialResponseSet {
+		// clients sends data back on server's handshake
+
+		pp.parseHandshakeClientResponse(p)
+		pp.initialResponseSet = true
+	}
 	// pass request to server or return error response
 
 	var clientErr error
@@ -263,9 +291,13 @@ func (pp *requestPacketParser) Write(p []byte) (n int, err error) {
 	} else if len(clientRows) > 0 {
 		pp.traceLog.Printf("Custom rows response: %d", len(clientRows))
 
-		rowsResp := newMySQLDataKeyValues(clientRows)
+		rowsResp := newMySQLDataKeyValues(clientRows, pp.protocol)
 
-		io.Copy(pp.client, bytes.NewReader(rowsResp.getPacket()))
+		packet := rowsResp.getPacket()
+
+		pp.traceLog.Printf("Send custom response to client. %d bytes", len(packet))
+
+		io.Copy(pp.client, bytes.NewReader(packet))
 	} else {
 		io.Copy(pp.server, bytes.NewReader(p))
 	}
@@ -273,17 +305,46 @@ func (pp *requestPacketParser) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-type responsePacketParser struct {
-	client           net.Conn
-	sessionID        string
-	responseCallback ResponseFilterCallback
-	queryFilter      DBProxyFilter
-	traceLog         *log.Logger
-	errorLog         *log.Logger
+// extract protocol info from initial handshake
+// this info will be needed to make custom responses later
+func (pp *requestPacketParser) parseHandshake(packet []byte) {
+	serverHandshake, err := decodeHandshakeV10(packet)
+
+	if err != nil {
+		pp.traceLog.Printf("Handshake error %s", err.Error())
+		return
+	}
+	pp.protocol.serverInfo = serverHandshake
 }
 
+// extract client capabilities from a response on handshake from server
+func (pp *requestPacketParser) parseHandshakeClientResponse(packet []byte) {
+	clientHandshake, err := decodeHandshakeResponse41(packet)
+
+	if err != nil {
+		pp.traceLog.Printf("Client Handshake error %s", err.Error())
+		return
+	}
+	pp.protocol.clientInfo = clientHandshake
+}
+
+// Response manager. Reads responses from server and sends to a client.
+// This can be used to modify responses later. But now we don't modify it
+// here we only can analise responses
+type responsePacketParser struct {
+	client             net.Conn
+	sessionID          string
+	initialResponseSet bool
+	responseCallback   ResponseFilterCallback
+	queryFilter        DBProxyFilter
+	traceLog           *log.Logger
+	errorLog           *log.Logger
+	requestParser      *requestPacketParser
+}
+
+// Data received from server and it is time to send it to client
 func (pp *responsePacketParser) Write(p []byte) (n int, err error) {
-	pp.traceLog.Printf("Write to Response , bytes received %d\n", len(p))
+	pp.traceLog.Printf("Write to Response , bytes received %d, type %x\n", len(p), getPacketType(p))
 
 	switch getPacketType(p) {
 
@@ -307,6 +368,11 @@ func (pp *responsePacketParser) Write(p []byte) (n int, err error) {
 			pp.responseCallback(pp.sessionID, nil)
 		}
 
+		if !pp.initialResponseSet {
+			pp.traceLog.Printf("Initial handshake")
+			pp.requestParser.parseHandshake(p)
+			pp.initialResponseSet = true
+		}
 	}
 	pp.traceLog.Printf("Send response to client. %d bytes", len(p))
 
