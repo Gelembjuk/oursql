@@ -114,7 +114,7 @@ func (w Wallet) GetPrivateKeyEncoded() string {
 	marshalled, _ := x509.MarshalECPrivateKey(&w.PrivateKey)
 	pemdata := pem.EncodeToMemory(
 		&pem.Block{
-			Type:  "PRIVATE KEY",
+			Type:  "EC PRIVATE KEY",
 			Bytes: marshalled,
 		},
 	)

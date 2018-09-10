@@ -3,14 +3,14 @@ package utils
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
-	"crypto/md5"
 	"crypto/rand"
+	"crypto/sha1"
 	"io"
 	"math/big"
 )
 
 func SignData(privKey ecdsa.PrivateKey, dataToSign []byte) ([]byte, error) {
-	h := md5.New()
+	h := sha1.New()
 	str := string(dataToSign)
 	io.WriteString(h, str)
 	data := h.Sum(nil)
@@ -26,7 +26,7 @@ func SignData(privKey ecdsa.PrivateKey, dataToSign []byte) ([]byte, error) {
 }
 
 func VerifySignature(signature []byte, message []byte, PubKey []byte) (bool, error) {
-	h := md5.New()
+	h := sha1.New()
 	str := string(message)
 	io.WriteString(h, str)
 	data := h.Sum(nil)

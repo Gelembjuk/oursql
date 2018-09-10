@@ -9,6 +9,7 @@
 
 node/node
 wallet/wallet
+remoteclient/remoteclient
 
 node/conf/
 node/conf1/
