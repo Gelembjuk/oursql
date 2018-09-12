@@ -207,6 +207,8 @@ func (s *NodeServer) sendErrorBack(conn net.Conn, err error) {
 func (s *NodeServer) StartServer(serverStartResult chan string) error {
 	s.Logger.Trace.Println("Prepare server to start ", s.NodeAddress.NodeAddrToString())
 
+	s.BlockBilderChan = make(chan []byte, 100)
+
 	err := s.StartDatabaseProxy()
 
 	if err != nil {
@@ -232,7 +234,7 @@ func (s *NodeServer) StartServer(serverStartResult chan string) error {
 	s.Node.SendVersionToNodes([]netlib.NodeAddr{})
 
 	s.Logger.Trace.Println("Start block bilding routine")
-	s.BlockBilderChan = make(chan []byte, 100)
+
 	// we set buffer to 100 transactions.
 	// we don't expect more 100 TX will be received while building a block. if yes, we will skip
 	// adding a signal. this will not be a problem
@@ -335,7 +337,7 @@ func (s *NodeServer) BlockBuilder() {
 
 // MySQL proxy server. It is in the middle between a DB server and DB client an reads requests
 func (s *NodeServer) StartDatabaseProxy() (err error) {
-	s.QueryFlter, err = InitQueryFilter(s.DBProxyAddr, s.DBAddr, s.Node.Clone(), s.Logger)
+	s.QueryFlter, err = InitQueryFilter(s.DBProxyAddr, s.DBAddr, s.Node.Clone(), s.Logger, s.BlockBilderChan)
 	return
 }
 
