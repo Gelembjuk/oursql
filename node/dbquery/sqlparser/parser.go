@@ -185,6 +185,10 @@ func (q *sqlParser) parseKindAndTable(sqlquery string) (kind string, table strin
 		kind = lib.QueryKindDrop
 		re = "drop\\s+table\\s+([^ ]+)"
 
+	} else if strings.HasPrefix(lcase, "set ") {
+		kind = lib.QueryKindSet
+		re = ""
+
 	} else {
 		err = errors.New("Unknown query type")
 	}

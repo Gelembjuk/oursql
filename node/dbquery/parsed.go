@@ -38,6 +38,10 @@ func (qp QueryParsed) IsSelect() bool {
 	return qp.Structure.GetKind() == lib.QueryKindSelect
 }
 
+func (qp QueryParsed) IsUpdateOther() bool {
+	return qp.Structure.GetKind() == lib.QueryKindSet
+}
+
 // Info about a parsed query. Check if is update (insert, update, delete, create table, drop table)
 func (qp QueryParsed) IsUpdate() bool {
 	return qp.Structure.GetKind() == lib.QueryKindCreate ||

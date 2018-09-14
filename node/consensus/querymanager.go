@@ -328,6 +328,11 @@ func (q queryManager) checkQueryNeedsTransaction(qp dbquery.QueryParsed) (bool, 
 	if qp.IsSelect() {
 		return false, nil
 	}
+
+	if qp.IsUpdateOther() {
+		// updates that can not be supported
+		return false, nil
+	}
 	// transaction for any update
 	return true, nil
 }
