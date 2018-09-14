@@ -72,6 +72,8 @@ func (orignode *Node) Clone() *Node {
 	node.ConfigDir = orignode.ConfigDir
 	node.Logger = orignode.Logger
 	node.MinterAddress = orignode.MinterAddress
+	node.ProxyPubKey = orignode.ProxyPubKey
+	node.ProxyPrivateKey = orignode.ProxyPrivateKey
 	// clone DB object
 	ndb := orignode.DBConn.Clone()
 	node.DBConn = &ndb
@@ -121,6 +123,7 @@ func (n *Node) GetSQLQueryManager() (consensus.SQLTransactionsInterface, error) 
 	} else {
 		n.Logger.Trace.Printf("Make query manager without proxy key")
 	}
+
 	return consensus.NewSQLQueryManager(n.DBConn.DB(), n.Logger, n.ProxyPubKey, n.ProxyPrivateKey)
 }
 
