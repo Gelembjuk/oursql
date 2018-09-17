@@ -240,6 +240,8 @@ type requestPacketParser struct {
 
 // data posted from client to server
 func (pp *requestPacketParser) Write(p []byte) (n int, err error) {
+	n = len(p) // we will return this number for any action
+
 	pp.traceLog.Printf("Request: %d bytes with type %x", len(p), getPacketType(p))
 
 	if !pp.initialResponseSet {
@@ -251,7 +253,7 @@ func (pp *requestPacketParser) Write(p []byte) (n int, err error) {
 	// pass request to server or return error response
 
 	var clientErr error
-	var clientRows []CustomResponseKeyValue
+	var customResponse CustomRequestActionInterface
 
 	switch getPacketType(p) {
 
@@ -263,10 +265,10 @@ func (pp *requestPacketParser) Write(p []byte) (n int, err error) {
 		if err == nil {
 			// pass through filters
 			if pp.queryFilter != nil {
-				clientRows, clientErr = pp.queryFilter.RequestCallback(decoded.Query, pp.sessionID)
+				customResponse, clientErr = pp.queryFilter.RequestCallback(decoded.Query, pp.sessionID)
 			}
-			if len(clientRows) == 0 && clientErr == nil && pp.requestCallback != nil {
-				clientRows, clientErr = pp.requestCallback(decoded.Query, pp.sessionID)
+			if customResponse == nil && clientErr == nil && pp.requestCallback != nil {
+				customResponse, clientErr = pp.requestCallback(decoded.Query, pp.sessionID)
 			}
 
 			pp.traceLog.Printf("Request: %s", decoded)
@@ -276,33 +278,42 @@ func (pp *requestPacketParser) Write(p []byte) (n int, err error) {
 	if clientErr != nil {
 		// send error response to client
 		pp.traceLog.Printf("Custom error response: %s", clientErr)
+		customResponse = NewCustomErrorResponse(err.Error(), 3001)
 
-		var errResp []byte
-
-		if rerr, ok := clientErr.(ResponseError); ok {
-			errResp = rerr.getMySQLError()
-		} else {
-			rerr := NewMySQLError(clientErr.Error(), 3001)
-			errResp = rerr.getMySQLError()
-		}
-		pp.traceLog.Printf("Send response to client on custom error. %d bytes", len(errResp))
-		io.Copy(pp.client, bytes.NewReader(errResp))
-
-	} else if len(clientRows) > 0 {
-		pp.traceLog.Printf("Custom rows response: %d", len(clientRows))
-
-		rowsResp := newMySQLDataKeyValues(clientRows, pp.protocol)
-
-		packet := rowsResp.getPacket()
-
-		pp.traceLog.Printf("Send custom response to client. %d bytes", len(packet))
-
-		io.Copy(pp.client, bytes.NewReader(packet))
-	} else {
-		io.Copy(pp.server, bytes.NewReader(p))
 	}
+	if customResponse != nil {
+		pp.traceLog.Printf("Custom response")
 
-	return len(p), nil
+		if crp, ok := customResponse.(customRequestActionNeedProtocolInterface); ok {
+			crp.setProtocolInfo(pp.protocol)
+		}
+
+		if customRequest, ok := customResponse.(customRequestModifyInterface); ok {
+
+			// means return data back to client
+			customRequest.setOriginalRequest(p)
+
+			// request was modified. send it to a server
+			packet := customResponse.getPacket()
+
+			pp.traceLog.Printf("Send custom request to server. %d bytes", len(packet))
+
+			io.Copy(pp.server, bytes.NewReader(packet))
+		} else {
+
+			packet := customResponse.getPacket()
+
+			pp.traceLog.Printf("Send custom response to client. %d bytes", len(packet))
+
+			io.Copy(pp.client, bytes.NewReader(packet))
+		}
+
+		return
+	}
+	// Default Action
+	io.Copy(pp.server, bytes.NewReader(p))
+
+	return
 }
 
 // extract protocol info from initial handshake
