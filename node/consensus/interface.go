@@ -19,6 +19,7 @@ const (
 	SQLProcessingResultSignatureRequired            = 3 // Query needs signature. TX was prepared and data to sign is retuned
 	SQLProcessingResultTranactionComplete           = 4 // Query needs signature. TX was created with provied signature
 	SQLProcessingResultTranactionCompleteInternally = 5 // Query needs signature. TX was created with internal keys and completed
+	SQLProcessingResultCanBeExecuted                = 6 // Query doesn't need signature . It was NOT executed. A proxy can pass it to a server
 )
 
 // The structure to return information on new query request from proxy
@@ -29,6 +30,7 @@ type QueryFromProxyResult struct {
 	TX           *structures.Transaction
 	TXData       []byte
 	StringToSign []byte
+	ReplaceQuery string
 	ErrorCode    uint16
 	Error        error
 }

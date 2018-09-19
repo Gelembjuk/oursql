@@ -126,9 +126,17 @@ func (q queryManager) NewQueryFromProxy(sql string) (result QueryFromProxyResult
 	}
 	if qpresult.status == SQLProcessingResultExecuted ||
 		qpresult.status == SQLProcessingResultTranactionComplete ||
-		qpresult.status == SQLProcessingResultTranactionCompleteInternally {
+		qpresult.status == SQLProcessingResultTranactionCompleteInternally ||
+		qpresult.status == SQLProcessingResultCanBeExecuted {
 
 		result.Status = 1 // final
+
+		if qpresult.status == SQLProcessingResultCanBeExecuted {
+			result.Status = 3 // pass query to server
+		} else {
+			result.ReplaceQuery = qpresult.tx.GetSQLQuery()
+		}
+
 		result.TX = qpresult.tx
 		return // no anymore actions are needed. Query can be passed to mysql server
 	}
@@ -193,7 +201,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, executeifallowed b
 	if !needsTX {
 		if !executeifallowed {
 			// no need to execute query. just return
-			result.status = SQLProcessingResultExecuted
+			result.status = SQLProcessingResultCanBeExecuted
 			return
 		}
 		// no need to have TX

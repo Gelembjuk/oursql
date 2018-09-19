@@ -676,7 +676,7 @@ func (c *NodeCLI) commandCancelTransaction() error {
 		return err
 	}
 
-	err = c.Node.GetTransactionsManager().CancelTransaction(txID)
+	err = c.Node.GetTransactionsManager().CancelTransaction(txID, true)
 
 	if err != nil {
 		return err

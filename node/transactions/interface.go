@@ -41,7 +41,7 @@ type TransactionsManagerInterface interface {
 	// add to pool from canceled blocks. this will add to a pool and execute SQL for SQL transactions
 	TransactionsFromCanceledBlocks(txList []structures.Transaction) error
 
-	CancelTransaction(txID []byte) error
+	CancelTransaction(txID []byte, sqlrollbacktoexecute bool) error
 	ReindexData() (map[string]int, error)
 	CleanUnapprovedCache() error
 }

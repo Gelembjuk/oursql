@@ -131,7 +131,7 @@ func (n *txManager) GetUnapprovedTransactionsForNewBlock(number int) ([]structur
 			// and that transaction was created in same second
 			n.Logger.Trace.Printf("Ignore transaction %x. Verify failed with error: %s\n", tx.GetID(), err.Error())
 			// we delete this transaction. no sense to keep it
-			n.CancelTransaction(tx.GetID())
+			n.CancelTransaction(tx.GetID(), true)
 			continue
 		}
 
@@ -143,7 +143,7 @@ func (n *txManager) GetUnapprovedTransactionsForNewBlock(number int) ([]structur
 			// or somethign wrong with signatures.
 			// remove this transaction from the DB of unconfirmed transactions
 			n.Logger.Trace.Printf("Delete transaction used in other block before: %x\n", tx.GetID())
-			n.CancelTransaction(tx.GetID())
+			n.CancelTransaction(tx.GetID(), true)
 		}
 	}
 	txlist = nil
@@ -168,7 +168,7 @@ func (n *txManager) GetUnapprovedTransactionsForNewBlock(number int) ([]structur
 		// there are conflicts! remove conflicting transactions
 		for _, tx := range badtransactions {
 			n.Logger.Trace.Printf("Delete conflicting transaction: %x\n", tx.GetID())
-			n.CancelTransaction(tx.GetID())
+			n.CancelTransaction(tx.GetID(), true)
 		}
 	}
 	return txs, nil
@@ -179,7 +179,7 @@ func (n *txManager) GetUnapprovedTransactionsForNewBlock(number int) ([]structur
 * NOTE this can work only for local node. it a transaction was already sent to other nodes, it will not be canceled
 * and can be added to next block
  */
-func (n *txManager) CancelTransaction(txid []byte) error {
+func (n *txManager) CancelTransaction(txid []byte, sqlrollbacktoexecute bool) error {
 	// before to delete from a cache, we need to execute rollback query
 	// alo before to delete we need to delete all other transactions that are based on this
 	// (it can be only 1 next TX, but some other based on that)
@@ -200,7 +200,7 @@ func (n *txManager) CancelTransaction(txid []byte) error {
 		return errors.New("TX not found")
 	}
 	n.Logger.Trace.Printf("Check if is SQL TX")
-	if tx.IsSQLCommand() {
+	if tx.IsSQLCommand() && sqlrollbacktoexecute {
 		n.Logger.Trace.Printf("This is cancel of SQL TX. Rollback it: %s", string(tx.SQLCommand.RollbackQuery))
 		err = n.getQueryParser().ExecuteRollbackQueryFromTX(tx.SQLCommand)
 

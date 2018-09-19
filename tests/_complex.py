@@ -269,6 +269,12 @@ def DumpBCDB(datadir, dumpfile):
 
 def AddMinterToConfig(datadir, minter):
     res = _lib.ExecuteNode(['updateconfig','-configdir',datadir,'-minter',minter])
+    
+def AddProxyToConfig(datadir, proxhost):
+    res = _lib.ExecuteNode(['updateconfig','-configdir',datadir,'--dbproxyaddr',proxhost])
+
+def AddInternalKeyToConfig(datadir, address):
+    res = _lib.ExecuteNode(['updateconfig','-configdir',datadir,'--proxykey',address])
  
 def CopyBlockchainWithBlocks(suffix = ""):
     datadir = _lib.CreateTestFolder(suffix)

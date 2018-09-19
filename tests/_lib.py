@@ -91,28 +91,50 @@ def GetDBCredentials(testdatadir = ""):
         s['database'] = os.path.basename(testdatadir)
     return s
 
-def DBGetRow(datadir, sql):
-    cnx = GetDBConnection(datadir, True)
+def GetDBProxyCredentials(testdatadir = ""):
+    s = GetDBCredentials(testdatadir)
+    #read config file to get proxy address
+    config = GetConfigFile(testdatadir)
+    
+    if not "DBProxyAddress" in config:
+        raise Exception("DB Proxy config not found")
+    
+    dbp = config["DBProxyAddress"].split(":")
+    
+    s["host"] = dbp[0]
+    s["port"] = dbp[1]
+    
+    return s
+
+def DBGetRow(datadir, sql, proxy  = False):
+    cnx = GetDBConnection(datadir, True, proxy)
     cursor = cnx.cursor()
     cursor.execute(sql)
     result = cursor.fetchone()
     return result
     
-def DBGetRows(datadir, sql):
-    cnx = GetDBConnection(datadir, True)
+def DBGetRows(datadir, sql, proxy  = False):
+    cnx = GetDBConnection(datadir, True, proxy)
     cursor = cnx.cursor()
     cursor.execute(sql)
     result = cursor.fetchall()
     return result
     
-def DBExecute(datadir, sql):
-    cnx = GetDBConnection(datadir, True)
+def DBExecute(datadir, sql, proxy  = False):
+    cnx = GetDBConnection(datadir, True, proxy)
     cursor = cnx.cursor()
-    cursor.execute(sql)
+    try:
+        cursor.execute(sql)
+        return ""
+    except Exception as e:
+        return str(e)
     
     
-def GetDBConnection(testdatadir = "", usedb = False):
-    s = GetDBCredentials(testdatadir)
+def GetDBConnection(testdatadir = "", usedb = False, proxy = False):
+    if proxy:
+        s = GetDBProxyCredentials(testdatadir)
+    else:    
+        s = GetDBCredentials(testdatadir)
     
     db = ""
     
@@ -124,7 +146,7 @@ def GetDBConnection(testdatadir = "", usedb = False):
                                 host=s['host'],
                                 port=s['port'],
                                 database=db)
-
+    cnx.autocommit = True
     return cnx
 
 def Execute(command, verbose = False):
@@ -187,6 +209,12 @@ def SaveConfigFile(datadir, contents):
     text_file = open(datadir+"/config.json", "w")
     text_file.write(contents)
     text_file.close()
+    
+def GetConfigFile(datadir):
+    json1_file = open(datadir+"/config.json")
+    json1_str = json1_file.read()
+    config = json.loads(json1_str)
+    return config
     
 def Exit():
     raise NameError('Test failed')

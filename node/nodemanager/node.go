@@ -118,12 +118,13 @@ func (n *Node) getBlockMakeManager() (consensus.BlockMakerInterface, error) {
 // Init SQL transactions manager
 func (n *Node) GetSQLQueryManager() (consensus.SQLTransactionsInterface, error) {
 	// get key pair from config
-	if len(n.ProxyPubKey) > 0 {
-		n.Logger.Trace.Printf("Make query manager with proxy key %x", n.ProxyPubKey)
-	} else {
-		n.Logger.Trace.Printf("Make query manager without proxy key")
-	}
-
+	/*
+		if len(n.ProxyPubKey) > 0 {
+			n.Logger.Trace.Printf("Make query manager with proxy key %x", n.ProxyPubKey)
+		} else {
+			n.Logger.Trace.Printf("Make query manager without proxy key")
+		}
+	*/
 	return consensus.NewSQLQueryManager(n.DBConn.DB(), n.Logger, n.ProxyPubKey, n.ProxyPrivateKey)
 }
 

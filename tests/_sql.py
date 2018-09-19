@@ -36,4 +36,20 @@ def ExecuteSQLFailure(datadir,fromaddr,sqlcommand):
 
     return error
 
+def ExecuteSQLOnProxy(datadir,sqlcommand):
+    _lib.StartTest("Execute SQL on Proxy "+sqlcommand)
+
+    res = _lib.DBExecute(datadir,sqlcommand,True)
     
+    _lib.FatalAssert(res=="","Error for proxy SQL call: "+res)
+
+    return True
+
+def ExecuteSQLOnProxyFail(datadir,sqlcommand):
+    _lib.StartTest("Execute SQL on Proxy "+sqlcommand)
+
+    res = _lib.DBExecute(datadir,sqlcommand,True)
+    
+    _lib.FatalAssert(res!="","Error was expected. But query is success")
+
+    return True
