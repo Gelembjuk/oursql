@@ -1,6 +1,8 @@
 import _lib
 import re
 import time
+import sys
+import ecdsa
 
 def ExecuteSQL(datadir,fromaddr,sqlcommand):
     _lib.StartTest("Execute SQL by "+fromaddr+" "+sqlcommand)
@@ -53,3 +55,37 @@ def ExecuteSQLOnProxyFail(datadir,sqlcommand):
     _lib.FatalAssert(res!="","Error was expected. But query is success")
 
     return True
+
+def ExecuteSQLOnProxySign(datadir,sqlcommand, pub_key, pri_key, success = True):
+    _lib.StartTest("Execute SQL on Proxy with external sign "+sqlcommand)
+    
+    sqlgetinfo = sqlcommand + "/* PUBKEY:"+str(pub_key)+"; */"
+    
+    rows = _lib.DBGetRows(datadir, sqlgetinfo, True)
+    
+    signData = {}
+    
+    for row in rows:
+        signData[row[0]] = row[1]
+    
+    _lib.FatalAssert(len(signData),"Problem getting signature info")
+    
+    stringtosign = signData["StringToSign"].decode('hex')
+    
+    sig = pri_key.sign(stringtosign,sigencode=ecdsa.util.sigencode_der)
+    
+    sig = sig.encode('hex')
+    
+    finalsql = sqlcommand+"/* DATA:"+signData["Transaction"]+"; SIGN:"+sig+";*/"
+    
+    res = _lib.DBExecute(datadir,finalsql,True)
+    
+    if success:
+        _lib.FatalAssert(res=="","Error for proxy SQL call: "+res)
+    else:
+        _lib.FatalAssert(res!="","Error expected for the SQL call")
+
+    return True
+
+def ExecuteSQLOnProxySignFail(datadir,sqlcommand, pub_key, pri_key):
+    return ExecuteSQLOnProxySign(datadir,sqlcommand, pub_key, pri_key,False)

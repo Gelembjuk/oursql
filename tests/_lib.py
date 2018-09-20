@@ -8,6 +8,7 @@ from shutil import copyfile
 import base64
 import json
 import configparser
+import ecdsa
 
 NODE_BIN = '../node/node'
 WALLET_BIN = '../remoteclient/remoteclient'
@@ -193,6 +194,15 @@ def ExecuteHangNode(args, folder, verbose=False):
 def ExecuteWallet(args,verbose=False):
     command = [WALLET_BIN] + args
     return Execute(command,verbose)
+
+def MakeWallet():
+    private_key = ecdsa.SigningKey.generate(curve=ecdsa.NIST256p)
+
+    pub_key = private_key.get_verifying_key()
+    pub_key = pub_key.to_string().encode('hex')
+    
+    return pub_key, private_key
+
 
 def StartTestGroup(title):
     print "==================="+title+"======================"
