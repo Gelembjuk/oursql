@@ -138,26 +138,29 @@ def GetUnapprovedTransactions(datadir):
     
     _lib.StartTest("Get unapproved transactions")
     res = _lib.ExecuteNode(['unapprovedtransactions','-configdir',datadir])
-    
+
     _lib.FatalAssertSubstr(res,"--- Transaction","Output should contains list of transactions")
-
-    regex = ur"--- Transaction ([^:]+):"
-
+    
+    regex = re.compile(ur"--- Transaction ([^:]+):(.*?)    ---", re.DOTALL)
     transactions = re.findall(regex, res)
 
-    regex = ur"FROM ([A-Za-z0-9]+) TO ([A-Za-z0-9]+) VALUE ([0-9.]+)"
-    
-    txinfo = re.findall(regex, res)
-    
-    if len(txinfo) < len(transactions):
-        regex = ur"SQL: ([^\n]+)\n"
-        txinfo = re.findall(regex, res)
-    
     txlist={}
     
     for i in range(len(transactions)):
-        txlist[transactions[i]] = txinfo[i]
-    
+        tp = "CURRENCY"
+        regex = ur"FROM ([A-Za-z0-9]+) TO ([A-Za-z0-9]+) VALUE ([0-9.]+)"
+        txinfo = re.findall(regex, transactions[i][1])
+        
+        if len(txinfo) < 1:
+            tp = "SQL"
+            regex = ur"SQL: ([^\n]+)\n"
+            txinfo = re.findall(regex, transactions[i][1])
+            txinfo = [txinfo[0]]
+        else:
+            txinfo = list(txinfo[0])
+   
+        txlist[transactions[i][0]] = [tp] + txinfo
+
     return txlist
 
 def CancelTransaction(datadir,txid):

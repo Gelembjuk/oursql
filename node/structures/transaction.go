@@ -380,10 +380,11 @@ func (tx Transaction) String() string {
 	}
 
 	lines = append(lines, fmt.Sprintf("--- Transaction %x:", tx.ID))
+	lines = append(lines, fmt.Sprintf("    Time %d (%s)", tx.Time, time.Unix(0, tx.Time)))
+
 	if amount > 0 {
 		lines = append(lines, fmt.Sprintf("    FROM %s TO %s VALUE %f", from, to, amount))
 	}
-	lines = append(lines, fmt.Sprintf("    Time %d (%s)", tx.Time, time.Unix(0, tx.Time)))
 
 	if !tx.IsCoinbaseTransfer() && !tx.IsSQLCommand() {
 		for i, input := range tx.Vin {
@@ -406,6 +407,8 @@ func (tx Transaction) String() string {
 		lines = append(lines, fmt.Sprintf("    By: %s", from))
 		lines = append(lines, fmt.Sprintf("    Based On: %x", tx.SQLBaseTX))
 	}
+
+	lines = append(lines, "    ---")
 
 	return strings.Join(lines, "\n")
 }
