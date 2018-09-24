@@ -3,6 +3,7 @@ from shutil import copyfile
 import _lib
 import _transfers
 import _blocks
+import _sql
 import re
 import os
 import os.path
@@ -15,6 +16,10 @@ import blocksbasic
 import managenodes
 import transactions
 
+# Make a blockchain for 6 nodes. Store in backup
+# This is used only to prepare data once. For normal testing is not called
+# Splits a nodes set on 2 separate subnetworks. To test consensus later
+# This blockchain contains only currency transactions
 def PrepareNodes():
     
     nodeport = '30000'
@@ -42,7 +47,7 @@ def PrepareNodes():
     
     for i in range(1, 6):
         port = str(30000+i)
-        d = blocksnodes.StartNodeAndImport(port, nodeport, "Server "+str(i),"_"+str(i+1)+"_")
+        d = blocksnodes.StartNodeAndImport(port, nodeport, "Server "+str(i),0, "_"+str(i+1)+"_")
         datadir_n = d[0]
         address_n = d[1]
         
@@ -235,6 +240,281 @@ def PrepareNodes():
         i=i+1
     
     return [datadir, address1, nodes, blockslen+1, datadirs]
+# Make a blockchain for 6 nodes. Store in backup
+# This is used only to prepare data once. For normal testing is not called
+# Splits a nodes set on 2 separate subnetworks. To test consensus later
+# This makes a blockchain with some SQL transactions
+def PrepareNodesWithSQL():
+    
+    nodeport = '30000'
+    
+    _lib.StartTestGroup("Prepare 6 nodes with SQL commands in BC")
+    
+    _lib.CleanTestFolders()
+    
+    datadir_tmp = CopyBlockchainWithBlocks("_1_")
+    
+    blocks = _blocks.GetBlocks(datadir_tmp)
+    
+    balances = _transfers.GetGroupBalance(datadir_tmp)
+    
+    datadirs = []
+    
+    address1 = balances.keys()[0]
+    
+    # address1_3 becomes a minter. we will send money from other 2 and this will receive rewards
+    AddProxyToConfig(datadir_tmp, "localhost:40040")
+    AddInternalKeyToConfig(datadir_tmp, address1) # init internal signing
+    
+    startnode.StartNode(datadir_tmp, address1,nodeport)
+    datadir = datadir_tmp
+    datadirs.append(datadir_tmp)
+    
+    nodes = []
+    
+    for i in range(1, 6):
+        port = str(30000+i)
+        dbproxyport = str(40040+i)
+        d = blocksnodes.StartNodeAndImport(port, nodeport, "Server "+str(i), int(dbproxyport),"_"+str(i+1)+"_")
+        datadir_n = d[0]
+        address_n = d[1]
+        
+        nodes.append({'number':i, 'port':port, 'datadir':datadir_n,'address':address_n,'port':dbproxyport})
+        datadirs.append(datadir_n)
+    
+    _lib.StartTestGroup("Temp Data Dirs")
+    _lib.StartTest("Node 0 "+os.path.basename(datadir))
+    
+    for node in nodes:
+        _lib.StartTest("Node "+str(node['number'])+" "+os.path.basename(node['datadir']))
+        
+    # commmon transfer of blocks between nodes
+    _lib.StartTestGroup("Transfer of blocks between nodes")
+    
+    blocks = _blocks.GetBlocks(datadir)
+    blockslen = len(blocks)
+    
+    balance1 = _transfers.GetBalance(datadir, address1)
+    as1 = "%.8f" % round(balance1[0]/10,8)
+    
+    # should be 6 transactions. 3 currency and 3 SQL
+    _transfers.Send(datadir,address1, nodes[0]['address'] ,as1)
+    _transfers.Send(datadir,address1, nodes[1]['address'] ,as1)
+    _transfers.Send(datadir,address1, nodes[2]['address'] ,as1)
+    
+    _sql.ExecuteSQLOnProxy(datadir,"CREATE TABLE test (a INT auto_increment PRIMARY KEY, b VARCHAR(20))")
+    _sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test SET b='row1'")
+    _sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test SET a=2,b='row2'")
+    
+    blocks = _blocks.WaitBlocks(datadir, blockslen + 1)
+    
+    _lib.FatalAssert(len(blocks) == blockslen + 1, "Expected "+str(blockslen +1)+" blocks")
+    
+    #wait while block is posted to all other nodes
+    time.sleep(2)
+    # check on each node
+    for node in nodes:
+        blocks = _blocks.WaitBlocks(node['datadir'], blockslen + 1)
+        _lib.FatalAssert(len(blocks) == blockslen + 1, "Expected "+str(blockslen +1)+" blocks o node "+str(node['number']))
+    
+    _lib.StartTestGroup("Create 2 branches of blockchain")
+    
+    while True:
+        time.sleep(4)# to complete all operations in progress
+    
+        
+    
+        # remove connection between subnetworks
+        managenodes.RemoveAllNodes(nodes[0]['datadir'])
+        managenodes.RemoveAllNodes(nodes[1]['datadir'])
+        managenodes.RemoveAllNodes(nodes[2]['datadir'])
+        managenodes.RemoveAllNodes(nodes[3]['datadir'])
+        managenodes.RemoveAllNodes(nodes[4]['datadir'])
+        managenodes.RemoveAllNodes(datadir)
+    
+        time.sleep(1)
+        nodes0 = managenodes.GetNodes(datadir)
+        nodes1 = managenodes.GetNodes(nodes[0]['datadir'])
+        nodes2 = managenodes.GetNodes(nodes[1]['datadir'])
+        
+        if len(nodes0) == 0 and len(nodes1) == 0 and len(nodes2) == 0:
+            break
+        _lib.StartTestGroup("Nodes addresses are still not clean")
+        
+    # first group - main and 4,5 nodes
+    managenodes.AddNode(datadir,"localhost",'30004')
+    managenodes.AddNode(datadir,"localhost",'30005')
+    managenodes.AddNode(nodes[3]['datadir'],"localhost",'30005')
+    
+    #second group 1,2,3
+    managenodes.AddNode(nodes[0]['datadir'],"localhost",'30002')
+    managenodes.AddNode(nodes[0]['datadir'],"localhost",'30003')
+    managenodes.AddNode(nodes[1]['datadir'],"localhost",'30003')
+    
+    time.sleep(1)
+    
+    #check nodes
+    
+    nodes0 = managenodes.GetNodes(datadir)
+    _lib.FatalAssert("localhost:30005", "Node 5 is not in the list of 0")
+    _lib.FatalAssert("localhost:30004", "Node 4 is not in the list of 0")
+    
+    nodes1 = managenodes.GetNodes(nodes[0]['datadir'])
+    
+    _lib.FatalAssert("localhost:30002", "Node 2 is not in the list of 1")
+    _lib.FatalAssert("localhost:30003", "Node 3 is not in the list of 1")
+    
+    nodes2 = managenodes.GetNodes(nodes[1]['datadir'])
+    
+    _lib.FatalAssert("localhost:30001", "Node 1 is not in the list of 2")
+    _lib.FatalAssert("localhost:30003", "Node 3 is not in the list of 2")
+    
+    _lib.StartTestGroup("2 new blocks on first branch")
+    
+    balance1 = _transfers.GetBalance(datadir, address1)
+    as1 = "%.8f" % round(balance1[0]/20,8)
+    
+    # 7 TX for 8-th block
+    tx = [""] * 15
+    tx[0] = _transfers.Send(datadir,address1, nodes[3]['address'] ,as1)
+    
+    tx[1] = _transfers.Send(datadir,address1, nodes[3]['address'] ,as1)
+    
+    tx[2] = _transfers.Send(datadir,address1, nodes[3]['address'] ,as1)
+    
+    _sql.ExecuteSQLOnProxy(datadir,"UPDATE test SET b='row2_updated' WHERE a=2")
+    
+    _sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test SET b='row3'")
+    
+    _sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test SET b='row4'")
+    
+    _sql.ExecuteSQLOnProxy(datadir,"UPDATE test SET b='row4_updated' WHERE a=4")
+    
+    time.sleep(7)
+    # 8 TX for 9-th block
+    tx[7] = _transfers.Send(datadir,address1, nodes[4]['address'] ,as1)
+    
+    tx[8] = _transfers.Send(datadir,address1, nodes[4]['address'] ,as1)
+    
+    tx[9] = _transfers.Send(datadir,address1, nodes[4]['address'] ,as1)
+    
+    tx[10] = _transfers.Send(datadir,address1, nodes[4]['address'] ,as1)
+    
+    _sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test SET b='row7', a=7")
+    _sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test SET b='row8', a=8")
+    _sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test SET b='row9', a=9")
+    _sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test SET b='row10', a=10")
+    
+    blocks1 = _blocks.WaitBlocks(nodes[4]['datadir'], blockslen + 3)
+    time.sleep(3)
+    
+    _lib.FatalAssert(len(blocks1) == blockslen + 3, "Expected "+str(blockslen +3)+" blocks for branch 1")
+    
+    rows = _lib.DBGetRows(nodes[3]['datadir'],"SELECT * FROM test",True)
+    _lib.FatalAssert(len(rows) == 8, "Must be 8 rows in a table on 3-th node")
+    
+    rows = _lib.DBGetRows(nodes[4]['datadir'],"SELECT * FROM test",True)
+    _lib.FatalAssert(len(rows) == 8, "Must be 8 rows in a table on 4-th node")
+    
+    _lib.StartTestGroup("1 new block on second branch")
+    
+    balance2 = _transfers.GetBalance(nodes[0]['datadir'], nodes[0]['address'])
+    as2 = "%.8f" % round(balance2[0]/10,8)
+    
+    # 7 new TX
+    _transfers.Send(nodes[0]['datadir'], nodes[0]['address'], nodes[1]['address'] ,as2)
+    _transfers.Send(nodes[0]['datadir'], nodes[0]['address'], nodes[2]['address'] ,as2)
+    
+    # unique row
+    _sql.ExecuteSQLOnProxy(nodes[0]['datadir'],"INSERT INTO test SET b='row5', a = 5")
+    # identical as in parallel
+    _sql.ExecuteSQLOnProxy(nodes[0]['datadir'],"INSERT INTO test SET b='row7', a=7")
+    # other value and same ID
+    _sql.ExecuteSQLOnProxy(nodes[0]['datadir'],"INSERT INTO test SET b='row3_other', a=3")
+    # update same
+    _sql.ExecuteSQLOnProxy(nodes[0]['datadir'],"UPDATE test SET b='row2_updated_other' WHERE a=2")
+    # delete
+    _sql.ExecuteSQLOnProxy(nodes[0]['datadir'],"DELETE FROM test WHERE a=7")
+    
+    blocks2 = _blocks.WaitBlocks(nodes[0]['datadir'], blockslen + 2)
+    _lib.FatalAssert(len(blocks2) == blockslen + 2, "Expected "+str(blockslen +2)+" blocks for branch 2. Node 1")
+    
+    blocks2 = _blocks.WaitBlocks(nodes[1]['datadir'], blockslen + 2)
+    _lib.FatalAssert(len(blocks2) == blockslen + 2, "Expected "+str(blockslen +2)+" blocks for branch 2. Node 2")
+    
+    blocks2 = _blocks.WaitBlocks(nodes[2]['datadir'], blockslen + 2)
+    _lib.FatalAssert(len(blocks2) == blockslen + 2, "Expected "+str(blockslen +2)+" blocks for branch 2. Node 2")
+    
+    time.sleep(3)# to allow to update all references after block add
+    
+    #rows = _lib.DBGetRows(datadir,"SELECT * FROM test",True)
+    #print "0",rows
+    #rows = _lib.DBGetRows(nodes[0]['datadir'],"SELECT * FROM test",True)
+    #print "1",rows
+    #rows = _lib.DBGetRows(nodes[1]['datadir'],"SELECT * FROM test",True)
+    #print "2",rows
+    #rows = _lib.DBGetRows(nodes[2]['datadir'],"SELECT * FROM test",True)
+    #print "3",rows
+    #rows = _lib.DBGetRows(nodes[3]['datadir'],"SELECT * FROM test",True)
+    #print "4",rows
+    #rows = _lib.DBGetRows(nodes[4]['datadir'],"SELECT * FROM test",True)
+    #print "5",rows
+    
+    # index 2 is 4-th node (3-rd in second network)
+    rows = _lib.DBGetRows(nodes[2]['datadir'],"SELECT * FROM test",True)
+    
+    _lib.FatalAssert(len(rows) == 4, "Must be 4 rows in a table on 4-th node")
+    
+    dstdir = _lib.getCurrentDir()+"/datafortests/"
+    #configs for cluster 1
+    copyConfig(datadir, dstdir+"bc6nodessql_1/config.t", address1, nodeport, nodes[3]['port'], nodes[4]['port'])
+    
+    copyConfig(nodes[3]['datadir'], dstdir+"bc6nodessql_5/config.t", nodes[3]['address'], nodes[3]['port'], nodeport, nodes[4]['port'])
+    
+    copyConfig(nodes[4]['datadir'], dstdir+"bc6nodessql_6/config.t", nodes[4]['address'], nodes[4]['port'], nodeport, nodes[3]['port'])
+    
+    #config for cluster 2
+    copyConfig(nodes[0]['datadir'], dstdir+"bc6nodessql_2/config.t", nodes[0]['address'], nodes[0]['port'], nodes[1]['port'], nodes[2]['port'])
+    
+    copyConfig(nodes[1]['datadir'], dstdir+"bc6nodessql_3/config.t", nodes[1]['address'], nodes[1]['port'], nodes[0]['port'], nodes[2]['port'])
+    
+    copyConfig(nodes[2]['datadir'], dstdir+"bc6nodessql_4/config.t", nodes[2]['address'], nodes[2]['port'], nodes[0]['port'], nodes[1]['port'])
+    
+    #print os.path.basename(datadir)
+    startnode.StopNode(datadir)
+    
+    dstdir = _lib.getCurrentDir()+"/datafortests/bc6nodessql_1/"
+    #print dstdir
+
+    copyfile(datadir+"/wallet.dat", dstdir+"wallet.t")
+    
+    try:
+        os.remove(dstdir+"db.sql")
+    except OSError:
+        pass
+
+    DumpBCDB(datadir, dstdir+"db.sql")
+    
+    i = 2
+    
+    for node in nodes:
+        #print os.path.basename(node['datadir'])
+        startnode.StopNode(node['datadir'])
+        
+        dstdir = _lib.getCurrentDir()+"/datafortests/bc6nodessql_"+str(i)+"/"
+        #print dstdir
+        copyfile(node['datadir']+"/wallet.dat", dstdir+"wallet.t")
+        
+        try:
+            os.remove(dstdir+"db.sql")
+        except OSError:
+            pass
+        
+        DumpBCDB(node['datadir'], dstdir+"db.sql")
+        
+        i=i+1
+    
+    return [datadir, address1, nodes, blockslen+1, datadirs]
 
 def copyConfig(datadir, destfile,minter, port, port2, port3):
     origjsonfile = datadir+"/config.json"
@@ -301,6 +581,28 @@ def Copy6Nodes():
     
     datadirs[5] = _lib.CreateTestFolder("_6_")
     _lib.CopyTestData(datadirs[5],"bc6nodes_6")
+    
+    return datadirs
+
+def Copy6NodesSQL():
+    datadirs = [""] * 6
+    datadirs[0] = _lib.CreateTestFolder("_1_")
+    _lib.CopyTestData(datadirs[0],"bc6nodessql_1")
+    
+    datadirs[1] = _lib.CreateTestFolder("_2_")
+    _lib.CopyTestData(datadirs[1],"bc6nodessql_2")
+    
+    datadirs[2] = _lib.CreateTestFolder("_3_")
+    _lib.CopyTestData(datadirs[2],"bc6nodessql_3")
+    
+    datadirs[3] = _lib.CreateTestFolder("_4_")
+    _lib.CopyTestData(datadirs[3],"bc6nodessql_4")
+    
+    datadirs[4] = _lib.CreateTestFolder("_5_")
+    _lib.CopyTestData(datadirs[4],"bc6nodessql_5")
+    
+    datadirs[5] = _lib.CreateTestFolder("_6_")
+    _lib.CopyTestData(datadirs[5],"bc6nodessql_6")
     
     return datadirs
 

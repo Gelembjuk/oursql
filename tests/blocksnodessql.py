@@ -1,12 +1,14 @@
 import _lib
 import _transfers
 import _blocks
+import _sql
 import re
 import time
 import startnode
 import _node
 import _complex
 import blocksbasic
+import blocksnodes
 import managenodes
 import initblockchain
 import transactions
@@ -47,15 +49,18 @@ def test(testfilter):
     address1_3 = inf[3]
     
     #_node.StartNodeInteractive(datadir, address1,'30000', "Server 1")
+    _complex.AddProxyToConfig(datadir, "localhost:40001")
+    _complex.AddInternalKeyToConfig(datadir, address1) # init internal signing
+    
     startnode.StartNode(datadir, address1,'30000', "Server 1")
     datadir1 = datadir
     managenodes.RemoveAllNodes(datadir1)
     
-    d = StartNodeAndImport('30001', '30000', "Server 2", 0  )
+    d = blocksnodes.StartNodeAndImport('30001', '30000', "Server 2", 40002 )
     datadir2 = d[0]
     address2 = d[1]
     
-    d = StartNodeAndImport('30002', '30000', "Server 3", 0)
+    d = blocksnodes.StartNodeAndImport('30002', '30000', "Server 3", 40003 )
     datadir3 = d[0]
     address3 = d[1]
     
@@ -68,6 +73,41 @@ def test(testfilter):
     _lib.FatalAssert(len(nodes) == 2,"Should be 2 nodes on server 3")
     
     # get balance 
+    _sql.ExecuteSQLOnProxy(datadir1,"CREATE TABLE test (a INT auto_increment PRIMARY KEY, b VARCHAR(20))")
+    _sql.ExecuteSQLOnProxy(datadir1,"INSERT INTO test SET b='row1'")
+    _sql.ExecuteSQLOnProxy(datadir1,"INSERT INTO test SET a=2,b='row2'")
+    _sql.ExecuteSQLOnProxy(datadir1,"INSERT INTO test (b) VALUES ('row3')")
+    
+    blocks = _blocks.WaitBlocks(datadir1, 5)
+    _lib.FatalAssert(len(blocks) == 5,"Should be 5 blocks on server 1")
+    blocks = _blocks.WaitBlocks(datadir2, 5)
+    _lib.FatalAssert(len(blocks) == 5,"Should be 5 blocks on server 2")
+    blocks = _blocks.WaitBlocks(datadir3, 5)
+    _lib.FatalAssert(len(blocks) == 5,"Should be 5 blocks on server 3")
+    
+    time.sleep(1)# while all caches are cleaned
+    
+    managenodes.RemoveAllNodes(datadir1)
+    managenodes.RemoveAllNodes(datadir2)
+    managenodes.RemoveAllNodes(datadir3)
+    
+    rows = _lib.DBGetRows(datadir1,"SELECT * FROM test",True)
+    _lib.FatalAssert(len(rows) == 3, "Must be 3 rows in a table on node 1")
+    rows = _lib.DBGetRows(datadir2,"SELECT * FROM test",True)
+    _lib.FatalAssert(len(rows) == 3, "Must be 3 rows in a table on node 2")
+    rows = _lib.DBGetRows(datadir3,"SELECT * FROM test",True)
+    _lib.FatalAssert(len(rows) == 3, "Must be 3 rows in a table on node 3")
+    
+    _sql.ExecuteSQLOnProxy(datadir1,"INSERT INTO test (b) VALUES ('row4')")
+    
+    time.sleep(1)# while all caches are cleaned
+    
+    rows = _lib.DBGetRows(datadir1,"SELECT * FROM test",True)
+    _lib.FatalAssert(len(rows) == 4, "Must be 4 rows in a table on node 1")
+    rows = _lib.DBGetRows(datadir2,"SELECT * FROM test",True)
+    _lib.FatalAssert(len(rows) == 3, "Must be 3 rows in a table on node 2")
+    rows = _lib.DBGetRows(datadir3,"SELECT * FROM test",True)
+    _lib.FatalAssert(len(rows) == 3, "Must be 3 rows in a table on node 3")
     
     startnode.StopNode(datadir1,"Server 1")
     datadir1 = ""
@@ -81,29 +121,6 @@ def test(testfilter):
     #_lib.RemoveTestFolder(datadir)
     _lib.EndTestGroupSuccess()
 
-def StartNodeAndImport(port, importport, title, dbproxyport, suffix = ""):
-    
-    datadir = _lib.CreateTestFolder(suffix)
-    
-    # this will create config file to remember other node address
-    configfile = "{\"Port\": "+str(port)+",\"Nodes\":[{\"Host\": \"localhost\",\"Port\":"+str(importport)+"}]}"
-    _lib.SaveConfigFile(datadir, configfile)
-    
-    address = initblockchain.ImportBockchain(datadir,"localhost",importport)
-    
-    _complex.AddMinterToConfig(datadir, address)
-    
-    if dbproxyport > 0:
-        _complex.AddProxyToConfig(datadir, "localhost:"+str(dbproxyport))
-        _complex.AddInternalKeyToConfig(datadir, address) # init internal signing
-    
-    startnode.StartNode(datadir, address, port, title)
-    
-    #check nodes. must be minimum 1 and import port must be present 
-    nodes = managenodes.GetNodes(datadir)
-    _lib.FatalAssert(len(nodes) > 0,"Should be minimum 1 nodes in output")
-    
-    return [datadir, address]
 
 def MakeBlockchainWithBlocks(port):
     

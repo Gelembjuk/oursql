@@ -24,10 +24,9 @@ def aftertest(testfilter):
 def test(testfilter):
     global datadirs
     _lib.CleanTestFolders()
-    #return _complex.Make5BlocksBC()
-    return _complex.PrepareNodes()
+    return _complex.PrepareNodesWithSQL()
 
-    dirs = _complex.Copy6Nodes()
+    dirs = _complex.Copy6NodesSQL()
     
     nodes = []
     
@@ -75,6 +74,8 @@ def test(testfilter):
     
     _lib.FatalAssert(blocks1[2] == blocks2[1],"7 block must be same for both")
     _lib.FatalAssert(blocks1[1] != blocks2[0],"8 block must be different")
+    
+    return
     
     _lib.StartTestGroup("Connect subnetworks")
     managenodes.AddNode(nodes[0]["datadir"],"localhost",'30001')

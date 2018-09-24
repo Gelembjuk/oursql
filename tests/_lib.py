@@ -67,6 +67,9 @@ def CreateTestFolder(suffix = ""):
     
     os.makedirs(newfolder)
     
+    if suffix == "wallet":
+        return newfolder
+    
     # also create a test DB for this case
     dbname = os.path.basename(newfolder)
     cnx = GetDBConnection()
