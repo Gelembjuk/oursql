@@ -36,8 +36,8 @@ type Node struct {
 	locks     *NodeLocks
 }
 type NodeLocks struct {
-	blockAddLock *sync.Mutex
-	blockInLock  *sync.Mutex
+	blockAddLock        *sync.Mutex
+	transactionsExecute *sync.Mutex
 }
 
 // Init node.
@@ -92,7 +92,7 @@ func (orignode *Node) Clone() *Node {
 // create locks object
 func (n *NodeLocks) InitLocks() {
 	n.blockAddLock = &sync.Mutex{}
-	n.blockInLock = &sync.Mutex{}
+	n.transactionsExecute = &sync.Mutex{}
 }
 
 // Build transaction manager structure
@@ -241,6 +241,13 @@ func (n *Node) SendTransactionToAll(tx *structures.Transaction) {
 		n.NodeClient.SendInv(node, "tx", [][]byte{tx.GetID()})
 	}
 }
+
+// Process new
+/*
+func (n *Node) ReceivedNewCurrencyTransactionData(txBytes []byte, Signature []byte) (*structures.Transaction, error) {
+
+}
+*/
 
 // Add node
 // We need this for case when we want to do some more actions after node added
@@ -457,6 +464,7 @@ func (n *Node) AddBlock(block *structures.Block) (uint, error) {
 
 	n.locks.blockAddLock.Lock()
 	defer n.locks.blockAddLock.Unlock()
+
 	n.Logger.Trace.Printf("Add block. Lock passed. %x", block.Hash)
 	curLastHash, _, err := bcm.GetState()
 
@@ -579,8 +587,8 @@ func (n *Node) ReceivedFullBlockFromOtherNode(blockdata []byte) (int, uint, *str
 		return -1, addstate, nil, err
 	}
 	// lock this process to prevent conflicts
-	n.locks.blockInLock.Lock()
-	defer n.locks.blockInLock.Unlock()
+	n.locks.transactionsExecute.Lock()
+	defer n.locks.transactionsExecute.Unlock()
 
 	n.Logger.Trace.Printf("Recevied a new block %x", block.Hash)
 

@@ -170,7 +170,7 @@ func (q queryManager) NewQueryFromProxy(sql string) (result QueryFromProxyResult
 // this does all work. It checks query, decides if ll data are present and creates transaction
 // it can return prepared transaction and data to sign or return complete transaction if keys are set in the object
 func (q queryManager) processQuery(sql string, pubKey []byte, executeifallowed bool) (result processQueryResponse, err error) {
-
+	q.Logger.Trace.Println("processQuery " + sql)
 	qp := q.getQueryParser()
 	// this will get sql type and data from comments. data can be pubkey, txBytes, signature
 	qparsed, err := qp.ParseQuery(sql)

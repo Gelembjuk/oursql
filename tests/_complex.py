@@ -279,7 +279,7 @@ def PrepareNodesWithSQL():
         datadir_n = d[0]
         address_n = d[1]
         
-        nodes.append({'number':i, 'port':port, 'datadir':datadir_n,'address':address_n,'port':dbproxyport})
+        nodes.append({'number':i, 'port':port, 'datadir':datadir_n,'address':address_n,'proxyport':dbproxyport})
         datadirs.append(datadir_n)
     
     _lib.StartTestGroup("Temp Data Dirs")
@@ -534,6 +534,8 @@ def copyConfig(datadir, destfile,minter, port, port2, port3):
         data["Nodes"][1] = {"Host":"localhost", "Port": int(port3)} 
         
         data["Database"]["DatabaseName"] = ""
+        
+        data["Logs"] = ["trace","error"]
         
         with open(destfile, 'w') as fp:
             json.dump(data, fp)

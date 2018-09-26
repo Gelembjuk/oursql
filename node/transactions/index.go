@@ -69,7 +69,7 @@ func (ti *transactionsIndex) BlockAdded(block *structures.Block) error {
 			}
 		}
 		hashes = append(hashes, block.Hash[:])
-		ti.Logger.Trace.Printf("block add. %x new list %x %d", tx.GetID(), hashes, len(hashes))
+		//ti.Logger.Trace.Printf("block add. %x new list %x %d", tx.GetID(), hashes, len(hashes))
 		blocksHashes, err = ti.SerializeHashes(hashes)
 
 		if err != nil {

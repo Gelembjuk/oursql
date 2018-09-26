@@ -87,7 +87,48 @@ def ReindexUTXO(datadir):
     _lib.StartTest("Reindex Unspent Transactions")
     res = _lib.ExecuteNode(['reindexunspent','-configdir',datadir])
     _lib.FatalAssertSubstr(res,"Done!","No correct response on reindex")
+
+def GetCountUnapprovedTransactions(datadir):
     
+    _lib.StartTest("Get unapproved transactions")
+    res = _lib.ExecuteNode(['unapprovedtransactions','-configdir',datadir])
+    
+    regex = ur"Total transactions: ([0-9]+)"
+
+    c = re.findall(regex, res)
+    
+    return c[0]
+
+def GetUnapprovedTransactions(datadir, skiperroronempty = False):
+    
+    _lib.StartTest("Get unapproved transactions")
+    res = _lib.ExecuteNode(['unapprovedtransactions','-configdir',datadir])
+
+    if not skiperroronempty:
+        _lib.FatalAssertSubstr(res,"--- Transaction","Output should contains list of transactions")
+    
+    regex = re.compile(ur"--- Transaction ([^:]+):(.*?)    ---", re.DOTALL)
+    transactions = re.findall(regex, res)
+
+    txlist={}
+    
+    for i in range(len(transactions)):
+        tp = "CURRENCY"
+        regex = ur"FROM ([A-Za-z0-9]+) TO ([A-Za-z0-9]+) VALUE ([0-9.]+)"
+        txinfo = re.findall(regex, transactions[i][1])
+        
+        if len(txinfo) < 1:
+            tp = "SQL"
+            regex = ur"SQL: ([^\n]+)\n"
+            txinfo = re.findall(regex, transactions[i][1])
+            txinfo = [txinfo[0]]
+        else:
+            txinfo = list(txinfo[0])
+   
+        txlist[transactions[i][0]] = [tp] + txinfo
+
+    return txlist
+ 
 def WaitUnapprovedTransactionsEmpty(datadir, maxseconds = 10):
     c = 0
     
@@ -110,42 +151,20 @@ def WaitUnapprovedTransactionsEmpty(datadir, maxseconds = 10):
 def WaitUnapprovedTransactions(datadir, count, maxseconds = 10):
     c = 0
     
+    txlist={}
+    
     while True:
-        _lib.StartTest("Get unapproved transactions")
-        res = _lib.ExecuteNode(['unapprovedtransactions','-configdir',datadir])
+        txlist = GetUnapprovedTransactions(datadir, True)
         
-        c=c+1
-        
-        if "--- Transaction" not in res:
-            if c > maxseconds:
-                break
-            
-            time.sleep(1)
-            
-            continue
-
-        regex = ur"--- Transaction ([^:]+):"
-
-        transactions = re.findall(regex, res)
-
-        regex = ur"FROM ([A-Za-z0-9]+) TO ([A-Za-z0-9]+) VALUE ([0-9.]+)"
-        
-        txinfo = re.findall(regex, res)
-        
-        if len(txinfo) >= count:
+        if len(txlist) >= count:
             break
         
         if c > maxseconds:
             break
+        
+        c = c + 1
 
         time.sleep(1)
-    
-    _lib.FatalAssertSubstr(res,"--- Transaction","Output should contains list of transactions")
-    
-    txlist={}
-    
-    for i in range(len(transactions)):
-        txlist[transactions[i]] = txinfo[i]
     
     return txlist
     

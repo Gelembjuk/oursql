@@ -1,6 +1,7 @@
 package transactions
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"encoding/hex"
 	"errors"
@@ -293,6 +294,9 @@ func (n *txManager) BlockRemoved(block *structures.Block) error {
 	n.getUnapprovedTransactionsManager().AddFromCanceled(block)
 	n.getUnspentOutputsManager().UpdateOnBlockCancel(block)
 	n.getIndexManager().BlockRemoved(block)
+
+	// remove association of transactions and SQL references
+	n.getDataRowsAndTransacionsManager().UpdateOnBlockCancel(block)
 	return nil
 }
 
@@ -315,26 +319,32 @@ func (n *txManager) BlockRemovedFromPrimaryChain(block *structures.Block) error 
 	n.Logger.Trace.Printf("TX Man. block removed from primary %x", block.Hash)
 	// we need to reverse transactions slice. execution of rollback should go
 	// in reversed order
+	l := len(block.Transactions)
+	for i := l - 1; i > -1; i-- {
+		tx := block.Transactions[i]
 
-	for _, tx := range block.Transactions {
 		if tx.IsCoinbaseTransfer() {
 			continue
 		}
 		if !tx.IsSQLCommand() {
 			continue
 		}
+		n.Logger.Trace.Printf("Execute On Block Remove: orig was %s ", string(tx.SQLCommand.Query))
+		n.Logger.Trace.Printf("Execute On Block Remove: %s from tx %x", string(tx.SQLCommand.RollbackQuery), tx.GetID())
 
-		n.Logger.Trace.Printf("Execute On Block Remove: %s", string(tx.SQLCommand.RollbackQuery))
-
-		_, err := n.getQueryParser().ExecuteQuery(string(tx.SQLCommand.RollbackQuery))
+		err := n.getQueryParser().ExecuteRollbackQueryFromTX(tx.SQLCommand)
 
 		if err != nil {
+			n.Logger.Trace.Printf("Error On Block Remove: %s", err.Error())
 			return err
 		}
-
+		n.Logger.Trace.Printf("TX done")
 	}
 
 	n.getUnspentOutputsManager().UpdateOnBlockCancel(block)
+
+	// remove association of transactions and SQL references
+	n.getDataRowsAndTransacionsManager().UpdateOnBlockCancel(block)
 	return nil
 }
 
@@ -342,7 +352,22 @@ func (n *txManager) BlockRemovedFromPrimaryChain(block *structures.Block) error 
 // it is used to add transactions back to pool from canceled blocks in case if branches are switched
 func (n *txManager) TransactionsFromCanceledBlocks(txList []structures.Transaction) error {
 	for _, tx := range txList {
-		n.ReceivedNewTransaction(&tx, true)
+		n.Logger.Trace.Printf("Try to add back TX %x", tx.GetID())
+
+		if tx.IsSQLCommand() {
+			n.Logger.Trace.Printf("SQL %s", string(tx.SQLCommand.Query))
+			n.Logger.Trace.Printf("TX based on %x", tx.SQLBaseTX)
+		} else {
+			n.Logger.Trace.Printf("It is currency TX")
+		}
+
+		err := n.ReceivedNewTransaction(&tx, true)
+
+		if err != nil {
+			n.Logger.Trace.Printf("Erro adding TX back %x %s", tx.GetID(), err.Error())
+		} else {
+			n.Logger.Trace.Printf("TX added back %x %s", tx.GetID())
+		}
 	}
 	return nil
 }
@@ -363,7 +388,7 @@ func (n *txManager) transactionsFromAddedBlock(txList []structures.Transaction) 
 
 			n.Logger.Trace.Printf("Execute On Block Add: %s", tx.GetSQLQuery())
 
-			_, err := n.getQueryParser().ExecuteQuery(tx.GetSQLQuery())
+			err := n.getQueryParser().ExecuteQueryFromTX(tx.SQLCommand)
 			if err != nil {
 				return err
 			}
@@ -746,6 +771,26 @@ func (n *txManager) verifyTransactionQuick(tx *structures.Transaction) (bool, er
 		n.Logger.Trace.Printf("VT error 3: %s", err.Error())
 		return false, err
 	}
+
+	if tx.IsSQLCommand() {
+		n.Logger.Trace.Println("Verify SQL input TX")
+		// check if this SQL can be executed
+		if len(tx.SQLBaseTX) > 0 {
+			n.Logger.Trace.Printf("Prev TX is %x", tx.SQLCommand.PrevTransaction)
+			// check if this previous TX is still actual
+			inputSQLTX, err := n.getBaseTransaction(tx.SQLCommand)
+			n.Logger.Trace.Printf("Current base TX should be %x", inputSQLTX)
+			if err != nil {
+				return false, err
+			}
+			if len(inputSQLTX) == 0 {
+				return false, nil
+			}
+			if bytes.Compare(inputSQLTX, tx.SQLBaseTX) != 0 {
+				return false, nil
+			}
+		}
+	}
 	return true, nil
 }
 
@@ -757,7 +802,7 @@ func (n *txManager) verifyTransactionQuick(tx *structures.Transaction) (bool, er
 func (n *txManager) getCurrencyInputTransactionsState(tx *structures.Transaction,
 	tip []byte) (map[int]*structures.Transaction, map[int]structures.TXCurrencyInput, error) {
 
-	n.Logger.Trace.Printf("get state %x , tip %x", tx.GetID(), tip)
+	//n.Logger.Trace.Printf("get state %x , tip %x", tx.GetID(), tip)
 
 	prevTXs := make(map[int]*structures.Transaction)
 	badinputs := make(map[int]structures.TXCurrencyInput)
@@ -774,7 +819,7 @@ func (n *txManager) getCurrencyInputTransactionsState(tx *structures.Transaction
 	}
 
 	for vind, vin := range tx.Vin {
-		n.Logger.Trace.Printf("Check tx input %x of %x", vin.Txid, tx.GetID())
+		//n.Logger.Trace.Printf("Check tx input %x of %x", vin.Txid, tx.GetID())
 		txBockHashes, err := n.getIndexManager().GetTranactionBlocks(vin.Txid)
 
 		if err != nil {
@@ -792,12 +837,12 @@ func (n *txManager) getCurrencyInputTransactionsState(tx *structures.Transaction
 		var prevTX *structures.Transaction
 
 		if txBockHash == nil {
-			n.Logger.Trace.Printf("Not found TX")
+			//n.Logger.Trace.Printf("Not found TX")
 			prevTX = nil
 		} else {
 
 			// if block is in this chain
-			n.Logger.Trace.Printf("get TX %x  from block %x", vin.Txid, txBockHash)
+			//n.Logger.Trace.Printf("get TX %x  from block %x", vin.Txid, txBockHash)
 			prevTX, err = bcMan.GetTransactionFromBlock(vin.Txid, txBockHash)
 
 			if err != nil {
@@ -811,16 +856,16 @@ func (n *txManager) getCurrencyInputTransactionsState(tx *structures.Transaction
 			// transaction not found
 			badinputs[vind] = vin
 			prevTXs[vind] = nil
-			n.Logger.Trace.Printf("tx %x is not in blocks", vin.Txid)
+			//n.Logger.Trace.Printf("tx %x is not in blocks", vin.Txid)
 		} else {
-			n.Logger.Trace.Printf("tx found")
+			//n.Logger.Trace.Printf("tx found")
 			// check if this input was not yet spent somewhere
 			spentouts, err := n.getIndexManager().GetTranactionOutputsSpent(vin.Txid, txBockHash, tip)
 
 			if err != nil {
 				return nil, nil, err
 			}
-			n.Logger.Trace.Printf("spending of tx %x count %d", vin.Txid, len(spentouts))
+			//n.Logger.Trace.Printf("spending of tx %x count %d", vin.Txid, len(spentouts))
 			if len(spentouts) > 0 {
 
 				for _, o := range spentouts {

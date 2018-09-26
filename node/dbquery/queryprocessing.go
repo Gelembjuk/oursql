@@ -168,6 +168,7 @@ func (qp queryProcessor) ExecuteQuery(sql string) (*structures.SQLUpdate, error)
 
 // execute query from QueryParsed data.
 func (qp queryProcessor) ExecuteParsedQuery(parsed QueryParsed) (*structures.SQLUpdate, error) {
+	qp.Logger.Trace.Println("ExecuteParsedQuery " + string(parsed.SQL))
 	su, err := qp.MakeSQLUpdateStructure(parsed)
 
 	if err != nil {

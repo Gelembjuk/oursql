@@ -471,7 +471,7 @@ func (u unspentTransactions) UpdateOnBlockAdd(block *structures.Block) error {
 	u.Logger.Trace.Printf("UPdate UTXO on block add %x", block.Hash)
 
 	for _, tx := range block.Transactions {
-		u.Logger.Trace.Printf("UpdateOnBlockAdd check tx %x", tx.GetID())
+		//u.Logger.Trace.Printf("UpdateOnBlockAdd check tx %x", tx.GetID())
 
 		sender := []byte{}
 
@@ -537,7 +537,7 @@ func (u unspentTransactions) UpdateOnBlockAdd(block *structures.Block) error {
 		if err != nil {
 			return err
 		}
-		u.Logger.Trace.Printf("BA tx save as unspent %x %d outputs", tx.ID, len(newOutputs))
+		//u.Logger.Trace.Printf("BA tx save as unspent %x %d outputs", tx.ID, len(newOutputs))
 		err = uodb.PutDataForTransaction(tx.ID, d)
 
 		if err != nil {

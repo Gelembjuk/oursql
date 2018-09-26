@@ -300,7 +300,7 @@ func (n *NodeBlockMaker) VerifyBlock(block *structures.Block) error {
 		if !vtx {
 			return errors.New(fmt.Sprintf("Transaction in a block is not valid: %x", tx.GetID()))
 		}
-		n.Logger.Trace.Printf("checked %x . add it to previous list", tx.GetID())
+		//n.Logger.Trace.Printf("checked %x . add it to previous list", tx.GetID())
 		prevTXs = append(prevTXs, tx)
 	}
 	// 1.

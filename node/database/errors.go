@@ -11,6 +11,7 @@ const DBCursorBreak = "cursorbreak"
 const DBHashNotFoundError = "hashnotfound"
 const DBHashEmptyError = "hashisemptyd"
 const DBHashError = "hashemptyd"
+const DBRowNotFoundError = "rownotfound"
 
 type DBError struct {
 	err  string
@@ -62,4 +63,8 @@ func NewHashEmptyDBError() error {
 
 func NewHashDBError(err string) error {
 	return &DBError{err, DBHashError}
+}
+
+func NewRowNotFoundDBError(err string) error {
+	return &DBError{err, DBRowNotFoundError}
 }

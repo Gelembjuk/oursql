@@ -316,7 +316,7 @@ func (c *NodeCLI) getWalletsCLI() (*remoteclient.WalletCLI, error) {
 	if c.Input.Args.From != "" {
 		winput.Address = c.Input.Args.From
 	}
-	c.Logger.Trace.Println("Running port ", c.AlreadyRunningPort)
+	//c.Logger.Trace.Println("Running port ", c.AlreadyRunningPort)
 
 	walletscli := remoteclient.WalletCLI{}
 
@@ -483,7 +483,7 @@ func (c *NodeCLI) commandPrintChain() error {
 
 // Show contents of a cache of unapproved transactions (transactions pool)
 func (c *NodeCLI) commandUnapprovedTransactions() error {
-
+	c.Logger.Trace.Println("Show unapproved transactions")
 	if c.Input.Args.Clean {
 		// clean cache
 

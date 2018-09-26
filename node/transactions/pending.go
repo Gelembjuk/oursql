@@ -326,7 +326,7 @@ func (u *unApprovedTransactions) Add(txadd *structures.Transaction) error {
 		return err
 	}
 
-	err = utdb.PutTransaction(txadd.GetID(), append(txser))
+	err = utdb.PutTransaction(txadd.GetID(), txser)
 
 	if err != nil {
 		u.Logger.Trace.Printf("err 2 %s", err.Error())
@@ -340,7 +340,7 @@ func (u *unApprovedTransactions) Add(txadd *structures.Transaction) error {
 * Delete transaction from a cache. When transaction becomes part ofa block
  */
 func (u *unApprovedTransactions) Delete(txid []byte) (bool, error) {
-	u.Logger.Trace.Printf("Remove TX from unapproved %x", txid)
+	//u.Logger.Trace.Printf("Remove TX from unapproved %x", txid)
 	utdb, err := u.DB.GetUnapprovedTransactionsObject()
 
 	if err != nil {

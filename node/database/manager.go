@@ -457,7 +457,7 @@ func (bdm MySQLDBManager) ExecuteSQLSelectRow(sqlcommand string) (data map[strin
 			data[colName] = val
 		}
 	} else {
-		err = errors.New("Row not found in a table")
+		err = NewRowNotFoundDBError("Row not found in a table")
 	}
 
 	return
