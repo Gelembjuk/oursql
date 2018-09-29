@@ -310,6 +310,8 @@ func (n *txManager) BlockAddedToPrimaryChain(block *structures.Block) error {
 	// delete all transactions from a pool
 	n.getUnapprovedTransactionsManager().DeleteFromBlock(block)
 	n.getUnspentOutputsManager().UpdateOnBlockAdd(block)
+	// update references/transactions linking
+	n.getDataRowsAndTransacionsManager().UpdateOnBlockAdd(block)
 
 	return nil
 }
@@ -329,7 +331,7 @@ func (n *txManager) BlockRemovedFromPrimaryChain(block *structures.Block) error 
 		if !tx.IsSQLCommand() {
 			continue
 		}
-		n.Logger.Trace.Printf("Execute On Block Remove: orig was %s ", string(tx.SQLCommand.Query))
+		n.Logger.Trace.Printf("Execute On Block Remove: rollback %s ", string(tx.SQLCommand.Query))
 		n.Logger.Trace.Printf("Execute On Block Remove: %s from tx %x", string(tx.SQLCommand.RollbackQuery), tx.GetID())
 
 		err := n.getQueryParser().ExecuteRollbackQueryFromTX(tx.SQLCommand)
@@ -338,37 +340,12 @@ func (n *txManager) BlockRemovedFromPrimaryChain(block *structures.Block) error 
 			n.Logger.Trace.Printf("Error On Block Remove: %s", err.Error())
 			return err
 		}
-		n.Logger.Trace.Printf("TX done")
 	}
 
 	n.getUnspentOutputsManager().UpdateOnBlockCancel(block)
 
 	// remove association of transactions and SQL references
 	n.getDataRowsAndTransacionsManager().UpdateOnBlockCancel(block)
-	return nil
-}
-
-// this is executed to add set of transactions to unapproved list (pool)
-// it is used to add transactions back to pool from canceled blocks in case if branches are switched
-func (n *txManager) TransactionsFromCanceledBlocks(txList []structures.Transaction) error {
-	for _, tx := range txList {
-		n.Logger.Trace.Printf("Try to add back TX %x", tx.GetID())
-
-		if tx.IsSQLCommand() {
-			n.Logger.Trace.Printf("SQL %s", string(tx.SQLCommand.Query))
-			n.Logger.Trace.Printf("TX based on %x", tx.SQLBaseTX)
-		} else {
-			n.Logger.Trace.Printf("It is currency TX")
-		}
-
-		err := n.ReceivedNewTransaction(&tx, true)
-
-		if err != nil {
-			n.Logger.Trace.Printf("Erro adding TX back %x %s", tx.GetID(), err.Error())
-		} else {
-			n.Logger.Trace.Printf("TX added back %x %s", tx.GetID())
-		}
-	}
 	return nil
 }
 
@@ -459,14 +436,12 @@ func (n *txManager) ReceivedNewCurrencyTransactionData(txBytes []byte, Signature
 // New transaction reveived from other node. We need to verify and add to cache of unapproved
 func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction, sqltoexecute bool) error {
 	// verify this transaction
-	good, err := n.verifyTransactionQuick(tx)
+	err := n.verifyTransactionQuick(tx)
 
 	if err != nil {
 		return err
 	}
-	if !good {
-		return errors.New("Transaction verification failed")
-	}
+
 	// if this is SQL transaction, execute it now.
 	if tx.IsSQLCommand() && sqltoexecute {
 		n.Logger.Trace.Printf("Execute: %s , refID is %s", tx.GetSQLQuery(), string(tx.SQLCommand.ReferenceID))
@@ -559,6 +534,43 @@ func (n *txManager) PrepareNewSQLTransaction(PubKey []byte, sqlUpdate structures
 
 	if err != nil {
 		err = errors.New(fmt.Sprintf("Error serialyxing prepared TX: %s", err.Error()))
+		return
+	}
+
+	txBytes, err = structures.SerializeTransaction(tx)
+
+	if err != nil {
+		return
+	}
+
+	return
+}
+
+// Prepare transaction for rebuild. This generates new string to sign for modified transaction
+func (n *txManager) PrepareSQLTransactionSignatureData(tx *structures.Transaction) (txBytes []byte, datatosign []byte, err error) {
+
+	// find TX where thi refID was last updated and add it to sqlUpdate too
+
+	inputTX := make(map[int]*structures.Transaction)
+
+	for vinInd, vin := range tx.Vin {
+		var txi structures.Transaction
+		tx, err = n.GetIfExists(vin.Txid)
+
+		if err != nil {
+			return
+		}
+		if tx == nil {
+			err = errors.New("Input transaction is not found")
+			return
+		}
+		inputTX[vinInd] = &txi
+	}
+
+	datatosign, err = tx.PrepareSignData(tx.ByPubKey, inputTX)
+
+	if err != nil {
+		err = errors.New(fmt.Sprintf("Error serialyzing prepared TX: %s", err.Error()))
 		return
 	}
 
@@ -743,13 +755,13 @@ func (n *txManager) getAddressPendingBalance(address string) (float64, error) {
 // This function doesn't do full alidation with blockchain
 // NOTE Transaction can have outputs of other transactions that are not yet approved.
 // This must be considered as correct case
-func (n *txManager) verifyTransactionQuick(tx *structures.Transaction) (bool, error) {
+func (n *txManager) verifyTransactionQuick(tx *structures.Transaction) error {
 
 	notFoundInputs, inputTXs, err := n.getUnspentOutputsManager().VerifyTransactionsOutputsAreNotSpent(tx.Vin)
 
 	if err != nil {
 		n.Logger.Trace.Printf("VT error 1: %s", err.Error())
-		return false, err
+		return err
 	}
 
 	if len(notFoundInputs) > 0 {
@@ -760,7 +772,7 @@ func (n *txManager) verifyTransactionQuick(tx *structures.Transaction) (bool, er
 
 		if err != nil {
 			n.Logger.Trace.Printf("VT error 2: %s", err.Error())
-			return false, err
+			return err
 		}
 	}
 	// verify signatures
@@ -769,29 +781,28 @@ func (n *txManager) verifyTransactionQuick(tx *structures.Transaction) (bool, er
 
 	if err != nil {
 		n.Logger.Trace.Printf("VT error 3: %s", err.Error())
-		return false, err
+		return err
 	}
 
 	if tx.IsSQLCommand() {
-		n.Logger.Trace.Println("Verify SQL input TX")
+
 		// check if this SQL can be executed
 		if len(tx.SQLBaseTX) > 0 {
-			n.Logger.Trace.Printf("Prev TX is %x", tx.SQLCommand.PrevTransaction)
 			// check if this previous TX is still actual
 			inputSQLTX, err := n.getBaseTransaction(tx.SQLCommand)
-			n.Logger.Trace.Printf("Current base TX should be %x", inputSQLTX)
+			n.Logger.Trace.Printf("Current base TX should be %x for SQL %s", inputSQLTX, string(tx.GetSQLQuery()))
 			if err != nil {
-				return false, err
+				return err
 			}
 			if len(inputSQLTX) == 0 {
-				return false, nil
+				return NewTXVerifySQLBaseError("Base SQL transaction can not be found", []byte{})
 			}
 			if bytes.Compare(inputSQLTX, tx.SQLBaseTX) != 0 {
-				return false, nil
+				return NewTXVerifySQLBaseError("Base SQL transaction can not be found", inputSQLTX)
 			}
 		}
 	}
-	return true, nil
+	return nil
 }
 
 // Verifies transaction inputs. Check if that are real existent transactions. And that outputs are not yet used
@@ -915,7 +926,7 @@ func (n *txManager) getBaseTransaction(sqlUpdate structures.SQLUpdate) (txID []b
 	if err != nil {
 		return
 	}
-	// look in a pool first
+	n.Logger.Trace.Printf("Find base in blocked transactions %s and alt %s", string(sqlUpdate.ReferenceID), string(altRefID))
 
 	txID, err = n.getDataRowsAndTransacionsManager().GetTXForRefID(sqlUpdate.ReferenceID)
 
@@ -924,9 +935,11 @@ func (n *txManager) getBaseTransaction(sqlUpdate structures.SQLUpdate) (txID []b
 	}
 
 	if txID != nil {
+		n.Logger.Trace.Printf("Found in blocks %x", txID)
 		// found in the index
 		return
 	}
+	n.Logger.Trace.Printf("Primary ID was not found anywhere")
 	// check if it makes sense to search by altID (alt ref can be for insert after table create)
 	if altRefID == nil {
 		err = errors.New(fmt.Sprintf("Base Trasaction can not be found for %s", string(sqlUpdate.Query)))
@@ -940,6 +953,7 @@ func (n *txManager) getBaseTransaction(sqlUpdate structures.SQLUpdate) (txID []b
 	}
 
 	if txID != nil {
+		n.Logger.Trace.Printf("Alt Found in blocks %x", txID)
 		return
 	}
 

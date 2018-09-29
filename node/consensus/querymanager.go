@@ -166,6 +166,51 @@ func (q queryManager) NewQueryFromProxy(sql string) (result QueryFromProxyResult
 	return
 }
 
+// this is executed to add a list of transactions back to unapproved list (pool)
+// it is used to add transactions back to pool from canceled blocks in case if branches are switched
+// some SQL transactions can not be added back because base TX was used by other tx that is in a block now
+// this function will try to update that TX , but only in a case if original TX was signed by this node
+func (q queryManager) RepeatTransactionsFromCanceledBlocks(txList []structures.Transaction) error {
+	for _, tx := range txList {
+		q.Logger.Trace.Printf("Try to add back TX %x", tx.GetID())
+
+		if tx.IsSQLCommand() {
+			q.Logger.Trace.Printf("SQL %s : %s", string(tx.SQLCommand.Query), string(tx.SQLCommand.ReferenceID))
+			q.Logger.Trace.Printf("TX based on %x", tx.SQLBaseTX)
+		} else {
+			q.Logger.Trace.Printf("It is currency TX")
+		}
+
+		err := q.getTransactionsManager().ReceivedNewTransaction(&tx, true)
+
+		if err != nil {
+			q.Logger.Trace.Printf("Erro adding TX back %x %s", tx.GetID(), err.Error())
+			// check if error is "base tx already used" and try to resign this TX
+			if verr, ok := err.(*transactions.TXVerifyError); ok {
+				q.Logger.Trace.Printf("Error verify of kinf %s", verr.GetKind())
+
+				if verr.IsKind(transactions.TXSQLBaseDifferentError) {
+					q.Logger.Trace.Printf("Is base diff")
+					err := q.tryToRepeatTransactionResigned(&tx, verr.TX)
+
+					if err != nil {
+						q.Logger.Trace.Printf("Error on Repeat adding TX back %x %s", tx.GetID(), err.Error())
+					} else {
+						q.Logger.Trace.Printf("TX added back after repeat %x", tx.GetID())
+					}
+				} else {
+					q.Logger.Trace.Printf("Is NOT base diff")
+				}
+			} else {
+				q.Logger.Trace.Printf("Is NOT verify error")
+			}
+		} else {
+			q.Logger.Trace.Printf("TX added back %x", tx.GetID())
+		}
+	}
+	return nil
+}
+
 // ========================================================================================
 // this does all work. It checks query, decides if ll data are present and creates transaction
 // it can return prepared transaction and data to sign or return complete transaction if keys are set in the object
@@ -343,4 +388,41 @@ func (q queryManager) checkQueryNeedsTransaction(qp dbquery.QueryParsed) (bool, 
 	}
 	// transaction for any update
 	return true, nil
+}
+
+// check if this query must be added to transaction. all SELECT queries must be ignored.
+// and some update queries can be ignored too. such queries are just executed
+func (q queryManager) tryToRepeatTransactionResigned(tx *structures.Transaction, newSQLBaseTX []byte) error {
+	if !tx.IsSQLCommand() {
+		return errors.New("Can repeat only SQL transactions")
+	}
+	// check if there is priate key in consensus module and it TX pubkey is same
+	if len(q.pubKey) > 0 && bytes.Compare(q.pubKey, tx.ByPubKey) == 0 {
+		q.Logger.Trace.Printf("Signed by same pubkey as this node has %x", q.pubKey)
+		// change base TX and rebuild the tx
+		tx.SetSQLPreviousTX(newSQLBaseTX)
+
+		txdata, stringtosign, err := q.getTransactionsManager().PrepareSQLTransactionSignatureData(tx)
+
+		if err != nil {
+			return err
+		}
+
+		signature, err := utils.SignDataByPubKey(q.pubKey, q.privKey, stringtosign)
+
+		if err != nil {
+			return err
+		}
+
+		tx, err = q.processQueryWithSignature(txdata, signature, true /*execute query if all is fine*/)
+
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	if len(q.pubKey) == 0 {
+		return errors.New("The node has no private key to sign transactions")
+	}
+	return errors.New("Transaction was signed by different public key from current node key")
 }

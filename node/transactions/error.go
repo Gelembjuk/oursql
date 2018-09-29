@@ -8,6 +8,7 @@ import (
 
 const TXVerifyErrorNoInput = "noinput"
 const TXNotFoundErrorUnspent = "inunspent"
+const TXSQLBaseDifferentError = "sqlbaseisdifferent"
 
 type TXVerifyError struct {
 	err  string
@@ -20,7 +21,7 @@ type TXNotFoundError struct {
 	kind string
 }
 
-func (e *TXVerifyError) Error() string {
+func (e TXVerifyError) Error() string {
 	return fmt.Sprintf("Transaction verify failed: %s, for TX %x", e.err, e.TX)
 }
 
@@ -28,8 +29,12 @@ func (e *TXNotFoundError) Error() string {
 	return fmt.Sprintf("Transaction verify failed: %s, kinf: %s", e.err, e.kind)
 }
 
-func (e *TXVerifyError) GetKind() string {
+func (e TXVerifyError) GetKind() string {
 	return e.kind
+}
+
+func (e TXVerifyError) IsKind(kind string) bool {
+	return e.kind == kind
 }
 
 func (e *TXNotFoundError) GetKind() string {
@@ -38,6 +43,10 @@ func (e *TXNotFoundError) GetKind() string {
 
 func NewTXVerifyError(err string, kind string, TX []byte) error {
 	return &TXVerifyError{err, kind, TX}
+}
+
+func NewTXVerifySQLBaseError(err string, TX []byte) error {
+	return &TXVerifyError{err, TXSQLBaseDifferentError, TX}
 }
 
 func NewTXNotFoundError(err string, kind string) error {

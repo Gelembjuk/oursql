@@ -92,15 +92,18 @@ def test(testfilter):
         rows2 = _lib.DBGetRows(nodes[2]['datadir'],"SELECT * FROM test",True)
         rows3 = _lib.DBGetRows(nodes[3]['datadir'],"SELECT * FROM test",True)
         
-        if rows1[1][1] == "row2_updated" and rows2[1][1] == "row2_updated" and rows3[1][1] == "row2_updated":
+        if ((rows1[1][1] == "row2_updated" or rows1[1][1] == "row2_updated_other") and 
+            (rows2[1][1] == "row2_updated" or rows2[1][1] == "row2_updated_other") and 
+            (rows3[1][1] == "row2_updated" or rows3[1][1] == "row2_updated_other")):
             break
         
         time.sleep(1)
         s = s + 1
     
     # get unapproved transactions (after block cancel)
-    txlist = _transfers.WaitUnapprovedTransactions(nodes[1]["datadir"], 3, 15)
-    _lib.FatalAssert(len(txlist) == 3,"SHould be 3 unapproved TXs")
+    txlist = _transfers.WaitUnapprovedTransactions(nodes[1]["datadir"], 5, 15)
+    
+    _lib.FatalAssert(len(txlist) == 5,"Should be 5 unapproved TXs")
     
     #send another 2 TXs to have 9 required TXs
     balances = _transfers.GetGroupBalance(nodes[1]["datadir"])
@@ -109,21 +112,19 @@ def test(testfilter):
     addr1 = balances.keys()[0]
     amount = "%.8f" % round(balances[addr1][0]/5,8)
     
-    # add yet mode 6 TXs to complete a block
-    _transfers.Send(nodes[1]["datadir"],addr1,mainbalance.keys()[0],amount)
+    # add yet mode 4 TXs to complete a block
     _transfers.Send(nodes[1]["datadir"],addr1,mainbalance.keys()[0],amount)
     
-    # 4 SQL txs
-    _sql.ExecuteSQLOnProxy(nodes[1]['datadir'],"INSERT INTO test SET b='row11', a=11")
+    # 3 SQL txs
     # on another node. should go to the second node too
-    _sql.ExecuteSQLOnProxy(nodes[0]['datadir'],"INSERT INTO test SET b='row12', a=12")
+    _sql.ExecuteSQLOnProxy(nodes[0]['datadir'],"INSERT INTO test SET b='row11', a=11")
     _sql.ExecuteSQLOnProxy(nodes[1]['datadir'],"UPDATE test set b='row5_update_other' WHERE a=5")
     
     time.sleep(2)
     
-    txlist = _transfers.WaitUnapprovedTransactions(nodes[0]["datadir"], 2, 10)
-    # there should be minimum 2 tx, maximum 4. Because currency TX's can be based on other 2 currency TX's that are not yet on other nodes (from canceled block)
-    _lib.FatalAssert(len(txlist) >= 2 and len(txlist) <= 4,"SHould be from 2 to 4 unapproved TXs on node 1")
+    txlist = _transfers.WaitUnapprovedTransactions(nodes[0]["datadir"], 1, 10)
+    # there should be minimum 1 tx, maximum 2. Because currency TX's can be based on other 1 currency TX's that are not yet on other nodes (from canceled block)
+    _lib.FatalAssert(len(txlist) >= 1 and len(txlist) <= 2,"SHould be from 1 to 2 unapproved TXs on node 1")
     
     txlist = _transfers.WaitUnapprovedTransactions(nodes[1]["datadir"], 8, 10)
 

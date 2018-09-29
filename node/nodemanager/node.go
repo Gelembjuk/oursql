@@ -117,14 +117,6 @@ func (n *Node) getBlockMakeManager() (consensus.BlockMakerInterface, error) {
 
 // Init SQL transactions manager
 func (n *Node) GetSQLQueryManager() (consensus.SQLTransactionsInterface, error) {
-	// get key pair from config
-	/*
-		if len(n.ProxyPubKey) > 0 {
-			n.Logger.Trace.Printf("Make query manager with proxy key %x", n.ProxyPubKey)
-		} else {
-			n.Logger.Trace.Printf("Make query manager without proxy key")
-		}
-	*/
 	return consensus.NewSQLQueryManager(n.DBConn.DB(), n.Logger, n.ProxyPubKey, n.ProxyPrivateKey)
 }
 
@@ -520,7 +512,14 @@ func (n *Node) AddBlock(block *structures.Block) (uint, error) {
 			}
 
 			// add TXs from canceled back to pool . some of them can fails, this is normal
-			err = n.GetTransactionsManager().TransactionsFromCanceledBlocks(txFromOld)
+			qm, err := n.GetSQLQueryManager()
+
+			if err != nil {
+
+				return 0, err
+			}
+
+			err = qm.RepeatTransactionsFromCanceledBlocks(txFromOld)
 
 			if err != nil {
 

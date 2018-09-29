@@ -108,11 +108,13 @@ func (dr rowsToTransactions) UpdateOnBlockAdd(block *structures.Block) error {
 
 		if !tx.IsSQLCommand() {
 			// nothing to do
+			dr.Logger.Trace.Printf("NO SQL")
 			continue
 		}
 
 		if len(tx.SQLCommand.ReferenceID) == 0 {
 			// no any reference here
+			dr.Logger.Trace.Printf("NO Reference for  %s", string(tx.GetSQLQuery()))
 			continue
 		}
 		dr.Logger.Trace.Printf("TX %x , refID %s", tx.GetID(), string(tx.SQLCommand.ReferenceID))
