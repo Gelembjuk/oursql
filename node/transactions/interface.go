@@ -7,6 +7,12 @@ import (
 	"github.com/gelembjuk/oursql/node/structures"
 )
 
+const (
+	TXFlagsNothing = iota // 0
+	TXFlagsExecute        // 1
+	TXFlagsNoPoool        // 2
+)
+
 type UnApprovedTransactionCallbackInterface func(txhash, txstr string) error
 type UnspentTransactionOutputCallbackInterface func(fromaddr string, value float64, txID []byte, output int, isbase bool) error
 
@@ -27,7 +33,7 @@ type TransactionsManagerInterface interface {
 	CreateCurrencyTransaction(PubKey []byte, privKey ecdsa.PrivateKey, to string, amount float64) (*structures.Transaction, error)
 	PrepareNewCurrencyTransaction(PubKey []byte, to string, amount float64) ([]byte, []byte, error)
 	ReceivedNewCurrencyTransactionData(txBytes []byte, Signature []byte) (*structures.Transaction, error)
-	ReceivedNewTransaction(tx *structures.Transaction, sqltoexecute bool) error
+	ReceivedNewTransaction(tx *structures.Transaction, flags int) error
 	PrepareNewSQLTransaction(PubKey []byte, sqlUpdate structures.SQLUpdate, amount float64, to string) ([]byte, []byte, error)
 	PrepareSQLTransactionSignatureData(tx *structures.Transaction) (txBytes []byte, datatosign []byte, err error)
 

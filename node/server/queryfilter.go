@@ -14,13 +14,15 @@ import (
 	"github.com/gelembjuk/oursql/lib/dbproxy"
 	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/nodemanager"
+	"github.com/gelembjuk/oursql/node/structures"
+	"github.com/gelembjuk/oursql/node/transactions"
 )
 
 type queryFilter struct {
 	DBProxy             dbproxy.DBProxyInterface
 	Node                *nodemanager.Node
 	Logger              *utils.LoggerMan
-	sessionTransactions map[string][]byte
+	sessionTransactions map[string]*structures.Transaction
 	// Use this to notify a main server process about new transaction was added to a pool
 	newTransactionChan chan []byte
 }
@@ -30,7 +32,7 @@ func InitQueryFilter(proxyAddr, dbAddr string, node *nodemanager.Node, logger *u
 
 	q.Logger = logger
 	q.Node = node
-	q.sessionTransactions = make(map[string][]byte)
+	q.sessionTransactions = make(map[string]*structures.Transaction)
 	q.newTransactionChan = newTXChan
 
 	q.Logger.Trace.Printf("DB Proxy Start on %s  %s", proxyAddr, dbAddr)
@@ -90,7 +92,7 @@ func (q *queryFilter) RequestCallback(query string, sessionID string) (dbproxy.C
 	if result.TX != nil {
 		q.Logger.Trace.Printf("Query: %s, sessID: %s, TX created %x\n", query, sessionID, result.TX.GetID())
 
-		q.sessionTransactions[sessionID] = result.TX.GetID()
+		q.sessionTransactions[sessionID] = result.TX
 
 	} else {
 		q.Logger.Trace.Printf("Query: %s, sessID: %s, no TX needed\n", query, sessionID)
@@ -110,24 +112,30 @@ func (q *queryFilter) ResponseCallback(sessionID string, err error) {
 	if err != nil {
 		q.Logger.Trace.Printf("DB Proxy Response Error: %s. Canceling TX from a pool", err.Error())
 
-		if txID, ok := q.sessionTransactions[sessionID]; ok {
-			err := q.Node.GetTransactionsManager().CancelTransaction(txID, false)
-
-			if err != nil {
-				q.Logger.Trace.Printf("DB Proxy Can Not Cancel TX: %s.", err.Error())
-			}
+		if _, ok := q.sessionTransactions[sessionID]; ok {
+			delete(q.sessionTransactions, sessionID)
 		}
 
-	} else if txID, ok := q.sessionTransactions[sessionID]; ok {
+	} else if tx, ok := q.sessionTransactions[sessionID]; ok {
+		// Add the TX to the pool
+		err := q.Node.GetTransactionsManager().ReceivedNewTransaction(tx, transactions.TXFlagsNothing)
+
+		if err != nil {
+			// Rollback?
+			// TODO
+
+		}
+
 		// Notify server thread about new TX completed fine
 
 		// non-blocking sending to a channel
 		select {
-		case q.newTransactionChan <- txID: // notify server thread about new transaction added to the pool
+		case q.newTransactionChan <- tx.GetID(): // notify server thread about new transaction added to the pool
 		default:
 		}
-		q.Logger.Trace.Printf("Sent to channel TX %x\n", txID)
+		q.Logger.Trace.Printf("Sent to channel TX %x\n", tx.GetID())
 
+		delete(q.sessionTransactions, sessionID)
 	}
 }
 func (q *queryFilter) Stop() error {

@@ -424,7 +424,7 @@ func (n *txManager) ReceivedNewCurrencyTransactionData(txBytes []byte, Signature
 		return nil, err
 	}
 
-	err = n.ReceivedNewTransaction(tx, true)
+	err = n.ReceivedNewTransaction(tx, TXFlagsExecute)
 
 	if err != nil {
 		return nil, err
@@ -434,7 +434,7 @@ func (n *txManager) ReceivedNewCurrencyTransactionData(txBytes []byte, Signature
 }
 
 // New transaction reveived from other node. We need to verify and add to cache of unapproved
-func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction, sqltoexecute bool) error {
+func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction, flags int) error {
 	// verify this transaction
 	err := n.verifyTransactionQuick(tx)
 
@@ -443,13 +443,18 @@ func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction, sqltoexec
 	}
 
 	// if this is SQL transaction, execute it now.
-	if tx.IsSQLCommand() && sqltoexecute {
+	if tx.IsSQLCommand() && flags&TXFlagsExecute > 0 {
 		n.Logger.Trace.Printf("Execute: %s , refID is %s", tx.GetSQLQuery(), string(tx.SQLCommand.ReferenceID))
 
 		_, err := n.getQueryParser().ExecuteQuery(tx.GetSQLQuery())
 		if err != nil {
 			return err
 		}
+	}
+
+	if flags&TXFlagsNoPoool > 0 {
+		// don't add to a pool. This can be a case when somethign extra must be done with a TX before adding to a pool
+		return nil
 	}
 	// if all is ok, add it to the list of unapproved
 	return n.getUnapprovedTransactionsManager().Add(tx)

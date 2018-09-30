@@ -654,7 +654,7 @@ func (s *NodeServerRequest) handleTx() error {
 	}
 	s.Logger.Trace.Printf("Received transaction. It does not exists: %x ", tx.GetID())
 	// this will also verify a transaction
-	err = s.Node.GetTransactionsManager().ReceivedNewTransaction(tx, true)
+	err = s.Node.GetTransactionsManager().ReceivedNewTransaction(tx, transactions.TXFlagsExecute)
 
 	if err != nil {
 		// if error is because some input transaction is not found, then request it and after it this TX again

@@ -53,7 +53,7 @@ func (q queryManager) getTransactionsManager() transactions.TransactionsManagerI
 // @return
 // status int, txBytes []byte, datatosign []byte, transaction structure ref, error
 func (q queryManager) NewQuery(sql string, pubKey []byte) (uint, []byte, []byte, *structures.Transaction, error) {
-	result, err := q.processQuery(sql, pubKey, true)
+	result, err := q.processQuery(sql, pubKey, transactions.TXFlagsExecute)
 	return result.status, result.txdata, result.stringtosign, result.tx, err
 }
 
@@ -61,7 +61,7 @@ func (q queryManager) NewQuery(sql string, pubKey []byte) (uint, []byte, []byte,
 // private key must be corresponding to pub key used in NewQuery.
 // SQL query in inside prepared TX. after it is verified, query can be finally executed
 func (q queryManager) NewQuerySigned(txEncoded []byte, signature []byte) (*structures.Transaction, error) {
-	return q.processQueryWithSignature(txEncoded, signature, true)
+	return q.processQueryWithSignature(txEncoded, signature, transactions.TXFlagsExecute)
 }
 
 // execute new query and create transaction if needed . This provided private key to sign transaction if needed
@@ -74,7 +74,7 @@ func (q queryManager) NewQueryByNode(sql string, pubKey []byte, privKey ecdsa.Pr
 
 	q.Logger.Trace.Printf("Execute new SQL: %s", sql)
 
-	result, err := q.processQuery(sql, pubKey, true)
+	result, err := q.processQuery(sql, pubKey, transactions.TXFlagsExecute)
 
 	if err != nil {
 		return localError(err)
@@ -117,7 +117,7 @@ func (q queryManager) NewQueryByNode(sql string, pubKey []byte, privKey ecdsa.Pr
 func (q queryManager) NewQueryFromProxy(sql string) (result QueryFromProxyResult) {
 	result.Status = 0 // error
 
-	qpresult, err := q.processQuery(sql, []byte{}, false)
+	qpresult, err := q.processQuery(sql, []byte{}, transactions.TXFlagsNoPoool /*don't add to a pool*/)
 	// formate error message
 	if err != nil {
 		result.ErrorCode = 4
@@ -181,7 +181,7 @@ func (q queryManager) RepeatTransactionsFromCanceledBlocks(txList []structures.T
 			q.Logger.Trace.Printf("It is currency TX")
 		}
 
-		err := q.getTransactionsManager().ReceivedNewTransaction(&tx, true)
+		err := q.getTransactionsManager().ReceivedNewTransaction(&tx, transactions.TXFlagsExecute)
 
 		if err != nil {
 			q.Logger.Trace.Printf("Erro adding TX back %x %s", tx.GetID(), err.Error())
@@ -214,7 +214,7 @@ func (q queryManager) RepeatTransactionsFromCanceledBlocks(txList []structures.T
 // ========================================================================================
 // this does all work. It checks query, decides if ll data are present and creates transaction
 // it can return prepared transaction and data to sign or return complete transaction if keys are set in the object
-func (q queryManager) processQuery(sql string, pubKey []byte, executeifallowed bool) (result processQueryResponse, err error) {
+func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result processQueryResponse, err error) {
 	q.Logger.Trace.Println("processQuery " + sql)
 	qp := q.getQueryParser()
 	// this will get sql type and data from comments. data can be pubkey, txBytes, signature
@@ -227,7 +227,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, executeifallowed b
 	// maybe this query contains signature and txData from previous calls
 	if len(qparsed.Signature) > 0 && len(qparsed.TransactionBytes) > 0 {
 		// this is a case when signature and txdata were part of SQL comments.
-		result.tx, err = q.processQueryWithSignature(qparsed.TransactionBytes, qparsed.Signature, executeifallowed)
+		result.tx, err = q.processQueryWithSignature(qparsed.TransactionBytes, qparsed.Signature, flags)
 
 		if err != nil {
 			return
@@ -244,7 +244,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, executeifallowed b
 	}
 
 	if !needsTX {
-		if !executeifallowed {
+		if flags&transactions.TXFlagsExecute == 0 {
 			// no need to execute query. just return
 			result.status = SQLProcessingResultCanBeExecuted
 			return
@@ -322,7 +322,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, executeifallowed b
 			return
 		}
 
-		result.tx, err = q.processQueryWithSignature(result.txdata, signature, executeifallowed)
+		result.tx, err = q.processQueryWithSignature(result.txdata, signature, flags)
 
 		if err != nil {
 			return
@@ -335,7 +335,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, executeifallowed b
 }
 
 // check if this pubkey can execute this query
-func (q queryManager) processQueryWithSignature(txEncoded []byte, signature []byte, executeifallowed bool) (*structures.Transaction, error) {
+func (q queryManager) processQueryWithSignature(txEncoded []byte, signature []byte, flags int) (*structures.Transaction, error) {
 	tx, err := structures.DeserializeTransaction(txEncoded)
 
 	if err != nil {
@@ -352,11 +352,10 @@ func (q queryManager) processQueryWithSignature(txEncoded []byte, signature []by
 	// TODO
 
 	q.Logger.Trace.Printf("Adding TX to pool")
-	//return nil, errors.New("Temp err ")
+
 	// add to pool
-	// if fails , execute rollback ???
 	// query wil be executed inside transactions manager before adding to a pool
-	err = q.getTransactionsManager().ReceivedNewTransaction(tx, executeifallowed)
+	err = q.getTransactionsManager().ReceivedNewTransaction(tx, flags)
 
 	if err != nil {
 		return nil, err
@@ -414,7 +413,7 @@ func (q queryManager) tryToRepeatTransactionResigned(tx *structures.Transaction,
 			return err
 		}
 
-		tx, err = q.processQueryWithSignature(txdata, signature, true /*execute query if all is fine*/)
+		tx, err = q.processQueryWithSignature(txdata, signature, transactions.TXFlagsExecute /*execute query if all is fine*/)
 
 		if err != nil {
 			return err
