@@ -18,6 +18,7 @@ type NodeBlockMaker struct {
 	Logger        *utils.LoggerMan
 	MinterAddress string // this is the wallet that will receive for mining
 	PreparedBlock *structures.Block
+	config        *ConsensusConfig
 }
 
 func (n *NodeBlockMaker) SetDBManager(DB database.DBManager) {
@@ -176,8 +177,7 @@ func (n *NodeBlockMaker) CompleteBlock() (*structures.Block, error) {
 	n.Logger.Trace.Printf("Minting: Start proof of work for the block\n")
 
 	starttime := time.Now()
-
-	pow := NewProofOfWork(b)
+	pow := NewProofOfWork(b, n.config.Settings)
 
 	nonce, hash, err := pow.Run()
 
@@ -249,8 +249,7 @@ func (n *NodeBlockMaker) makeNewBlockFromTransactions(transactions []structures.
 // 6. Verify hash is correc agains rules
 func (n *NodeBlockMaker) VerifyBlock(block *structures.Block) error {
 	//6. Verify hash
-
-	pow := NewProofOfWork(block)
+	pow := NewProofOfWork(block, n.config.Settings)
 
 	valid, err := pow.Validate()
 
@@ -312,7 +311,7 @@ func (n *NodeBlockMaker) VerifyBlock(block *structures.Block) error {
 
 //Get minimum and maximum number of transaction allowed in block for current chain
 func (n *NodeBlockMaker) getTransactionNumbersLimits(block *structures.Block) (int, int, error) {
-	var min int
+	var h int
 
 	if block == nil {
 		bcm := n.getBlockchainManager()
@@ -322,16 +321,14 @@ func (n *NodeBlockMaker) getTransactionNumbersLimits(block *structures.Block) (i
 		if err != nil {
 			return 0, 0, err
 		}
-		min = bestHeight + 1
+		h = bestHeight + 1
 	} else {
-		min = block.Height
+		h = block.Height
 	}
+	pow := NewProofOfWork(nil, n.config.Settings)
 
-	if min > config.MaxMinNumberTransactionInBlock {
-		min = config.MaxMinNumberTransactionInBlock
-	} else if min < 1 {
-		min = 1
-	}
-	n.Logger.Trace.Printf("TX count limits %d - %d", min, config.MaxNumberTransactionInBlock)
-	return min, config.MaxNumberTransactionInBlock, nil
+	min, max := pow.GetTransactionLimitsPerBlock(h)
+
+	n.Logger.Trace.Printf("TX count limits %d - %d", min, max)
+	return min, max, nil
 }

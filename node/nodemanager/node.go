@@ -32,8 +32,9 @@ type Node struct {
 
 	OtherNodes []net.NodeAddr
 
-	SessionID string
-	locks     *NodeLocks
+	SessionID       string
+	locks           *NodeLocks
+	ConsensusConfig *consensus.ConsensusConfig
 }
 type NodeLocks struct {
 	blockAddLock        *sync.Mutex
@@ -51,6 +52,10 @@ func (n *Node) Init() {
 	n.NodeBC.MinterAddress = n.MinterAddress
 
 	n.NodeBC.DBConn = n.DBConn
+	//n.Logger.Trace.Println("Clone node")
+	//n.Logger.Trace.Println(n.ConsensusConfig)
+
+	n.NodeBC.consensusConfig = n.ConsensusConfig
 
 	// Nodes list storage
 	n.NodeNet.SetExtraManager(NodesListStorage{n.DBConn, n.SessionID})
@@ -79,6 +84,7 @@ func (orignode *Node) Clone() *Node {
 	node.DBConn = &ndb
 
 	node.locks = orignode.locks
+	node.ConsensusConfig = orignode.ConsensusConfig
 
 	node.Init()
 
@@ -112,17 +118,17 @@ func (n *Node) GetBlockChainIterator() (*blockchain.BlockchainIterator, error) {
 
 // Init block maker object. It is used to make new blocks
 func (n *Node) getBlockMakeManager() (consensus.BlockMakerInterface, error) {
-	return consensus.NewBlockMakerManager(n.MinterAddress, n.DBConn.DB(), n.Logger)
+	return consensus.NewBlockMakerManager(n.ConsensusConfig, n.MinterAddress, n.DBConn.DB(), n.Logger)
 }
 
 // Init SQL transactions manager
 func (n *Node) GetSQLQueryManager() (consensus.SQLTransactionsInterface, error) {
-	return consensus.NewSQLQueryManager(n.DBConn.DB(), n.Logger, n.ProxyPubKey, n.ProxyPrivateKey)
+	return consensus.NewSQLQueryManager(n.ConsensusConfig, n.DBConn.DB(), n.Logger, n.ProxyPubKey, n.ProxyPrivateKey)
 }
 
 // Init block maker object. It is used to make new blocks
 func (n *Node) getCreateManager() *makeBlockchain {
-	return &makeBlockchain{n.Logger, n.MinterAddress, n.DBConn}
+	return &makeBlockchain{n.Logger, n.MinterAddress, n.DBConn, n.ConsensusConfig}
 }
 
 // Init network client object. It is used to communicate with other nodes

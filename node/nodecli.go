@@ -10,18 +10,20 @@ import (
 	"github.com/gelembjuk/oursql/lib/remoteclient"
 	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/config"
+	"github.com/gelembjuk/oursql/node/consensus"
 	"github.com/gelembjuk/oursql/node/nodemanager"
 	"github.com/gelembjuk/oursql/node/server"
 )
 
 type NodeCLI struct {
-	Input              config.AppInput
-	Logger             *utils.LoggerMan
-	ConfigDir          string
-	Command            string
-	AlreadyRunningPort int
-	NodeAuthStr        string
-	Node               *nodemanager.Node
+	Input               config.AppInput
+	Logger              *utils.LoggerMan
+	ConfigDir           string
+	ConseususConfigFile string
+	Command             string
+	AlreadyRunningPort  int
+	NodeAuthStr         string
+	Node                *nodemanager.Node
 }
 
 /*
@@ -43,6 +45,8 @@ func getNodeCLI(input config.AppInput) NodeCLI {
 		cli.Logger.LogToStdout()
 	}
 
+	cli.ConseususConfigFile = input.ConseususConfigFile
+
 	cli.Node = nil
 	// check if Daemon is already running
 	nd := server.NodeDaemon{}
@@ -62,10 +66,10 @@ func getNodeCLI(input config.AppInput) NodeCLI {
 /*
 * Createes node object. Node does all work related to acces to bockchain and DB
  */
-func (c *NodeCLI) CreateNode() {
+func (c *NodeCLI) CreateNode() error {
 	if c.Node != nil {
 		//already created
-		return
+		return nil
 	}
 	node := nodemanager.Node{}
 
@@ -81,6 +85,18 @@ func (c *NodeCLI) CreateNode() {
 
 	node.Logger = c.Logger
 	node.MinterAddress = c.Input.MinterAddress
+
+	var err error
+	// load consensus config
+	if c.ConseususConfigFile != "" {
+		node.ConsensusConfig, err = consensus.NewConfigFromFile(c.ConseususConfigFile)
+	} else {
+		node.ConsensusConfig, err = consensus.NewConfigDefault()
+	}
+
+	if err != nil {
+		return err
+	}
 
 	node.Init()
 	node.InitNodes(c.Input.Nodes, false)
@@ -102,6 +118,8 @@ func (c *NodeCLI) CreateNode() {
 	}
 
 	c.Node = &node
+
+	return nil
 }
 
 /*

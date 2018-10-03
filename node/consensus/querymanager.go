@@ -21,6 +21,7 @@ type queryManager struct {
 	Logger  *utils.LoggerMan
 	pubKey  []byte
 	privKey ecdsa.PrivateKey
+	config  *ConsensusConfig
 }
 
 type processQueryResponse struct {

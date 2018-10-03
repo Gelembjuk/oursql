@@ -15,9 +15,10 @@ import (
 )
 
 type makeBlockchain struct {
-	Logger        *utils.LoggerMan
-	MinterAddress string
-	DBConn        *Database
+	Logger          *utils.LoggerMan
+	MinterAddress   string
+	DBConn          *Database
+	consensusConfig *consensus.ConsensusConfig
 }
 
 // Blockchain DB manager object
@@ -33,7 +34,7 @@ func (n *makeBlockchain) getTransactionsManager() transactions.TransactionsManag
 
 // Init block maker object. It is used to make new blocks
 func (n *makeBlockchain) getBlockMakeManager() (consensus.BlockMakerInterface, error) {
-	return consensus.NewBlockMakerManager(n.MinterAddress, n.DBConn.DB(), n.Logger)
+	return consensus.NewBlockMakerManager(n.consensusConfig, n.MinterAddress, n.DBConn.DB(), n.Logger)
 }
 
 // Create new blockchain, add genesis block witha given text

@@ -54,20 +54,22 @@ type SQLTransactionsInterface interface {
 	RepeatTransactionsFromCanceledBlocks(txList []structures.Transaction) error
 }
 
-func NewBlockMakerManager(minter string, DB database.DBManager, Logger *utils.LoggerMan) (BlockMakerInterface, error) {
+func NewBlockMakerManager(config *ConsensusConfig, minter string, DB database.DBManager, Logger *utils.LoggerMan) (BlockMakerInterface, error) {
 	bm := &NodeBlockMaker{}
 	bm.DB = DB
 	bm.Logger = Logger
 	bm.MinterAddress = minter
+	bm.config = config
 	return bm, nil
 }
 
-func NewSQLQueryManager(DB database.DBManager, Logger *utils.LoggerMan, pubKey []byte, privKey ecdsa.PrivateKey) (SQLTransactionsInterface, error) {
+func NewSQLQueryManager(config *ConsensusConfig, DB database.DBManager, Logger *utils.LoggerMan, pubKey []byte, privKey ecdsa.PrivateKey) (SQLTransactionsInterface, error) {
 	qm := &queryManager{}
 	qm.DB = DB
 	qm.Logger = Logger
 	qm.pubKey = pubKey
 	qm.privKey = privKey
+	qm.config = config
 
 	return qm, nil
 }

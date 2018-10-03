@@ -9,36 +9,55 @@ import (
 	"math/big"
 
 	"github.com/gelembjuk/oursql/lib/utils"
-	"github.com/gelembjuk/oursql/node/config"
 	"github.com/gelembjuk/oursql/node/structures"
+	"github.com/mitchellh/mapstructure"
 )
 
 var (
 	maxNonce = math.MaxInt64
 )
 
+type ProofOfWorkSettings struct {
+	Complexity                     int
+	ComplexityStep2                int
+	MaxMinNumberTransactionInBlock int
+	MaxNumberTransactionInBlock    int
+	MaxBlockSize                   int
+}
+
 // ProofOfWork represents a proof-of-work
 type ProofOfWork struct {
-	block  *structures.Block
-	target *big.Int
+	block    *structures.Block
+	target   *big.Int
+	settings *ProofOfWorkSettings
 }
 
 // NewProofOfWork builds and returns a ProofOfWork object
 // The object can be used to find a hash for the block
-func NewProofOfWork(b *structures.Block) *ProofOfWork {
+func NewProofOfWork(b *structures.Block, settings map[string]interface{}) *ProofOfWork {
+
+	s := ProofOfWorkSettings{}
+
+	mapstructure.Decode(settings, &s)
+
+	s.completeSettings()
+
 	target := big.NewInt(1)
 
 	var tb int
 
-	if b.Height >= 1000 {
-		tb = config.TargetBits_2
+	if b != nil && b.Height >= s.MaxMinNumberTransactionInBlock {
+		tb = s.ComplexityStep2
 	} else {
-		tb = config.TargetBits
+		tb = s.Complexity
 	}
 
 	target.Lsh(target, uint(256-tb))
 
-	pow := &ProofOfWork{b, target}
+	pow := &ProofOfWork{}
+	pow.block = b
+	pow.settings = &s
+	pow.target = target
 
 	return pow
 }
@@ -57,7 +76,7 @@ func (pow *ProofOfWork) prepareData() ([]byte, error) {
 			pow.block.PrevBlockHash,
 			txshash,
 			utils.IntToHex(pow.block.Timestamp),
-			utils.IntToHex(int64(config.TargetBits)),
+			utils.IntToHex(int64(pow.settings.Complexity)),
 		},
 		[]byte{},
 	)
@@ -120,4 +139,36 @@ func (pow *ProofOfWork) Validate() (bool, error) {
 	isValid := hashInt.Cmp(pow.target) == -1
 
 	return isValid, nil
+}
+
+//
+func (pow *ProofOfWork) GetTransactionLimitsPerBlock(h int) (min int, max int) {
+	min = h
+
+	if min > pow.settings.MaxMinNumberTransactionInBlock {
+		min = pow.settings.MaxMinNumberTransactionInBlock
+	} else if min < 1 {
+		min = 1
+	}
+
+	return min, pow.settings.MaxNumberTransactionInBlock
+}
+
+// set default settingf if not provided from outside
+func (pows *ProofOfWorkSettings) completeSettings() {
+	if pows.Complexity < 1 {
+		pows.Complexity = 16
+	}
+
+	if pows.ComplexityStep2 < 1 {
+		pows.ComplexityStep2 = 24
+	}
+
+	if pows.MaxMinNumberTransactionInBlock < 1 {
+		pows.MaxMinNumberTransactionInBlock = 1000
+	}
+
+	if pows.MaxNumberTransactionInBlock < pows.MaxMinNumberTransactionInBlock {
+		pows.MaxNumberTransactionInBlock = 10000
+	}
 }

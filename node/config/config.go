@@ -41,17 +41,18 @@ type AllPossibleArgs struct {
 
 // Input summary
 type AppInput struct {
-	Command        string
-	MinterAddress  string
-	ProxyKey       string
-	Logs           string
-	Port           int
-	Host           string
-	ConfigDir      string
-	Nodes          []net.NodeAddr
-	Args           AllPossibleArgs
-	Database       database.DatabaseConfig
-	DBProxyAddress string
+	Command             string
+	MinterAddress       string
+	ProxyKey            string
+	Logs                string
+	Port                int
+	Host                string
+	ConfigDir           string
+	Nodes               []net.NodeAddr
+	Args                AllPossibleArgs
+	Database            database.DatabaseConfig
+	DBProxyAddress      string
+	ConseususConfigFile string
 }
 
 type AppConfig struct {
@@ -197,6 +198,15 @@ func parseConfig(dirpath string) (AppInput, error) {
 
 	if input.Host == "" {
 		input.Host = "localhost"
+	}
+
+	// set consensus config file
+	ccpath := input.ConfigDir + "consensusconfig.json"
+
+	if _, err := os.Stat(ccpath); os.IsNotExist(err) {
+		input.ConseususConfigFile = ""
+	} else {
+		input.ConseususConfigFile = ccpath
 	}
 
 	return input, nil
