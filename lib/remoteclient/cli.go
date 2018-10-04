@@ -330,11 +330,16 @@ func (wc *WalletCLI) commandSQL() error {
 
 	// Prepares new transaction without signatures
 	// This is just request to a node and it returns prepared transaction
-	TXBytes, DataToSign, err := wc.NodeCLI.SendRequestNewSQLTransaction(wc.Node,
+	finished, TXBytes, DataToSign, err := wc.NodeCLI.SendRequestNewSQLTransaction(wc.Node,
 		walletobj.GetPublicKey(), wc.Input.SQL)
 
 	if err != nil {
 		return err
+	}
+
+	if finished {
+		fmt.Printf("Success. No transaction needed\n")
+		return nil
 	}
 	// Sign transaction data
 	signature, err := utils.SignDataByPubKey(walletobj.GetPublicKey(), walletobj.GetPrivateKey(), DataToSign)

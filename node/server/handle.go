@@ -265,8 +265,16 @@ func (s *NodeServerRequest) handleTxSQLRequest() error {
 		return err
 	}
 
-	if status != consensus.SQLProcessingResultSignatureRequired {
+	if status == consensus.SQLProcessingResultExecuted ||
+		status == consensus.SQLProcessingResultTranactionCompleteInternally {
+		result.Finished = true
+		result.DataToSign = []byte{}
+		result.TX = []byte{}
+
+	} else if status != consensus.SQLProcessingResultSignatureRequired {
 		return errors.New("Unexpected response on tranaction preparing")
+	} else {
+		result.Finished = false
 	}
 
 	result.DataToSign = DataToSign

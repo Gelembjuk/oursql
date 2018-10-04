@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 
+	"github.com/gelembjuk/oursql/lib"
 	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/database"
 	"github.com/gelembjuk/oursql/node/dbquery"
@@ -250,14 +251,17 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 			result.status = SQLProcessingResultCanBeExecuted
 			return
 		}
+
 		// no need to have TX
 		if qparsed.IsUpdate() {
+
 			_, err = qp.ExecuteQuery(qparsed.SQL)
 			if err != nil {
 				return
 			}
 		}
 		result.status = SQLProcessingResultExecuted
+
 		return
 	}
 	// decide which pubkey to use.
@@ -366,6 +370,23 @@ func (q queryManager) processQueryWithSignature(txEncoded []byte, signature []by
 
 // check if this pubkey can execute this query
 func (q queryManager) checkExecutePermissions(qp dbquery.QueryParsed, pubKey []byte) (bool, error) {
+	// check sonsensus rules
+	if !qp.IsUpdate() {
+		return true, nil
+	}
+
+	if qp.Structure.GetKind() == lib.QueryKindCreate {
+		if !q.config.AllowTableCreate {
+			return false, nil
+		}
+	}
+
+	if qp.Structure.GetKind() == lib.QueryKindDrop {
+		if !q.config.AllowTableDrop {
+			return false, nil
+		}
+	}
+
 	return true, nil
 }
 
@@ -386,6 +407,14 @@ func (q queryManager) checkQueryNeedsTransaction(qp dbquery.QueryParsed) (bool, 
 		// updates that can not be supported
 		return false, nil
 	}
+
+	for _, t := range q.config.UnmanagedTables {
+		if qp.Structure.GetTable() == t {
+			// no any transactions for this table
+			return false, nil
+		}
+	}
+
 	// transaction for any update
 	return true, nil
 }

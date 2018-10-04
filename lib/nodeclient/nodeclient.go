@@ -96,6 +96,7 @@ type ComRequestSQLTransaction struct {
 // Response on prepare transaction request. Returns transaction without signs
 // and data to sign
 type ComRequestTransactionData struct {
+	Finished   bool
 	TX         []byte
 	DataToSign []byte
 }
@@ -400,7 +401,7 @@ func (c *NodeClient) SendRequestNewCurrencyTransaction(addr netlib.NodeAddr,
 // It returns a transaction without signature.
 // Wallet has to sign it and then use SendNewTransaction to send completed transaction
 func (c *NodeClient) SendRequestNewSQLTransaction(addr netlib.NodeAddr,
-	PubKey []byte, sqlcommand string) ([]byte, []byte, error) {
+	PubKey []byte, sqlcommand string) (bool, []byte, []byte, error) {
 
 	data := ComRequestSQLTransaction{}
 	data.PubKey = PubKey
@@ -409,7 +410,7 @@ func (c *NodeClient) SendRequestNewSQLTransaction(addr netlib.NodeAddr,
 	request, err := c.BuildCommandData("txsqlrequest", &data)
 
 	if err != nil {
-		return nil, nil, err
+		return false, nil, nil, err
 	}
 
 	datapayload := ComRequestTransactionData{}
@@ -417,10 +418,10 @@ func (c *NodeClient) SendRequestNewSQLTransaction(addr netlib.NodeAddr,
 	err = c.SendDataWaitResponse(addr, request, &datapayload)
 
 	if err != nil {
-		return nil, nil, err
+		return false, nil, nil, err
 	}
 
-	return datapayload.TX, datapayload.DataToSign, nil
+	return datapayload.Finished, datapayload.TX, datapayload.DataToSign, nil
 }
 
 // Request for list of unspent transactions outputs
