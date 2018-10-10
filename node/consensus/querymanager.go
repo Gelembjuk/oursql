@@ -375,6 +375,16 @@ func (q queryManager) checkExecutePermissions(qp dbquery.QueryParsed, pubKey []b
 		return true, nil
 	}
 
+	hasCustom, allow, err := q.checkExecutePermissionsAsTable(qp, pubKey)
+
+	if err != nil {
+		return false, err
+	}
+
+	if hasCustom {
+		return allow, nil
+	}
+
 	if qp.Structure.GetKind() == lib.QueryKindCreate {
 		if !q.config.AllowTableCreate {
 			return false, nil
@@ -387,7 +397,62 @@ func (q queryManager) checkExecutePermissions(qp dbquery.QueryParsed, pubKey []b
 		}
 	}
 
+	if qp.Structure.GetKind() == lib.QueryKindDelete {
+		if !q.config.AllowRowDelete {
+			return false, nil
+		}
+	}
+
 	return true, nil
+}
+
+// check custom rule for the table about permissions
+func (q queryManager) checkExecutePermissionsAsTable(qp dbquery.QueryParsed, pubKey []byte) (hasCustom bool, allow bool, err error) {
+	hasCustom = false
+	// check sonsensus rules
+	if !qp.IsUpdate() {
+		return
+	}
+
+	if q.config.TableRules == nil {
+		// no any rules
+		return
+	}
+
+	for _, t := range q.config.TableRules {
+		if t.Table != qp.Structure.GetTable() {
+			continue
+		}
+		if !t.AllowRowDelete && qp.Structure.GetKind() == lib.QueryKindDelete {
+			hasCustom = true
+			allow = false
+			return
+		}
+
+		if !t.AllowRowInsert && qp.Structure.GetKind() == lib.QueryKindInsert {
+			hasCustom = true
+			allow = false
+			return
+		}
+
+		if !t.AllowRowUpdate && qp.Structure.GetKind() == lib.QueryKindUpdate {
+			hasCustom = true
+			allow = false
+			return
+		}
+
+		if !t.AllowTableCreate && qp.Structure.GetKind() == lib.QueryKindCreate {
+			hasCustom = true
+			allow = false
+			return
+		}
+		// has custom rule and operaion is not disabled
+		hasCustom = true
+		allow = true
+		return
+	}
+
+	return
 }
 
 // check if this query requires payment for execution. return number

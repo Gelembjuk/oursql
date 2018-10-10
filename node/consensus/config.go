@@ -12,10 +12,11 @@ const (
 )
 
 type ConsensusConfigTable struct {
-	Table          string
-	AllowRowDelete bool
-	AllowRowUpdate bool
-	AllowRowInsert bool
+	Table            string
+	AllowRowDelete   bool
+	AllowRowUpdate   bool
+	AllowRowInsert   bool
+	AllowTableCreate bool
 }
 
 type ConsensusConfig struct {
