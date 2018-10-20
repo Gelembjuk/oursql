@@ -56,14 +56,15 @@ type AppInput struct {
 }
 
 type AppConfig struct {
-	Minter         string
-	ProxyKey       string
-	Port           int
-	Host           string
-	Nodes          []net.NodeAddr
-	Logs           []string
-	Database       database.DatabaseConfig
-	DBProxyAddress string
+	Minter          string
+	ProxyKey        string
+	Port            int
+	Host            string
+	Nodes           []net.NodeAddr
+	Logs            []string
+	LogsDestination string
+	Database        database.DatabaseConfig
+	DBProxyAddress  string
 }
 
 // Parses input and config file. Command line arguments ovverride config file options
@@ -99,7 +100,7 @@ func parseConfig(dirpath string) (AppInput, error) {
 		cmd.IntVar(&input.Args.Port, "port", 0, "Node Server port")
 		cmd.IntVar(&input.Args.NodePort, "nodeport", 0, "Remote Node Server port")
 		cmd.Float64Var(&input.Args.Amount, "amount", 0, "Amount money to send")
-		cmd.StringVar(&input.Args.LogDest, "logdest", "file", "Destination of logs. file or stdout")
+		cmd.StringVar(&input.Args.LogDest, "logdest", "", "Destination of logs. file or stdout")
 		cmd.StringVar(&input.Args.View, "view", "", "View format")
 		cmd.BoolVar(&input.Args.Clean, "clean", false, "Clean data/cache")
 
@@ -184,6 +185,13 @@ func parseConfig(dirpath string) (AppInput, error) {
 			input.Logs = strings.Join(config.Logs, ",")
 		}
 
+		if input.Args.LogDest == "" && config.LogsDestination != "" {
+			input.Args.LogDest = config.LogsDestination
+
+		} else if input.Args.LogDest == "" {
+			input.Args.LogDest = "file"
+		}
+
 		if input.DBProxyAddress == "" && config.DBProxyAddress != "" {
 			input.DBProxyAddress = config.DBProxyAddress
 		}
@@ -247,6 +255,7 @@ func (c *AppInput) completeDBConfig() {
 // check if this commands really needs a config file
 func (c AppInput) CommandNeedsConfig() bool {
 	if c.Command == "createwallet" ||
+		c.Command == "interactiveautocreate" ||
 		c.Command == "listaddresses" ||
 		c.Command == "help" ||
 		c.Command == "restoreblockchain" {
@@ -353,6 +362,10 @@ func (c AppInput) UpdateConfig() error {
 
 	}
 
+	if c.Args.LogDest != "" {
+		config.LogsDestination = c.Args.LogDest
+	}
+
 	if config.Logs == nil {
 		config.Logs = []string{}
 	}
@@ -405,6 +418,8 @@ func (c AppInput) PrintUsage() {
 	fmt.Println("  listaddresses\n\t- Lists all addresses from the wallet file")
 
 	fmt.Println("=[Blockchain init operations]")
+	//fmt.Println("  interactiveautocreate [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Create a blockchain if it doesn't exist yet, creates a wallet if no wallets yet, starts a node in interactive mode.")
+	//fmt.Println("  importfromandstart -nodeaddress HOST:PORT [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Loads a blockchain from other node to init the DB. Cretes a wallet of no wallets, starts a node in interactive mode.")
 	fmt.Println("  initblockchain [-minter ADDRESS] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Create a blockchain and send genesis block reward to ADDRESS")
 	fmt.Println("  importblockchain [-nodehost HOST] [-nodeport PORT] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Loads a blockchain from other node to init the DB.")
 	fmt.Println("  restoreblockchain -dumpfile FILEPATH [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Loads a blockchain from dump file and restores it to given DB. A DB credentials can be optional if they are present in config file")

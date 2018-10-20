@@ -15,6 +15,53 @@ import (
 	"github.com/gelembjuk/oursql/node/server"
 )
 
+var allowWithoutBCReady = []string{"initblockchain",
+	"importblockchain",
+	"interactiveautocreate",
+	"restoreblockchain",
+	"createwallet",
+	"listaddresses",
+	"nodestate"}
+
+var disableWithBCReady = []string{"initblockchain",
+	"initblockchain",
+	"importblockchain",
+	"importfromandstart",
+	"restoreblockchain"}
+
+var commandsInteractiveMode = []string{
+	"initblockchain",
+	"importblockchain",
+	"restoreblockchain",
+	"dumpblockchain",
+	"printchain",
+	"makeblock",
+	"reindexcache",
+	"send",
+	"sql",
+	"getbalance",
+	"getbalances",
+	"createwallet",
+	"listaddresses",
+	"unapprovedtransactions",
+	"mineblock",
+	"canceltransaction",
+	"dropblock",
+	"addrhistory",
+	"showunspent",
+	"shownodes",
+	"addnode",
+	"removenode"}
+
+var commandNodeManageMode = []string{
+	"interactiveautocreate",
+	"importfromandstart",
+	"startnode",
+	"startintnode",
+	"stopnode",
+	config.Daemonprocesscommandline,
+	"nodestate"}
+
 type NodeCLI struct {
 	Input               config.AppInput
 	Logger              *utils.LoggerMan
@@ -103,6 +150,17 @@ func (c *NodeCLI) CreateNode() error {
 
 	node.NodeClient.SetAuthStr(c.NodeAuthStr)
 
+	c.Node = &node
+
+	c.setNodeProxyKeys()
+
+	return nil
+}
+
+// Check if there is internal keys pair to sign DB proxy transactions. Attach if it is set
+func (c *NodeCLI) setNodeProxyKeys() error {
+	c.Node.ProxyPubKey = []byte{}
+
 	if c.Input.ProxyKey != "" {
 		walletscli, err := c.getWalletsCLI()
 
@@ -110,90 +168,41 @@ func (c *NodeCLI) CreateNode() error {
 			walletobj, err := walletscli.WalletsObj.GetWallet(c.Input.ProxyKey)
 
 			if err == nil {
-				node.ProxyPubKey = walletobj.GetPublicKey()
-				node.ProxyPrivateKey = walletobj.GetPrivateKey()
+				c.Node.ProxyPubKey = walletobj.GetPublicKey()
+				c.Node.ProxyPrivateKey = walletobj.GetPrivateKey()
 			}
 		}
 
 	}
 
-	c.Node = &node
-
 	return nil
 }
 
-/*
-* Detects if this request is not related to node server management and must return response right now
- */
+// Detects if this request is not related to node server management and must return response right now
 func (c NodeCLI) isInteractiveMode() bool {
-	commands := []string{
-		"initblockchain",
-		"importblockchain",
-		"restoreblockchain",
-		"dumpblockchain",
-		"printchain",
-		"makeblock",
-		"reindexcache",
-		"send",
-		"sql",
-		"getbalance",
-		"getbalances",
-		"createwallet",
-		"listaddresses",
-		"unapprovedtransactions",
-		"mineblock",
-		"canceltransaction",
-		"dropblock",
-		"addrhistory",
-		"showunspent",
-		"shownodes",
-		"addnode",
-		"removenode"}
 
-	for _, cm := range commands {
-		if cm == c.Command {
-			return true
-		}
-	}
-	return false
+	return utils.StringInSlice(c.Command, commandsInteractiveMode)
 }
 
-/*
-* Detects if it is a node management command
- */
+// Detects if it is a node management command
 func (c NodeCLI) isNodeManageMode() bool {
 
-	if "startnode" == c.Command ||
-		"startintnode" == c.Command ||
-		"stopnode" == c.Command ||
-		config.Daemonprocesscommandline == c.Command ||
-		"nodestate" == c.Command {
+	if utils.StringInSlice(c.Command, commandNodeManageMode) {
 		return true
 	}
 	return false
 }
 
-/*
-* Executes the client command in interactive mode
- */
+// Executes the client command in interactive mode
 func (c NodeCLI) ExecuteCommand() error {
 	c.CreateNode() // init node struct
 
 	bcexists := c.Node.BlockchainExist()
 
-	if c.Command != "initblockchain" &&
-		c.Command != "importblockchain" &&
-		c.Command != "restoreblockchain" &&
-		c.Command != "createwallet" &&
-		c.Command != "listaddresses" &&
-		c.Command != "nodestate" {
-		// only these 3 addresses can be executed if no blockchain yet
-		if !bcexists {
-			return errors.New("Blockchain is not found. Must be created or inited")
-		}
-	} else if bcexists && (c.Command == "initblockchain" ||
-		c.Command == "importblockchain" ||
-		c.Command == "restoreblockchain") {
+	if !utils.StringInSlice(c.Command, allowWithoutBCReady) && !bcexists {
+		return errors.New("Blockchain is not found. Must be created or inited")
+
+	} else if bcexists && utils.StringInSlice(c.Command, disableWithBCReady) {
 		return errors.New("Blockchain already exists")
 	}
 
@@ -293,6 +302,12 @@ func (c NodeCLI) createDaemonManager() (*server.NodeDaemon, error) {
 // Execute server management command
 
 func (c NodeCLI) ExecuteManageCommand() error {
+	if c.Command == "importfromandstart" {
+		return c.commandImportStartInteractive()
+
+	} else if c.Command == "interactiveautocreate" {
+		return c.commandInitIfNeededStartInteractive()
+	}
 	noddaemon, err := c.createDaemonManager()
 
 	if err != nil {
@@ -883,4 +898,61 @@ func (c *NodeCLI) commandSQL() error {
 	}
 
 	return nil
+}
+
+// Prepare wallet, import BC and start interactive. we would not start this if BC exists
+func (c *NodeCLI) commandImportStartInteractive() error {
+	noddaemon, err := c.createDaemonManager()
+
+	if err != nil {
+		return err
+	}
+	return noddaemon.StartServerInteractive()
+}
+func (c *NodeCLI) commandInitIfNeededStartInteractive() error {
+
+	c.CreateNode() // init node struct
+
+	bcexists := c.Node.BlockchainExist()
+	// check if BC exists
+	if !bcexists {
+		// check if there is at least 1 wallet . if no, create new one
+		walletscli, err := c.getWalletsCLI()
+
+		if err != nil {
+			return err
+		}
+
+		addresses := walletscli.WalletsObj.GetAddresses()
+		// get addresses in local wallets
+		if len(addresses) == 0 {
+			c.Input.MinterAddress, err = walletscli.WalletsObj.CreateWallet()
+
+			if err != nil {
+				return err
+			}
+		} else {
+			c.Input.MinterAddress = addresses[0]
+		}
+
+		// init BC with this address as a minter
+
+		err = c.commandInitBlockchain()
+
+		if err != nil {
+			return err
+		}
+		c.Node.MinterAddress = c.Input.MinterAddress
+		c.Input.ProxyKey = c.Input.MinterAddress
+
+		c.setNodeProxyKeys()
+
+		c.Input.UpdateConfig()
+	}
+	noddaemon, err := c.createDaemonManager()
+
+	if err != nil {
+		return err
+	}
+	return noddaemon.StartServerInteractive()
 }

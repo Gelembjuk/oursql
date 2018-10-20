@@ -3,7 +3,6 @@ package dbproxy
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 )
 
 // Encode custom responses by a proxy
@@ -197,10 +196,6 @@ func (r *customResponseOK) setProtocolInfo(pi protocolInfo) {
 // Replace Query. This is modification of request
 func (r customResponseReplaceQuery) getPacket() []byte {
 
-	fmt.Println(r.originalRequest)
-	fmt.Println(r.replaceQuery)
-	fmt.Printf("%x\n", r.originalRequest)
-	fmt.Printf("%s\n", string(r.originalRequest))
 	p := r.originalRequest[:5]
 	p = append(p, []byte(r.replaceQuery)...)
 
@@ -210,8 +205,6 @@ func (r customResponseReplaceQuery) getPacket() []byte {
 	p[0] = lb[0]
 	p[1] = lb[1]
 
-	fmt.Printf("%x\n", p)
-	fmt.Printf("%s\n", string(p))
 	return p
 }
 
