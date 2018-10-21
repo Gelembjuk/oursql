@@ -23,6 +23,7 @@ type AllPossibleArgs struct {
 	Host           string
 	NodePort       int
 	NodeHost       string
+	NodeAddress    string
 	Genesis        string
 	Amount         float64
 	LogDest        string
@@ -99,6 +100,7 @@ func parseConfig(dirpath string) (AppInput, error) {
 		cmd.StringVar(&input.Args.NodeHost, "nodehost", "", "Remote Node Server Host")
 		cmd.IntVar(&input.Args.Port, "port", 0, "Node Server port")
 		cmd.IntVar(&input.Args.NodePort, "nodeport", 0, "Remote Node Server port")
+		cmd.StringVar(&input.Args.NodeAddress, "nodeaddress", "", "Remote Node Server Address")
 		cmd.Float64Var(&input.Args.Amount, "amount", 0, "Amount money to send")
 		cmd.StringVar(&input.Args.LogDest, "logdest", "", "Destination of logs. file or stdout")
 		cmd.StringVar(&input.Args.View, "view", "", "View format")
@@ -198,6 +200,17 @@ func parseConfig(dirpath string) (AppInput, error) {
 
 		input.Database = config.Database
 	}
+
+	if !(input.Args.NodeHost != "" && input.Args.NodePort > 0) &&
+		input.Args.NodeAddress != "" {
+		// get host and port from address.
+		na := net.NodeAddr{}
+		na.LoadFromString(input.Args.NodeAddress)
+
+		input.Args.NodeHost = na.Host
+		input.Args.NodePort = na.Port
+	}
+
 	input.completeDBConfig()
 
 	if !input.Database.HasMinimum() && input.CommandNeedsConfig() {
@@ -258,7 +271,8 @@ func (c AppInput) CommandNeedsConfig() bool {
 		c.Command == "interactiveautocreate" ||
 		c.Command == "listaddresses" ||
 		c.Command == "help" ||
-		c.Command == "restoreblockchain" {
+		c.Command == "restoreblockchain" ||
+		c.Command == "importfromandstart" {
 		return false
 	}
 	return true

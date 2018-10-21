@@ -10,7 +10,7 @@ ENV MYSQL_PASSWORD blockchain
 ADD node /
 ADD docker/conf /conf
 EXPOSE 8765
-EXPOSE 9876
+EXPOSE 8766
 
 ENTRYPOINT ["/node"]
-CMD ["startintnode"]
+CMD ["interactiveautocreate"]

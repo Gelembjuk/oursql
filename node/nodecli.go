@@ -900,8 +900,44 @@ func (c *NodeCLI) commandSQL() error {
 	return nil
 }
 
-// Prepare wallet, import BC and start interactive. we would not start this if BC exists
+// Prepare wallet, import BC and start interactive. If BC exists we just start a server (do nothign before it)
 func (c *NodeCLI) commandImportStartInteractive() error {
+	c.CreateNode() // init node struct
+
+	bcexists := c.Node.BlockchainExist()
+	// check if BC exists
+	if !bcexists {
+		err := c.commandImportBlockchain()
+
+		if err != nil {
+			return err
+		}
+		// check if there is at least 1 wallet . if no, create new one
+		walletscli, err := c.getWalletsCLI()
+
+		if err != nil {
+			return err
+		}
+
+		addresses := walletscli.WalletsObj.GetAddresses()
+		// get addresses in local wallets
+		if len(addresses) == 0 {
+			c.Input.MinterAddress, err = walletscli.WalletsObj.CreateWallet()
+
+			if err != nil {
+				return err
+			}
+		} else {
+			c.Input.MinterAddress = addresses[0]
+		}
+
+		c.Node.MinterAddress = c.Input.MinterAddress
+		c.Input.ProxyKey = c.Input.MinterAddress
+
+		c.setNodeProxyKeys()
+
+		c.Input.UpdateConfig()
+	}
 	noddaemon, err := c.createDaemonManager()
 
 	if err != nil {
