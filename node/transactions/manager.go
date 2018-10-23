@@ -447,8 +447,9 @@ func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction, flags int
 		n.Logger.Trace.Printf("Execute: %s , refID is %s", tx.GetSQLQuery(), string(tx.SQLCommand.ReferenceID))
 
 		_, err := n.getQueryParser().ExecuteQuery(tx.GetSQLQuery())
+
 		if err != nil {
-			return err
+			return errors.New(fmt.Sprintf("Can not execute query from new TX: %s", err.Error()))
 		}
 	}
 
@@ -457,7 +458,12 @@ func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction, flags int
 		return nil
 	}
 	// if all is ok, add it to the list of unapproved
-	return n.getUnapprovedTransactionsManager().Add(tx)
+	err = n.getUnapprovedTransactionsManager().Add(tx)
+
+	if err != nil {
+		return errors.New(fmt.Sprintf("Can not add TX to the pool: %s", err.Error()))
+	}
+	return nil
 }
 
 // Request to make new transaction and prepare data to sign
