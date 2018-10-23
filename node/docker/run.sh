@@ -1,36 +1,39 @@
 #!/bin/bash
 
-# Start mysql process
-mysqld &
+# This script starts the database server.
+echo "Creating user $DBUSER and database $DBNAME"
+
+#/usr/sbin/mysqld &
+/etc/init.d/mysql start
 
 timeout=120
 echo -n "Waiting for database server to accept connections"
-while ! mysql -u root -e "SHOW DATABASES"
+while ! /usr/bin/mysqladmin -u root status >/dev/null 2>&1
 do
     timeout=$(($timeout - 1))
     if [ $timeout -eq 0 ]; then
-        echo -e "\nCould not connect to database server. Aborting..."
-        exit 1
+    echo -e "\nCould not connect to database server. Aborting..."
+    exit 1
     fi
-    
     echo -n "."
     sleep 1
 done
 echo
-# wait 2 seconds while mysql finally started
+
+if [ -f firststart.lock ]; then
+
+    mysql --default-character-set=utf8 -e "CREATE DATABASE IF NOT EXISTS $DBNAME DEFAULT CHARSET=utf8;"
+
+    echo "Database created"
+
+    mysql --default-character-set=utf8 -e "CREATE USER '$DBUSER' IDENTIFIED BY '$DBPASSWORD'"
+    mysql --default-character-set=utf8 -e "GRANT ALL PRIVILEGES ON *.* TO '$DBUSER'@'%' WITH GRANT OPTION; FLUSH PRIVILEGES"
+    
+    echo "User added"
+    
+    rm firststart.lock
+fi
 
 # Start the second process
 ./node "$@"
 
-while sleep 60; do
-  ps aux |grep mysqld |grep -q -v grep
-  PROCESS_1_STATUS=$?
-  ps aux |grep node |grep -q -v grep
-  PROCESS_2_STATUS=$?
-  # If the greps above find anything, they exit with 0 status
-  # If they are not both 0, then something is wrong
-  if [ $PROCESS_1_STATUS -ne 0 -o $PROCESS_2_STATUS -ne 0 ]; then
-    echo "One of the processes has already exited."
-    exit 1
-  fi
-done
