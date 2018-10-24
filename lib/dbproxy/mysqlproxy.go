@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"strings"
 )
 
 // proxy implements server for capturing and forwarding MySQL traffic.
@@ -171,7 +172,17 @@ func (p *mysqlProxy) handleConnection(client net.Conn) {
 	defer client.Close()
 
 	// New connection to MySQL is made per each incoming TCP request to proxy server.
-	server, err := net.Dial("tcp", p.mysqlHost)
+	var server net.Conn
+	var err error
+
+	if strings.HasPrefix(p.mysqlHost, "/") {
+		// unix socket connection
+		server, err = net.Dial("unix", p.mysqlHost)
+	} else {
+		// tcp connection
+		server, err = net.Dial("tcp", p.mysqlHost)
+	}
+
 	if err != nil {
 
 		p.errorLog.Printf("Can not connect to mysql %s : Error: %s", p.mysqlHost, err.Error())

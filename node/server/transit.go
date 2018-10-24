@@ -7,6 +7,9 @@ import (
 	"github.com/gelembjuk/oursql/lib/utils"
 )
 
+/*
+* This structure is used to keep data in memory
+ */
 type nodeTransit struct {
 	Blocks        map[string][][]byte
 	MaxKnownHeigh int

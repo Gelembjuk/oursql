@@ -20,7 +20,8 @@ type NodeServer struct {
 	ConfigDir string
 	Node      *nodemanager.Node
 
-	NodeAddress netlib.NodeAddr
+	NodeAddress netlib.NodeAddr // Port can be different from NodePort. NodeAddress is address exposed outside
+	NodePort    int             // This is the port where a server will listen
 
 	Transit nodeTransit
 
@@ -205,7 +206,7 @@ func (s *NodeServer) sendErrorBack(conn net.Conn, err error) {
 // Starts a server for node. It listens TPC port and communicates with other nodes and lite clients
 
 func (s *NodeServer) StartServer(serverStartResult chan string) error {
-	s.Logger.Trace.Println("Prepare server to start ", s.NodeAddress.NodeAddrToString())
+	s.Logger.Trace.Printf("Prepare server to start %s on a localport %d", s.NodeAddress.NodeAddrToString(), s.NodePort)
 
 	s.BlockBilderChan = make(chan []byte, 100)
 
@@ -214,8 +215,8 @@ func (s *NodeServer) StartServer(serverStartResult chan string) error {
 	if err != nil {
 		return err
 	}
-
-	ln, err := net.Listen(netlib.Protocol, ":"+strconv.Itoa(s.NodeAddress.Port))
+	// We listen on a port on all interfaces
+	ln, err := net.Listen(netlib.Protocol, ":"+strconv.Itoa(s.NodePort))
 
 	if err != nil {
 		serverStartResult <- err.Error()
@@ -244,7 +245,7 @@ func (s *NodeServer) StartServer(serverStartResult chan string) error {
 
 	go s.BlockBuilder()
 
-	s.Logger.Trace.Println("Start listening connections on port ", s.NodeAddress.Port)
+	s.Logger.Trace.Printf("Start listening connections on port %d", s.NodePort)
 
 	for {
 		conn, err := ln.Accept()

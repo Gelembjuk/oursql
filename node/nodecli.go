@@ -291,6 +291,7 @@ func (c NodeCLI) createDaemonManager() (*server.NodeDaemon, error) {
 	nd.Logger = c.Logger
 	nd.Port = c.Input.Port
 	nd.Host = c.Input.Host
+	nd.LocalPort = c.Input.LocalPort
 	nd.Node = c.Node
 	nd.DBProxyAddr = c.Input.DBProxyAddress
 	nd.DBAddr = c.Input.Database.GetServerAddress()
@@ -340,7 +341,7 @@ func (c *NodeCLI) getWalletsCLI() (*remoteclient.WalletCLI, error) {
 	winput.Command = c.Input.Command
 	winput.Address = c.Input.Args.Address
 	winput.ConfigDir = c.Input.ConfigDir
-	winput.NodePort = c.Input.Port
+	winput.NodePort = c.Input.LocalPort
 	winput.NodeHost = "localhost"
 	winput.Amount = c.Input.Args.Amount
 	winput.ToAddress = c.Input.Args.To

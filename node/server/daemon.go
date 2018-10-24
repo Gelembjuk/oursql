@@ -21,6 +21,7 @@ import (
 
 type NodeDaemon struct {
 	Port        int
+	LocalPort   int
 	Host        string
 	ConfigDir   string
 	Server      *NodeServer
@@ -53,6 +54,7 @@ func (n *NodeDaemon) createServer() error {
 
 	server.NodeAddress.Port = n.Port
 	server.NodeAddress.Host = n.Host
+	server.NodePort = n.LocalPort
 
 	server.ConfigDir = n.ConfigDir
 
@@ -174,7 +176,7 @@ func (n *NodeDaemon) StartServer() error {
 		"-logs="+logsstate)
 	cmd.Start()
 	n.Logger.Trace.Println("Daemon process ID is : ", cmd.Process.Pid)
-	n.savePIDFile(cmd.Process.Pid, n.Port, "", "n")
+	n.savePIDFile(cmd.Process.Pid, n.LocalPort, "", "n")
 
 	i := 0
 
@@ -220,7 +222,7 @@ func (n *NodeDaemon) StartServerInteractive() error {
 
 	n.Logger.Trace.Println("Process ID is : ", pid)
 
-	authstr, err := n.savePIDFile(pid, n.Port, "", "y")
+	authstr, err := n.savePIDFile(pid, n.LocalPort, "", "y")
 
 	if err != nil {
 		return err
@@ -304,7 +306,7 @@ func (n *NodeDaemon) DaemonizeServer() error {
 		// to force server to try to handle next command if there were no input connects
 		// if we don't do this it will stay in "Accepting" mode and can not real channel
 		n.Logger.Trace.Println("Send void command on port ", server.NodeAddress.Port)
-		serverAddr := net.NodeAddr{"localhost", server.NodeAddress.Port}
+		serverAddr := net.NodeAddr{"localhost", server.NodePort}
 
 		nodeclient := server.GetClient()
 

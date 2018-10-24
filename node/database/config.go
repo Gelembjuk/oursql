@@ -7,6 +7,7 @@ import (
 type DatabaseConfig struct {
 	MysqlHost    string
 	MysqlPort    int
+	MysqlSocket  string
 	DatabaseName string
 	DbUser       string
 	DbPassword   string
@@ -14,7 +15,7 @@ type DatabaseConfig struct {
 }
 
 func (dbc *DatabaseConfig) HasMinimum() bool {
-	if dbc.MysqlHost == "" || dbc.MysqlPort == 0 || dbc.DatabaseName == "" {
+	if (dbc.MysqlHost == "" || dbc.MysqlPort == 0) && dbc.MysqlSocket == "" || dbc.DatabaseName == "" {
 		return false
 	}
 	return true
@@ -25,6 +26,9 @@ func (dbc *DatabaseConfig) GetServerAddress() string {
 }
 
 func (dbc *DatabaseConfig) GetMySQLConnString() string {
+	if dbc.MysqlSocket != "" {
+		return "unix(" + dbc.MysqlSocket + ")"
+	}
 	prefix := ""
 
 	if dbc.DbUser != "" {

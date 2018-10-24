@@ -47,6 +47,7 @@ type AppInput struct {
 	ProxyKey            string
 	Logs                string
 	Port                int
+	LocalPort           int
 	Host                string
 	ConfigDir           string
 	Nodes               []net.NodeAddr
@@ -61,6 +62,7 @@ type AppConfig struct {
 	ProxyKey        string
 	Port            int
 	Host            string
+	LocalPort       int
 	Nodes           []net.NodeAddr
 	Logs            []string
 	LogsDestination string
@@ -99,6 +101,7 @@ func parseConfig(dirpath string) (AppInput, error) {
 		cmd.StringVar(&input.Args.Host, "host", "", "Node Server Host")
 		cmd.StringVar(&input.Args.NodeHost, "nodehost", "", "Remote Node Server Host")
 		cmd.IntVar(&input.Args.Port, "port", 0, "Node Server port")
+		cmd.IntVar(&input.LocalPort, "localport", 0, "Node Server local port to listen on it")
 		cmd.IntVar(&input.Args.NodePort, "nodeport", 0, "Remote Node Server port")
 		cmd.StringVar(&input.Args.NodeAddress, "nodeaddress", "", "Remote Node Server Address")
 		cmd.Float64Var(&input.Args.Amount, "amount", 0, "Amount money to send")
@@ -174,6 +177,9 @@ func parseConfig(dirpath string) (AppInput, error) {
 		if input.Port < 1 && config.Port > 0 {
 			input.Port = config.Port
 		}
+		if input.LocalPort < 1 && config.LocalPort > 0 {
+			input.LocalPort = config.LocalPort
+		}
 
 		if input.Host == "" && config.Host != "" {
 			input.Host = config.Host
@@ -219,6 +225,10 @@ func parseConfig(dirpath string) (AppInput, error) {
 
 	if input.Host == "" {
 		input.Host = "localhost"
+	}
+
+	if input.LocalPort < 1 && input.Port > 0 {
+		input.Port = input.LocalPort
 	}
 
 	// set consensus config file
