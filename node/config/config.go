@@ -230,7 +230,7 @@ func parseConfig(dirpath string) (AppInput, error) {
 	}
 
 	if input.LocalPort < 1 && input.Port > 0 {
-		input.Port = input.LocalPort
+		input.LocalPort = input.Port
 	}
 
 	// set consensus config file

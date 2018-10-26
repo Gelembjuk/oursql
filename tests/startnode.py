@@ -55,6 +55,7 @@ def StartNode(datadir, address, port,comment = ""):
     _lib.StartTestGroup("Start node "+comment)
     
     _lib.StartTest("Start normal")
+
     res = _lib.ExecuteNode(['startnode','-configdir',datadir,'-port',port,'-minter',address,'-logs','trace'])
     _lib.FatalAssertStr(res,"","Should not be any output on succes start")
 
