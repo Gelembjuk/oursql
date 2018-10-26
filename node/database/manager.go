@@ -182,19 +182,21 @@ func (bdm *MySQLDBManager) CheckDBExists() (bool, error) {
 	bc, err := bdm.GetBlockchainObject()
 
 	if err != nil {
+		bdm.Logger.Trace.Println("Can not get BC DB object")
 		return false, nil
 	}
 
 	tophash, err := bc.GetTopHash()
 
 	if err != nil {
+		bdm.Logger.Trace.Printf("Can not find TOP hash: %s", err.Error())
 		return false, nil
 	}
 
 	if len(tophash) > 0 {
 		return true, nil
 	}
-
+	bdm.Logger.Trace.Printf("Top hash is empty. BC is considered as not found")
 	return false, nil
 }
 
@@ -295,7 +297,7 @@ func (bdm *MySQLDBManager) getConnection() (*sql.DB, error) {
 	db, err := sql.Open("mysql", bdm.Config.GetMySQLConnString())
 
 	if err != nil {
-		return nil, err
+		return nil, errors.New(fmt.Sprintf("Can not open DB connection: %s", err.Error()))
 	}
 	//db.SetMaxOpenConns(2)
 	db.SetMaxIdleConns(2)

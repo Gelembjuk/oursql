@@ -32,6 +32,7 @@ type AllPossibleArgs struct {
 	Clean          bool
 	MySQLHost      string
 	MySQLPort      int
+	MySQLSocket    string
 	MySQLUser      string
 	MySQLPassword  string
 	MySQLDBName    string
@@ -111,6 +112,7 @@ func parseConfig(dirpath string) (AppInput, error) {
 
 		cmd.StringVar(&input.Args.MySQLHost, "mysqlhost", "", "MySQL server host name")
 		cmd.IntVar(&input.Args.MySQLPort, "mysqlport", 3306, "MySQL server port")
+		cmd.StringVar(&input.Args.MySQLSocket, "mysqlsocket", "", "MySQL server unix socket")
 		cmd.StringVar(&input.Args.MySQLUser, "mysqluser", "", "MySQL user")
 		cmd.StringVar(&input.Args.MySQLPassword, "mysqlpass", "", "MySQL password")
 		cmd.StringVar(&input.Args.MySQLDBName, "mysqldb", "", "MySQL database")
@@ -263,6 +265,10 @@ func (c *AppInput) completeDBConfig() {
 			c.Database.MysqlPort = 3306
 		}
 	}
+	if c.Database.MysqlSocket == "" && c.Args.MySQLSocket != "" {
+		c.Database.MysqlSocket = c.Args.MySQLSocket
+	}
+
 	if c.Database.DbUser == "" && c.Args.MySQLUser != "" {
 		c.Database.DbUser = c.Args.MySQLUser
 	}
@@ -396,6 +402,9 @@ func (c AppInput) UpdateConfig() error {
 	// DB setings
 	if c.Args.MySQLHost != "" {
 		config.Database.MysqlHost = c.Args.MySQLHost
+	}
+	if c.Args.MySQLSocket != "" {
+		config.Database.MysqlSocket = c.Args.MySQLSocket
 	}
 	if c.Args.MySQLPort > 0 {
 		config.Database.MysqlPort = c.Args.MySQLPort

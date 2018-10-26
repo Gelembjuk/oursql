@@ -22,17 +22,21 @@ func (dbc *DatabaseConfig) HasMinimum() bool {
 }
 
 func (dbc *DatabaseConfig) GetServerAddress() string {
+	if dbc.MysqlSocket != "" {
+		return dbc.MysqlSocket
+	}
 	return dbc.MysqlHost + ":" + strconv.Itoa(dbc.MysqlPort)
 }
 
 func (dbc *DatabaseConfig) GetMySQLConnString() string {
-	if dbc.MysqlSocket != "" {
-		return "unix(" + dbc.MysqlSocket + ")"
-	}
 	prefix := ""
 
 	if dbc.DbUser != "" {
 		prefix = dbc.DbUser + ":" + dbc.DbPassword + "@"
+	}
+
+	if dbc.MysqlSocket != "" {
+		return prefix + "unix(" + dbc.MysqlSocket + ")/" + dbc.DatabaseName
 	}
 
 	return prefix + "tcp(" + dbc.MysqlHost + ":" + strconv.Itoa(dbc.MysqlPort) + ")/" + dbc.DatabaseName
