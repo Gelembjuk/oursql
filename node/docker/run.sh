@@ -1,9 +1,13 @@
 #!/bin/bash
 
 # This script starts the database server.
-echo "Creating user $DBUSER and database $DBNAME"
+echo "Run MySQL server"
 
-#/usr/sbin/mysqld &
+if [ -f firststart.lock ]; then
+    # add option to mysql config file to disable networking
+    echo -e "\nskip-networking = 1\n" >> /etc/mysql/mysql.conf.d/mysqld.cnf
+fi
+
 /etc/init.d/mysql start
 
 timeout=120
@@ -21,7 +25,8 @@ done
 echo
 
 if [ -f firststart.lock ]; then
-
+    echo "Creating user $DBUSER and database $DBNAME"
+    
     mysql --default-character-set=utf8 -e "CREATE DATABASE IF NOT EXISTS $DBNAME DEFAULT CHARSET=utf8;"
 
     echo "Database created"
@@ -44,9 +49,6 @@ sed '/host.local.address/d' /etc/hosts > /etc/hosts.tmp
 cat /etc/hosts.tmp > /etc/hosts
 rm /etc/hosts.tmp
 #detect IP of a host
-
-/sbin/ip route
-/sbin/ip route|awk '/default/ { print $3 }'
 
 HOSTIP=$(/sbin/ip route|awk '/default/ { print $3 }')
 echo "host IP is $HOSTIP . Updating hosts file"
