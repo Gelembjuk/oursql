@@ -8,11 +8,54 @@ Project Web site [http://oursql.org](http://oursql.org)
 
 OurSQL allows to create a blockchain database quickly with connecting MySQL servers into a cluster.
 
+OurSQL allows to create new blockchain mapped to a MySQL DB or to join to existent blockchain as a cluster node and get MySQL DB data replicated.
+
+### Cryptocurrency
+
+OurSQL supports cryptocurrency too. It is a "side effect" of a blockchain used to replicate data. When blocks are created, some wallet receives coins. It is possible to send conins to any other wallet as it works in bitcoin or similar cryptocurrencies. 
+
+Additionally, it is possible to define "paid" SQL transactions in a consensus rules. To protect some data from unlimited modifications. 
+
 ## How  It Works
 
 ![How OurSQL Works](docs/oursql_how_it_works.png?raw=true "OurSQL")
 
+OurSQL containes a MySQL proxy server. To make a decetralized application (or "blockchain app") it is needed to code an app that connects to MySQL and works with it like normal single app. Nothing special in the app code. Just standard way to work with MySQL server - update data and select data. 
+
+* The app connects to OurSQL DB port (which is a proxy in fact) and does updates with SQL queries. 
+* OurSQL decides if a user can do that SQL query using a consensus rules 
+* If it is allowed to do the SQL update quer:
+    * OurSQL builds a transaction
+    * Adds the transactions to a pool of transactions and executes SQL update
+    * Sends a transaction to other known nodes
+* If there are enough transactions in a pool , OurSQL makes a block 
+* If a node receives a transaction from other node:
+    * Checks if that SQL can be executed against a consensus rules
+    * Executes and adds to a pool
+
+For the app, all this work is not visible. It just exexutes SQL commands and doesn't care about blockchain or so. OurSQL does all this work itself.
+
 ## Consensus
+
+Current version supports only Proof of Work consensus type. Every blockchain has a consensus config file which containes rules. Options of PoW: block hash options, coins to add for minter, numbers of transactions per block etc.
+
+This file is distributed as part of a package instalation package.
+
+Also, in this file it is possible to describe which SQL operation are allowed in this decetralized DB: insert, update, delete , table create. Additionally, it is possible to set rules per table.
+
+Finally, it is possible to set a cost of SL query per table and type. For example, 0.5 (of a coin) per insert in a table "members". This allows to control updates.
+
+### Future support of consensus 
+
+Soon we add extended support of a consensus.
+
+We are going to add support of a consensus plug-in. It will be a module for OurSQL (.so or .dll) to control updates. 
+
+The consensus module will be able to do some work for every proposed update. Each SQL transaction goes together with q wallet address. The module will be able to check if this address can do this SQL command now. It can do extra requests to other DB table to do some checks etc.
+
+For example, all users of an app can vote for some user to be a moderator. If a user was elected he is able to update some table. All other are not able. Consensus module can controll such things.
+
+Consensus module will filter all SQL commands received from an app via the proxy and also received from other nodes.
 
 ## Try OurSQL
 
@@ -40,7 +83,7 @@ mysql -h 127.0.0.1 -P 8766 -u blockchain -pblockchain BC
 > INSERT INTO test SET b='row1';
 ```
 
-Find more usage [examples](docs/README.md) and try to run multiple nodes to see how replication works.
+Find more usage [examples](docs/Docker.md) and try to run multiple nodes to see how replication works.
 
 ### Compile it yourself
 
@@ -75,7 +118,7 @@ You can exacute now
 ./node
 ```
 
-Find usage [examples](docs/README.md) to do some tests.
+Find usage [examples](docs/Tests.md) to do some tests.
 
 ### Install
 
