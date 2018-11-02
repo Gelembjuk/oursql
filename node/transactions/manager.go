@@ -18,12 +18,13 @@ import (
 )
 
 type txManager struct {
-	DB     database.DBManager
-	Logger *utils.LoggerMan
+	DB            database.DBManager
+	Logger        *utils.LoggerMan
+	consensusInfo structures.ConsensusInfo
 }
 
-func NewManager(DB database.DBManager, Logger *utils.LoggerMan) TransactionsManagerInterface {
-	return &txManager{DB, Logger}
+func NewManager(DB database.DBManager, Logger *utils.LoggerMan, ci structures.ConsensusInfo) TransactionsManagerInterface {
+	return &txManager{DB, Logger, ci}
 }
 
 // make SQL query manager
@@ -241,7 +242,7 @@ func (n *txManager) VerifyTransaction(tx *structures.Transaction, prevtxs []stru
 	}
 	// do final check against inputs
 
-	err = tx.Verify(inputTXs)
+	err = tx.Verify(inputTXs, n.consensusInfo.CoinsForBlockMade)
 
 	if err != nil {
 		n.Logger.Trace.Printf("VT error 6: %s", err.Error())
@@ -788,7 +789,7 @@ func (n *txManager) verifyTransactionQuick(tx *structures.Transaction) error {
 	}
 	// verify signatures
 
-	err = tx.Verify(inputTXs)
+	err = tx.Verify(inputTXs, n.consensusInfo.CoinsForBlockMade)
 
 	if err != nil {
 		n.Logger.Trace.Printf("VT error 3: %s", err.Error())

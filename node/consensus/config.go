@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/fatih/structs"
+	"github.com/gelembjuk/oursql/node/structures"
 )
 
 const (
@@ -20,13 +21,14 @@ type ConsensusConfigTable struct {
 }
 
 type ConsensusConfig struct {
-	Kind             string
-	Settings         map[string]interface{}
-	AllowTableCreate bool
-	AllowTableDrop   bool
-	AllowRowDelete   bool
-	UnmanagedTables  []string
-	TableRules       []ConsensusConfigTable
+	Kind              string
+	CoinsForBlockMade float64
+	Settings          map[string]interface{}
+	AllowTableCreate  bool
+	AllowTableDrop    bool
+	AllowRowDelete    bool
+	UnmanagedTables   []string
+	TableRules        []ConsensusConfigTable
 }
 
 func NewConfigFromFile(filepath string) (*ConsensusConfig, error) {
@@ -52,6 +54,7 @@ func NewConfigFromFile(filepath string) (*ConsensusConfig, error) {
 func NewConfigDefault() (*ConsensusConfig, error) {
 	c := ConsensusConfig{}
 	c.Kind = KindConseususPoW
+	c.CoinsForBlockMade = 10
 	c.AllowTableCreate = true
 	c.AllowTableDrop = true
 	c.AllowRowDelete = true
@@ -64,4 +67,8 @@ func NewConfigDefault() (*ConsensusConfig, error) {
 
 	c.Settings = structs.Map(s)
 	return &c, nil
+}
+
+func (cc ConsensusConfig) GetInfoForTransactions() structures.ConsensusInfo {
+	return structures.ConsensusInfo{cc.CoinsForBlockMade}
 }

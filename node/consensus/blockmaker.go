@@ -67,7 +67,7 @@ func (n *NodeBlockMaker) IsBlockPrepared() bool {
 
 // Transaction operations and cache manager
 func (n *NodeBlockMaker) getTransactionsManager() transactions.TransactionsManagerInterface {
-	return transactions.NewManager(n.DB, n.Logger)
+	return transactions.NewManager(n.DB, n.Logger, n.config.GetInfoForTransactions())
 }
 
 // Blockchain DB manager.
@@ -211,7 +211,7 @@ func (n *NodeBlockMaker) makeNewBlockFromTransactions(transactions []structures.
 	}
 
 	// add transaction - prize for miner
-	cbTx, errc := structures.NewCoinbaseTransaction(n.MinterAddress, "")
+	cbTx, errc := structures.NewCoinbaseTransaction(n.MinterAddress, "", n.config.CoinsForBlockMade)
 
 	if errc != nil {
 		return nil, errc

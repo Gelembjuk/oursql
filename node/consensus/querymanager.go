@@ -37,7 +37,7 @@ func (q queryManager) getQueryParser() dbquery.QueryProcessorInterface {
 }
 
 func (q queryManager) getTransactionsManager() transactions.TransactionsManagerInterface {
-	return transactions.NewManager(q.DB, q.Logger)
+	return transactions.NewManager(q.DB, q.Logger, q.config.GetInfoForTransactions())
 }
 
 // New query from command line tool

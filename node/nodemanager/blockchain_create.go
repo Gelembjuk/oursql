@@ -29,7 +29,7 @@ func (n *makeBlockchain) getBCManager() *blockchain.Blockchain {
 
 // Transactions manager object
 func (n *makeBlockchain) getTransactionsManager() transactions.TransactionsManagerInterface {
-	return transactions.NewManager(n.DBConn.DB(), n.Logger)
+	return transactions.NewManager(n.DBConn.DB(), n.Logger, n.consensusConfig.GetInfoForTransactions())
 }
 
 // Init block maker object. It is used to make new blocks
@@ -169,7 +169,7 @@ func (n *makeBlockchain) prepareGenesisBlock(address, genesisCoinbaseData string
 		return nil, errors.New("Geneisis block text missed")
 	}
 
-	cbtx, errc := structures.NewCoinbaseTransaction(address, genesisCoinbaseData)
+	cbtx, errc := structures.NewCoinbaseTransaction(address, genesisCoinbaseData, n.consensusConfig.CoinsForBlockMade)
 
 	if errc != nil {
 		return nil, errors.New(fmt.Sprintf("Error creating coinbase TX %s", errc.Error()))

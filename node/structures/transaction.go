@@ -149,10 +149,11 @@ func (tx *Transaction) CompleteTransaction(signature []byte) error {
 
 // Verify verifies signatures of Transaction inputs
 // And total amount of inputs and outputs
-func (tx *Transaction) Verify(prevTXs map[int]*Transaction) error {
+// TODO in future to replace coinstoadd with some Config structure where all external things for verify are included
+func (tx *Transaction) Verify(prevTXs map[int]*Transaction, coinstoadd float64) error {
 	if tx.IsCoinbaseTransfer() {
 		// coinbase has only 1 output and it must have value equal to constant
-		if tx.Vout[0].Value != lib.CurrencyPaymentForBlockMade {
+		if tx.Vout[0].Value != coinstoadd {
 			return errors.New("Value of coinbase transaction is wrong")
 		}
 		if len(tx.Vout) > 1 {

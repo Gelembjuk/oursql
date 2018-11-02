@@ -103,7 +103,7 @@ func (n *NodeLocks) InitLocks() {
 
 // Build transaction manager structure
 func (n *Node) GetTransactionsManager() transactions.TransactionsManagerInterface {
-	return transactions.NewManager(n.DBConn.DB(), n.Logger)
+	return transactions.NewManager(n.DBConn.DB(), n.Logger, n.ConsensusConfig.GetInfoForTransactions())
 }
 
 // Build BC manager structure

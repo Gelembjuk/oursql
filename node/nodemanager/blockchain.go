@@ -24,7 +24,7 @@ func (n *NodeBlockchain) GetBCManager() *blockchain.Blockchain {
 }
 
 func (n *NodeBlockchain) getTransactionsManager() transactions.TransactionsManagerInterface {
-	return transactions.NewManager(n.DBConn.DB(), n.Logger)
+	return transactions.NewManager(n.DBConn.DB(), n.Logger, n.consensusConfig.GetInfoForTransactions())
 }
 
 // Checks if a block exists in the chain. It will go over blocks list

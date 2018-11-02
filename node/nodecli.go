@@ -905,6 +905,12 @@ func (c *NodeCLI) commandSQL() error {
 func (c *NodeCLI) commandImportStartInteractive() error {
 	c.CreateNode() // init node struct
 
+	if c.Input.Args.LogDestDefault {
+		// we always log to stdout for this command
+		// if default logging is used (it is files by defaut)
+		c.Logger.LogToStdout()
+	}
+
 	bcexists := c.Node.BlockchainExist()
 	// check if BC exists
 	if !bcexists {
@@ -949,6 +955,12 @@ func (c *NodeCLI) commandImportStartInteractive() error {
 func (c *NodeCLI) commandInitIfNeededStartInteractive() error {
 
 	c.CreateNode() // init node struct
+
+	if c.Input.Args.LogDestDefault {
+		// we always log to stdout for this command
+		// if default logging is used (it is files by defaut)
+		c.Logger.LogToStdout()
+	}
 
 	bcexists := c.Node.BlockchainExist()
 	// check if BC exists

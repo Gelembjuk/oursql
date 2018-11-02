@@ -27,6 +27,7 @@ type AllPossibleArgs struct {
 	Genesis        string
 	Amount         float64
 	LogDest        string
+	LogDestDefault bool // to know if logs destination was specified or not
 	Transaction    string
 	View           string
 	Clean          bool
@@ -161,6 +162,8 @@ func parseConfig(dirpath string) (AppInput, error) {
 	input.Port = input.Args.Port
 	input.Host = input.Args.Host
 
+	input.Args.LogDestDefault = true
+
 	// read config file . command line arguments are more important than a config
 	config, err := input.GetConfig()
 
@@ -197,9 +200,12 @@ func parseConfig(dirpath string) (AppInput, error) {
 
 		if input.Args.LogDest == "" && config.LogsDestination != "" {
 			input.Args.LogDest = config.LogsDestination
+			input.Args.LogDestDefault = false
 
 		} else if input.Args.LogDest == "" {
 			input.Args.LogDest = "file"
+		} else {
+			input.Args.LogDestDefault = false
 		}
 
 		if input.DBProxyAddress == "" && config.DBProxyAddress != "" {

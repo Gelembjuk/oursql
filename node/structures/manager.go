@@ -4,8 +4,6 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-
-	"github.com/gelembjuk/oursql/lib"
 )
 
 // return BlockShort object from bytes
@@ -89,7 +87,7 @@ func DeserializeTransaction(txData []byte) (*Transaction, error) {
 }
 
 // New "currency" Coin Base transaction. This transaction must be present in each new block
-func NewCoinbaseTransaction(to, data string) (*Transaction, error) {
+func NewCoinbaseTransaction(to, data string, coinstoadd float64) (*Transaction, error) {
 	if data == "" {
 		randData := make([]byte, 20)
 		_, err := rand.Read(randData)
@@ -102,7 +100,7 @@ func NewCoinbaseTransaction(to, data string) (*Transaction, error) {
 	}
 	tx := &Transaction{}
 	txin := TXCurrencyInput{[]byte{}, -1}
-	txout := NewTXOutput(lib.CurrencyPaymentForBlockMade, to)
+	txout := NewTXOutput(coinstoadd, to)
 	tx.Vin = []TXCurrencyInput{txin}
 	tx.Vout = []TXCurrrencyOutput{*txout}
 	// init this newobject
