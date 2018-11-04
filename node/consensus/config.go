@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
+	"math/rand"
 	"strings"
+	"time"
 
 	"github.com/fatih/structs"
+	"github.com/gelembjuk/oursql/lib/net"
 	"github.com/gelembjuk/oursql/node/structures"
 	"github.com/mitchellh/mapstructure"
 )
@@ -149,4 +152,16 @@ func (cc ConsensusConfig) ExportToFile(filepath string, defaultaddresses string,
 	err = ioutil.WriteFile(filepath, jsondata, 0644)
 
 	return err
+}
+func (cc ConsensusConfig) GetRandomInitialAddress() *net.NodeAddr {
+	if len(cc.InitNodesAddreses) == 0 {
+		return nil
+	}
+	rand.Seed(time.Now().Unix()) // initialize global pseudo random generator
+	addr := cc.InitNodesAddreses[rand.Intn(len(cc.InitNodesAddreses))]
+
+	na := net.NodeAddr{}
+	na.LoadFromString(addr)
+
+	return &na
 }

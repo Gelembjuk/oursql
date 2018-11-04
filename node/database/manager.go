@@ -189,7 +189,6 @@ func (bdm *MySQLDBManager) CheckDBExists() (bool, error) {
 	tophash, err := bc.GetTopHash()
 
 	if err != nil {
-		bdm.Logger.Trace.Printf("Can not find TOP hash: %s", err.Error())
 		return false, nil
 	}
 

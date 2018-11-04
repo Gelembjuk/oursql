@@ -415,6 +415,16 @@ func (c *NodeCLI) commandInitBlockchain() error {
 // To init blockchain loaded from other node. Is executed for new nodes if blockchain already exists
 func (c *NodeCLI) commandImportBlockchain() error {
 
+	if c.Input.Args.NodePort == 0 || c.Input.Args.NodeHost == "" {
+		addr := c.Node.ConsensusConfig.GetRandomInitialAddress()
+
+		if addr == nil {
+			return errors.New("No address to import from")
+		}
+		c.Input.Args.NodePort = addr.Port
+		c.Input.Args.NodeHost = addr.Host
+	}
+
 	alldone, err := c.Node.InitBlockchainFromOther(c.Input.Args.NodeHost, c.Input.Args.NodePort)
 
 	if err != nil {

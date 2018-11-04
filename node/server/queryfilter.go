@@ -40,6 +40,7 @@ func InitQueryFilter(proxyAddr, dbAddr string, node *nodemanager.Node, logger *u
 	q.DBProxy, err = dbproxy.NewMySQLProxy(proxyAddr, dbAddr)
 
 	if err != nil {
+		q.Logger.Error.Printf("Error DB proxy start %s", err.Error())
 		return
 	}
 
@@ -50,12 +51,17 @@ func InitQueryFilter(proxyAddr, dbAddr string, node *nodemanager.Node, logger *u
 	err = q.DBProxy.Init()
 
 	if err != nil {
+		q.Logger.Error.Printf("Error DB proxy init %s", err.Error())
 		return
 	}
 
 	err = q.DBProxy.Run()
 
-	q.Logger.Trace.Println("DB proxy started")
+	if err != nil {
+		q.Logger.Error.Printf("Error DB proxy run %s", err.Error())
+	} else {
+		q.Logger.Trace.Println("DB proxy started")
+	}
 
 	return
 }

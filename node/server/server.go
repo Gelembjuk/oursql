@@ -208,13 +208,15 @@ func (s *NodeServer) sendErrorBack(conn net.Conn, err error) {
 func (s *NodeServer) StartServer(serverStartResult chan string) error {
 	s.Logger.Trace.Printf("Prepare server to start %s on a localport %d", s.NodeAddress.NodeAddrToString(), s.NodePort)
 
-	s.BlockBilderChan = make(chan []byte, 100)
-
 	err := s.StartDatabaseProxy()
 
 	if err != nil {
+		serverStartResult <- err.Error()
 		return err
 	}
+
+	s.BlockBilderChan = make(chan []byte, 100)
+
 	// We listen on a port on all interfaces
 	ln, err := net.Listen(netlib.Protocol, ":"+strconv.Itoa(s.NodePort))
 

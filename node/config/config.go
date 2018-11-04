@@ -316,6 +316,7 @@ func (c *AppInput) completeDBConfig() {
 // check if this commands really needs a config file
 func (c AppInput) CommandNeedsConfig() bool {
 	if c.Command == "createwallet" ||
+		c.Command == "importblockchain" ||
 		c.Command == "interactiveautocreate" ||
 		c.Command == "listaddresses" ||
 		c.Command == "help" ||
