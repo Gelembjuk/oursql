@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,30 +17,34 @@ import (
 
 // Thi is the struct with all possible command line arguments
 type AllPossibleArgs struct {
-	Address        string
-	From           string
-	To             string
-	Port           int
-	Host           string
-	NodePort       int
-	NodeHost       string
-	NodeAddress    string
-	Genesis        string
-	Amount         float64
-	LogDest        string
-	LogDestDefault bool // to know if logs destination was specified or not
-	Transaction    string
-	View           string
-	Clean          bool
-	MySQLHost      string
-	MySQLPort      int
-	MySQLSocket    string
-	MySQLUser      string
-	MySQLPassword  string
-	MySQLDBName    string
-	DBTablesPrefix string
-	DumpFile       string
-	SQL            string
+	AppName             string
+	Address             string
+	From                string
+	To                  string
+	Port                int
+	Host                string
+	NodePort            int
+	NodeHost            string
+	NodeAddress         string
+	DefaultAddresses    string
+	Genesis             string
+	Amount              float64
+	LogDest             string
+	LogDestDefault      bool // to know if logs destination was specified or not
+	Transaction         string
+	View                string
+	Clean               bool
+	MySQLHost           string
+	MySQLPort           int
+	MySQLSocket         string
+	MySQLUser           string
+	MySQLPassword       string
+	MySQLDBName         string
+	DBTablesPrefix      string
+	DumpFile            string
+	DestinationFile     string
+	SQL                 string
+	ConsensusFileToCopy string
 }
 
 // Input summary
@@ -92,6 +97,7 @@ func parseConfig(dirpath string) (AppInput, error) {
 
 		cmd := flag.NewFlagSet(input.Command, flag.ExitOnError)
 
+		cmd.StringVar(&input.Args.AppName, "appname", "", "Application Name")
 		cmd.StringVar(&input.Args.Address, "address", "", "Address of operation")
 		cmd.StringVar(&input.Logs, "logs", "", "List of enabled logs groups")
 		cmd.StringVar(&input.MinterAddress, "minter", "", "Wallet address which signs blocks")
@@ -106,6 +112,7 @@ func parseConfig(dirpath string) (AppInput, error) {
 		cmd.IntVar(&input.LocalPort, "localport", 0, "Node Server local port to listen on it")
 		cmd.IntVar(&input.Args.NodePort, "nodeport", 0, "Remote Node Server port")
 		cmd.StringVar(&input.Args.NodeAddress, "nodeaddress", "", "Remote Node Server Address")
+		cmd.StringVar(&input.Args.DefaultAddresses, "defaultaddresses", "", "List of addresses to set as default for consensus config")
 		cmd.Float64Var(&input.Args.Amount, "amount", 0, "Amount money to send")
 		cmd.StringVar(&input.Args.LogDest, "logdest", "", "Destination of logs. file or stdout")
 		cmd.StringVar(&input.Args.View, "view", "", "View format")
@@ -120,7 +127,10 @@ func parseConfig(dirpath string) (AppInput, error) {
 		cmd.StringVar(&input.Args.DBTablesPrefix, "tablesprefix", "", "MySQL blockchain tables prefix")
 		cmd.StringVar(&input.DBProxyAddress, "dbproxyaddr", "", "MySQL DB proxy address host:port")
 		cmd.StringVar(&input.Args.DumpFile, "dumpfile", "", "File where to dump DB")
+		cmd.StringVar(&input.Args.DestinationFile, "destfile", "", "Destination file for export")
 		cmd.StringVar(&input.Args.SQL, "sql", "", "SQL command to execute")
+
+		cmd.StringVar(&input.Args.ConsensusFileToCopy, "consensusfile", "", "Consensus file source")
 
 		configdirPtr := cmd.String("configdir", "", "Location of config files")
 		err := cmd.Parse(os.Args[2:])
@@ -242,8 +252,24 @@ func parseConfig(dirpath string) (AppInput, error) {
 	// set consensus config file
 	ccpath := input.ConfigDir + "consensusconfig.json"
 
+	if input.Args.ConsensusFileToCopy != "" &&
+		(input.Command == "interactiveautocreate" ||
+			input.Command == "importblockchain" ||
+			input.Command == "initblockchain" ||
+			input.Command == "importandstart") {
+		// if there is no consensus file yet, copy new file
+		// NOTE . This is dangerous operation. If to rpelace this file only in single
+		// node, it can be blocked by other of consensus is different
+		err := copyFile(input.Args.ConsensusFileToCopy, ccpath)
+
+		if err != nil {
+			return input, err
+		}
+	}
+
 	if _, err := os.Stat(ccpath); os.IsNotExist(err) {
 		input.ConseususConfigFile = ""
+
 	} else {
 		input.ConseususConfigFile = ccpath
 	}
@@ -448,6 +474,21 @@ func (c AppInput) UpdateConfig() error {
 	return nil
 }
 
+func copyFile(srcpath, dstpath string) error {
+	input, err := ioutil.ReadFile(srcpath)
+
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(dstpath, input, 0644)
+
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c AppInput) PrintUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  help - Prints this help")
@@ -457,12 +498,13 @@ func (c AppInput) PrintUsage() {
 	fmt.Println("  listaddresses\n\t- Lists all addresses from the wallet file")
 
 	fmt.Println("=[Blockchain init operations]")
-	//fmt.Println("  interactiveautocreate [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Create a blockchain if it doesn't exist yet, creates a wallet if no wallets yet, starts a node in interactive mode.")
-	//fmt.Println("  importfromandstart -nodeaddress HOST:PORT [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Loads a blockchain from other node to init the DB. Cretes a wallet of no wallets, starts a node in interactive mode.")
-	fmt.Println("  initblockchain [-minter ADDRESS] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Create a blockchain and send genesis block reward to ADDRESS")
-	fmt.Println("  importblockchain [-nodehost HOST] [-nodeport PORT] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Loads a blockchain from other node to init the DB.")
+	//fmt.Println("  interactiveautocreate [-consensusfile FILEPATH] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Create a blockchain if it doesn't exist yet, creates a wallet if no wallets yet, starts a node in interactive mode.")
+	//fmt.Println("  importandstart [-nodeaddress HOST:PORT] [-consensusfile FILEPATH] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Loads a blockchain from other node to init the DB. Cretes a wallet of no wallets, starts a node in interactive mode.")
+	fmt.Println("  initblockchain [-minter ADDRESS] [-consensusfile FILEPATH] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Create a blockchain and send genesis block reward to ADDRESS")
+	fmt.Println("  importblockchain [-consensusfile FILEPATH] [-nodehost HOST] [-nodeport PORT] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Loads a blockchain from other node to init the DB. If consensusfile is set and it contains initial node address, it will be used")
 	fmt.Println("  restoreblockchain -dumpfile FILEPATH [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Loads a blockchain from dump file and restores it to given DB. A DB credentials can be optional if they are present in config file")
 	fmt.Println("  dumpblockchain -dumpfile FILEPATH\n\t- Dump blockchain DB to a file. This fle can be used to restore a BC")
+	fmt.Println("  exportconsensusconfig -destfile FILEPATH [-defaultaddresses own,host:port] [-appname NAME]\n\t- Save consensus config file. Can include this node address as initial address.")
 	fmt.Println("  updateconfig [-minter ADDRESS] [-proxykey ADDRESS] [-host HOST] [-port PORT] [-nodehost HOST] [-nodeport PORT] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX] [-dbproxyaddr ADDR]\n\t- Update config file. Allows to set this node minter address, host and port and remote node host and port")
 
 	fmt.Println("=[Blockchain manage operations]")

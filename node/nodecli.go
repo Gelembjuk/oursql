@@ -26,7 +26,7 @@ var allowWithoutBCReady = []string{"initblockchain",
 var disableWithBCReady = []string{"initblockchain",
 	"initblockchain",
 	"importblockchain",
-	"importfromandstart",
+	"importandstart",
 	"restoreblockchain"}
 
 var commandsInteractiveMode = []string{
@@ -34,6 +34,7 @@ var commandsInteractiveMode = []string{
 	"importblockchain",
 	"restoreblockchain",
 	"dumpblockchain",
+	"exportconsensusconfig",
 	"printchain",
 	"makeblock",
 	"reindexcache",
@@ -55,7 +56,7 @@ var commandsInteractiveMode = []string{
 
 var commandNodeManageMode = []string{
 	"interactiveautocreate",
-	"importfromandstart",
+	"importandstart",
 	"startnode",
 	"startintnode",
 	"stopnode",
@@ -142,6 +143,7 @@ func (c *NodeCLI) CreateNode() error {
 	}
 
 	if err != nil {
+		c.Logger.Error.Printf("Error when init consensus config %s", err.Error())
 		return err
 	}
 
@@ -195,7 +197,11 @@ func (c NodeCLI) isNodeManageMode() bool {
 
 // Executes the client command in interactive mode
 func (c NodeCLI) ExecuteCommand() error {
-	c.CreateNode() // init node struct
+	err := c.CreateNode() // init node struct
+
+	if err != nil {
+		return err
+	}
 
 	bcexists := c.Node.BlockchainExist()
 
@@ -208,67 +214,71 @@ func (c NodeCLI) ExecuteCommand() error {
 
 	defer c.Node.DBConn.CloseConnection()
 
-	if c.Command == "initblockchain" {
+	switch c.Command {
+	case "initblockchain":
 		return c.commandInitBlockchain()
 
-	} else if c.Command == "importblockchain" {
+	case "importblockchain":
 		return c.commandImportBlockchain()
 
-	} else if c.Command == "restoreblockchain" {
+	case "restoreblockchain":
 		return c.commandRestoreBlockchain()
 
-	} else if c.Command == "dumpblockchain" {
+	case "dumpblockchain":
 		return c.commandDumpBlockchain()
 
-	} else if c.Command == "printchain" {
+	case "exportconsensusconfig":
+		return c.commandExportConsensusConfig()
+
+	case "printchain":
 		return c.commandPrintChain()
 
-	} else if c.Command == "reindexcache" {
+	case "reindexcache":
 		return c.commandReindexCache()
 
-	} else if c.Command == "getbalance" {
+	case "getbalance":
 		return c.commandGetBalance()
 
-	} else if c.Command == "getbalances" {
+	case "getbalances":
 		return c.commandAddressesBalance()
 
-	} else if c.Command == "listaddresses" {
+	case "listaddresses":
 		return c.forwardCommandToWallet()
 
-	} else if c.Command == "createwallet" {
+	case "createwallet":
 		return c.forwardCommandToWallet()
 
-	} else if c.Command == "send" {
+	case "send":
 		return c.commandSend()
 
-	} else if c.Command == "sql" {
+	case "sql":
 		return c.commandSQL()
 
-	} else if c.Command == "unapprovedtransactions" {
+	case "unapprovedtransactions":
 		return c.commandUnapprovedTransactions()
 
-	} else if c.Command == "makeblock" {
+	case "makeblock":
 		return c.commandMakeBlock()
 
-	} else if c.Command == "dropblock" {
+	case "dropblock":
 		return c.commandDropBlock()
 
-	} else if c.Command == "canceltransaction" {
+	case "canceltransaction":
 		return c.commandCancelTransaction()
 
-	} else if c.Command == "addrhistory" {
+	case "addrhistory":
 		return c.commandAddressHistory()
 
-	} else if c.Command == "showunspent" {
+	case "showunspent":
 		return c.commandShowUnspent()
 
-	} else if c.Command == "shownodes" {
+	case "shownodes":
 		return c.commandShowNodes()
 
-	} else if c.Command == "addnode" {
+	case "addnode":
 		return c.commandAddNode()
 
-	} else if c.Command == "removenode" {
+	case "removenode":
 		return c.commandRemoveNode()
 	}
 
@@ -303,7 +313,7 @@ func (c NodeCLI) createDaemonManager() (*server.NodeDaemon, error) {
 // Execute server management command
 
 func (c NodeCLI) ExecuteManageCommand() error {
-	if c.Command == "importfromandstart" {
+	if c.Command == "importandstart" {
 		return c.commandImportStartInteractive()
 
 	} else if c.Command == "interactiveautocreate" {
@@ -1004,4 +1014,28 @@ func (c *NodeCLI) commandInitIfNeededStartInteractive() error {
 		return err
 	}
 	return noddaemon.StartServerInteractive()
+}
+
+// Export consensus config to given destination. This can be used for distribution of an app
+func (c *NodeCLI) commandExportConsensusConfig() error {
+
+	if c.Input.Port == 0 &&
+		(c.Input.Args.DefaultAddresses == "" || c.Input.Args.DefaultAddresses == "own") &&
+		len(c.Node.ConsensusConfig.InitNodesAddreses) == 0 {
+		return errors.New("No known address to use as a default. Set network address for this node first")
+	}
+
+	ownAddres := net.NodeAddr{c.Input.Host, c.Input.Port}
+
+	c.Logger.Trace.Printf("Export Consensus Config file. Own address %s", ownAddres.NodeAddrToString())
+
+	if c.Input.Args.DestinationFile == "" {
+		return errors.New("Destination file path missed")
+	}
+
+	return c.Node.ConsensusConfig.ExportToFile(
+		c.Input.Args.DestinationFile,
+		c.Input.Args.DefaultAddresses,
+		c.Input.Args.AppName,
+		ownAddres.NodeAddrToString())
 }
