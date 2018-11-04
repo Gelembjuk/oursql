@@ -159,6 +159,11 @@ func (c *NodeCLI) CreateNode() error {
 	return nil
 }
 
+func (c *NodeCLI) getApplicationName() string {
+	c.CreateNode()
+	return c.Node.ConsensusConfig.ApplicationName
+}
+
 // Check if there is internal keys pair to sign DB proxy transactions. Attach if it is set
 func (c *NodeCLI) setNodeProxyKeys() error {
 	c.Node.ProxyPubKey = []byte{}

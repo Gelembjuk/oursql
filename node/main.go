@@ -36,7 +36,14 @@ func main() {
 	cli := getNodeCLI(input)
 
 	if cli.isInteractiveMode() {
-		fmt.Printf("%s - %s\n\n", lib.ApplicationTitle, lib.ApplicationVersion)
+		an := cli.getApplicationName()
+
+		if an != "" {
+			fmt.Printf("%s. %s - %s\n\n", an, lib.ApplicationTitle, lib.ApplicationVersion)
+		} else {
+			fmt.Printf("%s - %s\n\n", lib.ApplicationTitle, lib.ApplicationVersion)
+		}
+
 		// it is command to display results right now
 		err := cli.ExecuteCommand()
 
