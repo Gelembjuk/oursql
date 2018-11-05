@@ -5,11 +5,17 @@ import time
 import startnode
 import transactions
 
-#def beforetest(testfilter):
-#    print "before test"
-#def aftertest(testfilter):
-#    print "after test"
+datadir = ""
+
+def aftertest(testfilter):
+    global datadir
+    
+    if datadir != "":
+        startnode.StopNode(datadir)
+        
 def test(testfilter):
+    global datadir
+    
     _lib.StartTestGroup("Blocks making")
 	
     nodeport = '30010'
@@ -64,15 +70,16 @@ def test(testfilter):
     if txid3 not in txlist.keys():
         _lib.Fatal("Transaction 3 is not in the list of transactions")
     
-    _lib.FatalAssertFloat(amount2, txlist[txid2][2], "Amount of transaction 2 is wrong")
+    _lib.FatalAssertFloat(amount2, txlist[txid2][3], "Amount of transaction 2 is wrong")
     
-    _lib.FatalAssertFloat(amount3, txlist[txid3][2], "Amount of transaction 3 is wrong")
+    _lib.FatalAssertFloat(amount3, txlist[txid3][3], "Amount of transaction 3 is wrong")
     
     time.sleep(5)
     
     transactions.GetUnapprovedTransactionsEmpty(datadir)
     
     startnode.StopNode(datadir)
+    datadir = ""
     
     #_lib.RemoveTestFolder(datadir)
     _lib.EndTestGroupSuccess()

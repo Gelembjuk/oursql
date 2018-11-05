@@ -147,9 +147,11 @@ func (q *queryFilter) ResponseCallback(sessionID string, err error) {
 func (q *queryFilter) Stop() error {
 	q.Logger.Trace.Println("Stop DB proxy")
 
-	q.DBProxy.Stop()
+	if q.DBProxy != nil {
+		q.DBProxy.Stop()
 
-	q.Logger.Trace.Println("DB proxy stopped")
+		q.Logger.Trace.Println("DB proxy stopped")
+	}
 
 	return nil
 }

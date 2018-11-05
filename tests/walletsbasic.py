@@ -146,7 +146,7 @@ def test(testfilter):
     
     blocks = _blocks.WaitBlocks(datadir, blockslen + 3)
     _lib.FatalAssert(len(blocks) == blockslen + 3, "Expected "+str(blockslen + 3)+" blocks")
-    time.sleep(2)
+    time.sleep(3)
     
     am1_back = _wallet.GetBalanceWallet(walletdatadir1, waddress1_1, "localhost", nodeport)
     am1_expected = round(am1[1] - float(amounttosend) - float(amounttosend2),8)
@@ -155,7 +155,8 @@ def test(testfilter):
     
     am2_back = _wallet.GetBalanceWallet(walletdatadir1, waddress1_2, "localhost", nodeport)
     
-    _wallet.SendTooMuch(walletdatadir1,waddress1_2, address1 ,str(am2_back[1] + 0.00000001),"localhost", nodeport)
+    sa = '%0.8f' % (am2_back[1] + 0.00000001)
+    _wallet.SendTooMuch(walletdatadir1,waddress1_2, address1 ,sa,"localhost", nodeport)
     
     _lib.StartTestGroup("Node in config")
     
@@ -166,10 +167,10 @@ def test(testfilter):
     am1 = _wallet.GetBalanceWalletNoNode(walletdatadir1, waddress1_1)
     am2 = _wallet.GetBalanceWalletNoNode(walletdatadir1, waddress1_2)
     
-    _lib.FatalAssert(am1[1] == balances1[waddress1_1][1], "Expected balance is different from group listing for 1_1")
-    _lib.FatalAssert(am2[1] == balances1[waddress1_2][1], "Expected balance is different from group listing for 1_2")
+    _lib.FatalAssert(am1[1] == balances1[waddress1_1][1], "Expected balance is different from group listing for 1_1 "+str(am1)+" "+str(balances1))
+    _lib.FatalAssert(am2[1] == balances1[waddress1_2][1], "Expected balance is different from group listing for 1_2 "+str(am2)+" "+str(balances1))
     
-    tx4 = _wallet.SendNoNode(walletdatadir1,waddress1_2, address1_2 ,str(round(am2[1]/2,8)))
+    tx4 = _wallet.SendNoNode(walletdatadir1,waddress1_2, address1_2 ,'%0.8f'%(am2[1]/2))
     
     _lib.StartTestGroup("Unspent transactions")
     
@@ -179,8 +180,8 @@ def test(testfilter):
     
     for i in unspent:
         txunspent.append(i[2])
-        
-    _lib.FatalAssert(tx2_3 in txunspent, "Unspent TX in not in array of expected")
+    
+    _lib.FatalAssert(tx2_3 in txunspent, "Unspent TX in not in array of expected "+str(txunspent)+" "+str(tx2_3))
     
     unspent2 = _wallet.GetUnspent(walletdatadir2,waddress1_2,"localhost", nodeport)
 

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gelembjuk/oursql/lib/dbproxy"
 	netlib "github.com/gelembjuk/oursql/lib/net"
 	"github.com/gelembjuk/oursql/lib/nodeclient"
 	"github.com/gelembjuk/oursql/lib/utils"
@@ -33,7 +34,7 @@ type NodeServer struct {
 
 	DBProxyAddr string
 	DBAddr      string
-	QueryFlter  *queryFilter
+	QueryFilter *queryFilter
 
 	NodeAuthStr string
 }
@@ -208,14 +209,18 @@ func (s *NodeServer) sendErrorBack(conn net.Conn, err error) {
 func (s *NodeServer) StartServer(serverStartResult chan string) error {
 	s.Logger.Trace.Printf("Prepare server to start %s on a localport %d", s.NodeAddress.NodeAddrToString(), s.NodePort)
 
-	err := s.StartDatabaseProxy()
+	s.BlockBilderChan = make(chan []byte, 100)
+
+	started, err := s.StartDatabaseProxy()
 
 	if err != nil {
 		serverStartResult <- err.Error()
 		return err
 	}
 
-	s.BlockBilderChan = make(chan []byte, 100)
+	if !started {
+		s.Logger.Trace.Printf("DB Proxy was not started, was not requested in config")
+	}
 
 	// We listen on a port on all interfaces
 	ln, err := net.Listen(netlib.Protocol, ":"+strconv.Itoa(s.NodePort))
@@ -339,15 +344,30 @@ func (s *NodeServer) BlockBuilder() {
 }
 
 // MySQL proxy server. It is in the middle between a DB server and DB client an reads requests
-func (s *NodeServer) StartDatabaseProxy() (err error) {
-	s.QueryFlter, err = InitQueryFilter(s.DBProxyAddr, s.DBAddr, s.Node.Clone(), s.Logger, s.BlockBilderChan)
+func (s *NodeServer) StartDatabaseProxy() (started bool, err error) {
+	s.QueryFilter, err = InitQueryFilter(s.DBProxyAddr, s.DBAddr, s.Node.Clone(), s.Logger, s.BlockBilderChan)
+	started = true
+
+	if err != nil {
+		if errc, ok := err.(*dbproxy.DBProxyError); ok {
+			fmt.Println(errc)
+			if errc.IsDBProxyConfigError() {
+				return false, nil
+			}
+		}
+		started = false
+	}
+
 	return
 }
 
 // MySQL proxy server. It is in the middle between a DB server and DB client an reads requests
 func (s *NodeServer) StopDatabaseProxy() (err error) {
+	if s.QueryFilter != nil {
+		return s.QueryFilter.Stop()
+	}
+	return nil
 
-	return s.QueryFlter.Stop()
 }
 
 // Reads and parses request from network data

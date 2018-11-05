@@ -12,6 +12,7 @@ const DBHashNotFoundError = "hashnotfound"
 const DBHashEmptyError = "hashisemptyd"
 const DBHashError = "hashemptyd"
 const DBRowNotFoundError = "rownotfound"
+const DBConfigError = "rownotfound"
 
 type DBError struct {
 	err  string
@@ -67,4 +68,7 @@ func NewHashDBError(err string) error {
 
 func NewRowNotFoundDBError(err string) error {
 	return &DBError{err, DBRowNotFoundError}
+}
+func NewConfigDBError(err string) error {
+	return &DBError{err, DBConfigError}
 }

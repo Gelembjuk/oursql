@@ -28,10 +28,10 @@ func NewMySQLProxy(proxyHost, mysqlHost string) (DBProxyInterface, error) {
 	obj := &mysqlProxy{}
 
 	if proxyHost == "" {
-		return nil, errors.New("DB Proxy listening address is empty. Expected `host:port` or `:port` value")
+		return nil, NewConfigDBProxyError("DB Proxy listening address is empty. Expected `host:port` or `:port` value")
 	}
 	if mysqlHost == "" {
-		return nil, errors.New("MySQL server host/socker info is missed")
+		return nil, NewConfigDBProxyError("MySQL server host/socker info is missed")
 	}
 
 	obj.mysqlHost = mysqlHost

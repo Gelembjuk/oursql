@@ -31,7 +31,6 @@ def test(testfilter):
     _lib.CleanTestFolders()
     
     datadir = _lib.CreateTestFolder('_1_')
-    datadir2 = _lib.CreateTestFolder('_2_')
 
     startnode.StartNodeWithoutBlockchain(datadir)
     
@@ -74,6 +73,7 @@ def test(testfilter):
     time.sleep(1)# while all caches are cleaned
     
     txlist = transactions.GetUnapprovedTransactions(datadir)
+    
     _lib.FatalAssert(len(txlist) == 1,"Should be 1 unapproved transaction")
     
     # update data
@@ -100,6 +100,8 @@ def test(testfilter):
     
     rows = _lib.DBGetRows(datadir,"SELECT * FROM test",True)
     _lib.FatalAssert(len(rows) == 2, "Must be 2 rows in a table")
+    
+    datadir2 = _lib.CreateTestFolder('_2_')
     
     address2 = initblockchain.ImportBockchain(datadir2,"localhost",'30000')
     
