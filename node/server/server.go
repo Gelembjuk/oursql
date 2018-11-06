@@ -209,6 +209,7 @@ func (s *NodeServer) sendErrorBack(conn net.Conn, err error) {
 func (s *NodeServer) StartServer(serverStartResult chan string) error {
 	s.Logger.Trace.Printf("Prepare server to start %s on a localport %d", s.NodeAddress.NodeAddrToString(), s.NodePort)
 
+	// this channel must be inited here. It is used inside StartDatabaseProxy()
 	s.BlockBilderChan = make(chan []byte, 100)
 
 	started, err := s.StartDatabaseProxy()

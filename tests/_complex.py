@@ -135,38 +135,38 @@ def PrepareNodes():
     # 7 TX for 8-th block
     tx = [""] * 15
     tx[0] = _transfers.Send(datadir,address1, nodes[3]['address'] ,as1)
-    print tx[0]
+    #print tx[0]
     tx[1] = _transfers.Send(datadir,address1, nodes[3]['address'] ,as1)
-    print tx[1]
+    #print tx[1]
     tx[2] = _transfers.Send(datadir,address1, nodes[3]['address'] ,as1)
-    print tx[2]
+    #print tx[2]
     tx[3] = _transfers.Send(datadir,address1, nodes[3]['address'] ,as1)
-    print tx[3]
+    #print tx[3]
     tx[4] = _transfers.Send(datadir,address1, nodes[3]['address'] ,as1)
-    print tx[4]
+    #print tx[4]
     tx[5] = _transfers.Send(datadir,address1, nodes[3]['address'] ,as1)
-    print tx[5]
+    #print tx[5]
     tx[6] = _transfers.Send(datadir,address1, nodes[3]['address'] ,as1)
-    print tx[6]
+    #print tx[6]
     
     time.sleep(7)
     # 8 TX for 9-th block
     tx[7] = _transfers.Send(datadir,address1, nodes[4]['address'] ,as1)
-    print tx[7]
+    #print tx[7]
     tx[8] = _transfers.Send(datadir,address1, nodes[4]['address'] ,as1)
-    print tx[8]
+    #print tx[8]
     tx[9] = _transfers.Send(datadir,address1, nodes[4]['address'] ,as1)
-    print tx[9]
+    #print tx[9]
     tx[10] = _transfers.Send(datadir,address1, nodes[4]['address'] ,as1)
-    print tx[10]
+    #print tx[10]
     tx[11] = _transfers.Send(datadir,address1, nodes[4]['address'] ,as1)
-    print tx[11]
+    #print tx[11]
     tx[12] = _transfers.Send(datadir,address1, nodes[4]['address'] ,as1)
-    print tx[12]
+    #print tx[12]
     tx[13] = _transfers.Send(datadir,address1, nodes[4]['address'] ,as1)
-    print tx[13]
+    #print tx[13]
     tx[14] = _transfers.Send(datadir,address1, nodes[4]['address'] ,as1)
-    print tx[14]
+    #print tx[14]
     
     blocks1 = _blocks.WaitBlocks(nodes[4]['datadir'], blockslen + 3)
     time.sleep(3)

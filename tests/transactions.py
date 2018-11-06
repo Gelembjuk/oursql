@@ -48,9 +48,9 @@ def test(testfilter):
     if txid2 not in txlist.keys():
         _lib.Fatal("Transaction 2 is not in the list of transactions")
     
-    _lib.FatalAssertFloat(amount1, txlist[txid1][2], "Amount of transaction 1 is wrong")
+    _lib.FatalAssertFloat(amount1, txlist[txid1][3], "Amount of transaction 1 is wrong")
     
-    _lib.FatalAssertFloat(amount2, txlist[txid2][2], "Amount of transaction 2 is wrong")
+    _lib.FatalAssertFloat(amount2, txlist[txid2][3], "Amount of transaction 2 is wrong")
     
     _lib.StartTestGroup("Cancel transaction")
     
