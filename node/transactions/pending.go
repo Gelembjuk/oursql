@@ -469,6 +469,18 @@ func (u *unApprovedTransactions) DetectConflictsForNew(txcheck *structures.Trans
 				break
 			}
 		}
+		if !conflicts && txcheck.IsSQLCommand() && txexi.IsSQLCommand() && bytes.Compare(txcheck.GetID(), txexi.GetID()) != 0 {
+			// check if there is SQL conflict
+			// SQL conflict can be if same base transaction and same ReferenceID
+			if len(txexi.GetSQLBaseTX()) > 0 && len(txexi.SQLCommand.ReferenceID) > 0 &&
+				bytes.Compare(txexi.GetSQLBaseTX(), txcheck.GetSQLBaseTX()) == 0 &&
+				bytes.Compare(txexi.SQLCommand.ReferenceID, txcheck.SQLCommand.ReferenceID) == 0 {
+
+				u.Logger.Trace.Printf("Same base TX and RefID for %x and %x", txcheck.GetID(), txexi.GetID())
+				conflicts = true
+				txconflicts = txexi
+			}
+		}
 		if conflicts {
 			// return out of loop
 			return database.NewDBCursorStopError()
@@ -640,6 +652,44 @@ func (u *unApprovedTransactions) FindSQLReferenceTransaction(sqlUpdate structure
 
 	if len(txID) == 0 && len(AlttxID) > 0 {
 		txID = AlttxID
+	}
+
+	return
+}
+
+// Find SQL TX based on specifi TX
+func (u *unApprovedTransactions) FindSQLBasedOnTransaction(txid []byte) (txIDs [][]byte, err error) {
+	// it i needed to go over all tranactions in cache and check each of them
+	utdb, err := u.DB.GetUnapprovedTransactionsObject()
+
+	if err != nil {
+		return
+	}
+
+	txIDs = [][]byte{}
+
+	err = utdb.ForEach(func(txid, txBytes []byte) error {
+		tx, err := structures.DeserializeTransaction(txBytes)
+
+		if err != nil {
+			return err
+		}
+
+		if !tx.IsSQLCommand() {
+			return nil
+		}
+
+		if bytes.Compare(tx.GetSQLBaseTX(), txid) == 0 {
+			u.Logger.Trace.Printf("Check RefID %s in TX %x", string(tx.SQLCommand.ReferenceID), tx.GetID())
+
+			txID := utils.CopyBytes(tx.GetID())
+			txIDs = append(txIDs, txID)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return
 	}
 
 	return

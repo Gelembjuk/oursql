@@ -240,8 +240,16 @@ func (n *txManager) VerifyTransaction(tx *structures.Transaction, prevtxs []stru
 			return false, err
 		}
 	}
-	// do final check against inputs
 
+	if tx.IsSQLCommand() {
+		n.Logger.Trace.Printf("Verify SQL state: %s", string(tx.SQLCommand.Query))
+		// check SQL part. Ensure this TX can be executed based on tip
+
+		// if tip is a top, check also pool
+
+	}
+
+	// do final check against inputs
 	err = tx.Verify(inputTXs, n.consensusInfo.CoinsForBlockMade)
 
 	if err != nil {
@@ -350,8 +358,72 @@ func (n *txManager) BlockRemovedFromPrimaryChain(block *structures.Block) error 
 	return nil
 }
 
+// find which transactions in a pool conflict with this list
+// and remove if any conflicts
+func (n *txManager) rollbackConflictingFromPool(txList []structures.Transaction) error {
+	deletedIDs := [][]byte{}
+
+	pendingPoolObj := n.getUnapprovedTransactionsManager()
+
+	for _, tx := range txList {
+		n.Logger.Trace.Printf("Find conflicts in pool for %x", tx.GetID())
+		if tx.IsSQLCommand() {
+			// use loop to find all conflicts for this TX
+			for {
+				conflictTX, err := pendingPoolObj.DetectConflictsForNew(&tx)
+
+				if err != nil {
+					return err
+				}
+
+				if conflictTX == nil {
+					break
+				}
+				n.Logger.Trace.Printf("Conflict found %x", conflictTX.GetID())
+				err = n.CancelTransaction(conflictTX.GetID(), true)
+
+				if err != nil {
+					return err
+				}
+
+				deletedIDs = append(deletedIDs, conflictTX.GetID())
+			}
+		}
+	}
+	// no delete from pool all TX based on removed TXs . this can add more to the list
+	for len(deletedIDs) > 0 {
+		txID := deletedIDs[0]
+		deletedIDs = deletedIDs[1:]
+
+		// find based on this TXs in pool
+		conflicts, err := pendingPoolObj.FindSQLBasedOnTransaction(txID)
+
+		if err != nil {
+			return err
+		}
+
+		for _, txID := range conflicts {
+			n.Logger.Trace.Printf("Conflict found %x", txID)
+			err = n.CancelTransaction(txID, true)
+
+			if err != nil {
+				return err
+			}
+
+			deletedIDs = append(deletedIDs, txID)
+		}
+	}
+	return nil
+}
+
 // check every TX from a block if SQL should be executed when block added to top of chain
 func (n *txManager) transactionsFromAddedBlock(txList []structures.Transaction) error {
+	err := n.rollbackConflictingFromPool(txList)
+
+	if err != nil {
+		return err
+	}
+
 	pendingPoolObj := n.getUnapprovedTransactionsManager()
 
 	for _, tx := range txList {
@@ -368,6 +440,7 @@ func (n *txManager) transactionsFromAddedBlock(txList []structures.Transaction) 
 
 			err := n.getQueryParser().ExecuteQueryFromTX(tx.SQLCommand)
 			if err != nil {
+				n.Logger.Error.Printf("Error when execute SQL on Block Add: %s", err.Error())
 				return err
 			}
 		}

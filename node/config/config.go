@@ -321,7 +321,7 @@ func (c AppInput) CommandNeedsConfig() bool {
 		c.Command == "listaddresses" ||
 		c.Command == "help" ||
 		c.Command == "restoreblockchain" ||
-		c.Command == "importfromandstart" {
+		c.Command == "importandstart" {
 		return false
 	}
 	return true
