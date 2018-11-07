@@ -17,7 +17,7 @@ ENV DBUSER blockchain
 ENV DBPASSWORD blockchain
 
 ADD node /
-ADD docker/conf /conf
+ADD docker/conf/ /conf
 
 ADD docker/run.sh /usr/local/bin/run.sh
 RUN chmod +x /usr/local/bin/run.sh

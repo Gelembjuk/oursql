@@ -425,7 +425,7 @@ func (c AppInput) UpdateConfig() error {
 
 	}
 
-	if c.Args.LogDest != "" {
+	if c.Args.LogDest != "" && !c.Args.LogDestDefault {
 		config.LogsDestination = c.Args.LogDest
 	}
 

@@ -296,8 +296,6 @@ func (c NodeCLI) ExecuteCommand() error {
 func (c NodeCLI) createDaemonManager() (*server.NodeDaemon, error) {
 	nd := server.NodeDaemon{}
 
-	c.CreateNode()
-
 	if !c.Node.BlockchainExist() {
 		return nil, errors.New("Blockchain is not found. Must be created or inited")
 	}
@@ -318,6 +316,12 @@ func (c NodeCLI) createDaemonManager() (*server.NodeDaemon, error) {
 // Execute server management command
 
 func (c NodeCLI) ExecuteManageCommand() error {
+	err := c.CreateNode()
+
+	if err != nil {
+		return err
+	}
+
 	if c.Command == "importandstart" {
 		return c.commandImportStartInteractive()
 
@@ -343,7 +347,6 @@ func (c NodeCLI) ExecuteManageCommand() error {
 		return noddaemon.DaemonizeServer()
 
 	} else if c.Command == "nodestate" {
-		c.CreateNode()
 		return c.commandShowState(noddaemon)
 
 	}
@@ -928,7 +931,6 @@ func (c *NodeCLI) commandSQL() error {
 
 // Prepare wallet, import BC and start interactive. If BC exists we just start a server (do nothign before it)
 func (c *NodeCLI) commandImportStartInteractive() error {
-	c.CreateNode() // init node struct
 
 	if c.Input.Args.LogDestDefault {
 		// we always log to stdout for this command
@@ -978,8 +980,6 @@ func (c *NodeCLI) commandImportStartInteractive() error {
 	return noddaemon.StartServerInteractive()
 }
 func (c *NodeCLI) commandInitIfNeededStartInteractive() error {
-
-	c.CreateNode() // init node struct
 
 	if c.Input.Args.LogDestDefault {
 		// we always log to stdout for this command

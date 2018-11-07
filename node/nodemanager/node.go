@@ -168,7 +168,11 @@ func (n *Node) InitNodes(list []net.NodeAddr, force bool) error {
 
 func (n *Node) BlockchainExist() bool {
 
-	exists, _ := n.DBConn.DB().CheckDBExists()
+	exists, err := n.DBConn.DB().CheckDBExists()
+
+	if err != nil {
+		n.Logger.Error.Printf("Erro when check if BC exists %s", err.Error())
+	}
 
 	// close DB. We do this check almost for any operation
 	// we don't need to keep connection for evey of them

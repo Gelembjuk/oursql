@@ -38,6 +38,8 @@ num = 1
 failed = []
 passed = []
 
+tests.sort()
+
 for testname in tests:
     if test == "all" or test == testname:
         if test == "all":
