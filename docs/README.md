@@ -1,13 +1,13 @@
 # OurSQL usage examples
 
-## Run single server 
+## Use Docker image
 
-### With Docker
+Read [how to use oursql/oursql-server docker image](Docker.md) 
 
-### Installed/Compiled server
+## Use Installed/Compiled server
 
-## Test with multiple nodes
+You can compile OurSQL frou sources and run it. Read [how to compile OurSQL](Tests.md)
 
-### With Docker
+## Usage cases
 
-### Installed/Compiled server
+OurSQL can be used to build decentralized applications, private blockchains. [OurSQL usage examples](AppExamples.md)
