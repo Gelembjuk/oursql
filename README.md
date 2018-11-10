@@ -8,7 +8,7 @@ Project Web site [http://oursql.org](http://oursql.org)
 
 OurSQL allows to create a blockchain database quickly with connecting MySQL servers into a cluster.
 
-OurSQL allows to create new blockchain mapped to a MySQL DB or to join to existent blockchain as a cluster node and get MySQL DB data replicated.
+Use OurSQL to create new blockchain mapped to a MySQL DB or to join to existent blockchain as a cluster node and get MySQL DB data replicated.
 
 ### Cryptocurrency
 
