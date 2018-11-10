@@ -14,7 +14,7 @@ Use OurSQL to create new blockchain mapped to a MySQL DB or to join to existent 
 
 OurSQL supports cryptocurrency too. It is a "side effect" of a blockchain used to replicate data. When blocks are created, some wallet receives coins. It is possible to send conins to any other wallet as it works in bitcoin or similar cryptocurrencies. 
 
-Additionally, it is possible to define "paid" SQL transactions in a consensus rules. To protect some data from unlimited modifications. 
+Additionally, it is possible to define "paid" SQL transactions in a [consensus](docs/Consensus.md) rules. To protect some data from unlimited modifications. 
 
 ## How  It Works
 
@@ -47,11 +47,11 @@ Finally, it is possible to set a cost of SQL query per table and type. For examp
 
 ### Future support of consensus 
 
-Soon we add extended support of a consensus.
+Soon we add extended support of a consensus management.
 
-We are going to add support of a consensus plug-in. It will be a module for OurSQL (.so or .dll) to control updates. 
+We are going to add support of a consensus plug-in. It will be a module for OurSQL (.so or .dll) to control updates.
 
-The consensus module will be able to do some work for every proposed update. Each SQL transaction goes together with q wallet address. The module will be able to check if this address can do this SQL command now. It can do extra requests to other DB table to do some checks etc.
+The consensus module will be able to do some work for every proposed update. Each SQL transaction goes together with a wallet address. The module will be able to check if an address can do this SQL command now. It can do extra requests to other DB table to do some checks, etc.
 
 For example, all users of an app can vote for some user to be a moderator. If a user was elected he is able to update some table. All other are not able. Consensus module can controll such things.
 

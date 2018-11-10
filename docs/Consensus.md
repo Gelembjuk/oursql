@@ -8,6 +8,17 @@ Also, in this file it is possible to describe which SQL operation are allowed in
 
 Finally, it is possible to set a cost of SL query per table and type. For example, 0.5 (of a coin) per insert in a table "members". This allows to control updates.
 
+## Future support of consensus
+Soon we add extended support of a consensus management.
+
+We are going to add support of a consensus plug-in. It will be a module for OurSQL (.so or .dll) to control updates.
+
+The consensus module will be able to do some work for every proposed update. Each SQL transaction goes together with a wallet address. The module will be able to check if an address can do this SQL command now. It can do extra requests to other DB table to do some checks, etc.
+
+For example, all users of an app can vote for some user to be a moderator. If a user was elected he is able to update some table. All other are not able. Consensus module can controll such things.
+
+Consensus module will filter all SQL commands received from an app via the proxy and also received from other nodes.
+
 ## Conseusus config file for Proof Of Work
 
 The config is a JSON file.
