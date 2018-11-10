@@ -18,22 +18,35 @@ const (
 	KindConseususPoW = "proofofwork"
 )
 
+type ConsensusConfigCost struct {
+	Default     float64
+	RowDelete   float64
+	RowUpdate   float64
+	RowInsert   float64
+	TableCreate float64
+}
 type ConsensusConfigTable struct {
 	Table            string
 	AllowRowDelete   bool
 	AllowRowUpdate   bool
 	AllowRowInsert   bool
 	AllowTableCreate bool
+	TransactionCost  ConsensusConfigCost
 }
-
+type ConsensusConfigApplication struct {
+	Name    string
+	WebSite string
+	Team    string
+}
 type ConsensusConfig struct {
-	ApplicationName   string
+	Application       ConsensusConfigApplication
 	Kind              string
 	CoinsForBlockMade float64
 	Settings          map[string]interface{}
 	AllowTableCreate  bool
 	AllowTableDrop    bool
 	AllowRowDelete    bool
+	TransactionCost   ConsensusConfigCost
 	UnmanagedTables   []string
 	TableRules        []ConsensusConfigTable
 	InitNodesAddreses []string

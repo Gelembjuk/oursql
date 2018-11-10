@@ -43,7 +43,7 @@ This file is distributed as part of a package instalation package.
 
 Also, in this file it is possible to describe which SQL operation are allowed in this decetralized DB: insert, update, delete , table create. Additionally, it is possible to set rules per table.
 
-Finally, it is possible to set a cost of SL query per table and type. For example, 0.5 (of a coin) per insert in a table "members". This allows to control updates.
+Finally, it is possible to set a cost of SQL query per table and type. For example, 0.5 (of a coin) per insert in a table "members". This allows to control updates.
 
 ### Future support of consensus 
 
@@ -123,6 +123,24 @@ Find usage [examples](docs/Tests.md) to do some tests.
 ### Install
 
 We don't have intallation packages yet. We plan to make it soon. 
+
+### Starting new blockchain DB and consensus management
+
+Blockchain application lifecycle is like:
+
+1. Set up developement environment for your app
+    1. Install OurSQL and MySQL
+    1. Choose a technology to build your app. It can be anything that can work with MySQL to store data: desktop app or local web server and web app.
+1. Prepare a [consensus](docs/Consensus.md) rules
+1. Init your blockchain DB. See [examples](docx/Tests.md). When initing, point to your consensus file with the argument -consensusfile PATH_TO_CONSENSUS_CONFIG
+1. Build installation package for your application users to install their nodes. The package should inslude:
+    1. MySQL server (but you can require it to be installed separately)
+    1. OurSQL server
+    1. Your application code
+    1. Consensus config file
+1. *NOTE*. Onse you released your application, you lose control over it! As this is decentralized app. 
+    1. If you want to change somethign in the consensus rules, you must rebuild your application installation package and ask users to update. But they must not! Then can say "current consensus is fine".
+    1. Someone else can start building your app node code and release it. Blockchain forks are always possible
 
 ## Author
 

@@ -11,3 +11,7 @@ You can compile OurSQL frou sources and run it. Read [how to compile OurSQL](Tes
 ## Usage cases
 
 OurSQL can be used to build decentralized applications, private blockchains. [OurSQL usage examples](AppExamples.md)
+
+## Consensus rules management
+
+[Consensus](Consensus.md)
