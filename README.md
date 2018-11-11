@@ -142,6 +142,17 @@ Blockchain application lifecycle is like:
     1. If you want to change somethign in the consensus rules, you must rebuild your application installation package and ask users to update. But they must not! Then can say "current consensus is fine".
     1. Someone else can start building your app node code and release it. Blockchain forks are always possible
 
+## Two types of a transactions signing
+
+Each SQL update is a blockchain transaction and it must be signed. There are 2 supported ways to sign a transaction.
+
+1. Signing by a node. If a node config has the option "ProxyKey" set (or sommand line argument -dbproxyaddr), than a node will sign itself all transactions coming from through DB proxy (SQL updates from a client).
+1. Signing by a MySQL client. It can be used in case if your node is just a DB proxy and many clients connect to it (meeaning different users with different keys). In this case, SQL updates from a mysql client will require 2 steps to execute.
+    * First step - send SQL query and add your public key inside a comment of special format. DB proxy returns a record which contains a data to sign (string to sign)
+    * Second step - sign a string with a private key corresponding to public key posted on the first step and do new SQL request where a signature is included as part of a comment of special format.
+
+Read more about [signing of transactions](docs/Signing.md).
+
 ## Author
 
 Roman Gelembjuk , roman@gelembjuk.com 
