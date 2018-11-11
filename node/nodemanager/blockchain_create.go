@@ -91,6 +91,12 @@ func (n *makeBlockchain) InitBlockchainFromOther(addr net.NodeAddr, nodeclient *
 	}
 	n.Logger.Trace.Printf("Try to init blockchain from %s:%d", addr.Host, addr.Port)
 
+	err = n.importBlockchainConsensusInfo(addr, nodeclient)
+
+	if err != nil {
+		return false, err
+	}
+
 	result, err := nodeclient.SendGetFirstBlocks(addr)
 
 	if err != nil {
@@ -151,6 +157,18 @@ func (n *makeBlockchain) InitBlockchainFromOther(addr net.NodeAddr, nodeclient *
 	}
 
 	return MH == result.Height, nil
+}
+
+// Import blockchain consensus info. Config file, plugin etc
+func (n *makeBlockchain) importBlockchainConsensusInfo(fromnode net.NodeAddr, nodeclient *nodeclient.NodeClient) error {
+	// load consensus info
+	result, err := nodeclient.SendGetConsensusData(fromnode)
+
+	if err != nil {
+		return err
+	}
+
+	return n.consensusConfig.UpdateConfig(result.ConfigFile)
 }
 
 // BUilds a genesis block. It is used only to start new blockchain

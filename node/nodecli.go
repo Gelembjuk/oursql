@@ -64,14 +64,15 @@ var commandNodeManageMode = []string{
 	"nodestate"}
 
 type NodeCLI struct {
-	Input               config.AppInput
-	Logger              *utils.LoggerMan
-	ConfigDir           string
-	ConseususConfigFile string
-	Command             string
-	AlreadyRunningPort  int
-	NodeAuthStr         string
-	Node                *nodemanager.Node
+	Input                      config.AppInput
+	Logger                     *utils.LoggerMan
+	ConfigDir                  string
+	ConseususConfigFile        string
+	ConseususConfigFilePresent bool
+	Command                    string
+	AlreadyRunningPort         int
+	NodeAuthStr                string
+	Node                       *nodemanager.Node
 }
 
 /*
@@ -94,6 +95,7 @@ func getNodeCLI(input config.AppInput) NodeCLI {
 	}
 
 	cli.ConseususConfigFile = input.ConseususConfigFile
+	cli.ConseususConfigFilePresent = input.ConseususConfigFilePresent
 
 	cli.Node = nil
 	// check if Daemon is already running
@@ -136,11 +138,12 @@ func (c *NodeCLI) CreateNode() error {
 
 	var err error
 	// load consensus config
-	if c.ConseususConfigFile != "" {
+	if c.ConseususConfigFilePresent {
 		node.ConsensusConfig, err = consensus.NewConfigFromFile(c.ConseususConfigFile)
 	} else {
 		node.ConsensusConfig, err = consensus.NewConfigDefault()
 	}
+	node.ConsensusConfig.SetConfigFilePath(c.Input.ConseususConfigFile)
 
 	if err != nil {
 		c.Logger.Error.Printf("Error when init consensus config %s", err.Error())
@@ -161,7 +164,7 @@ func (c *NodeCLI) CreateNode() error {
 
 func (c *NodeCLI) getApplicationName() string {
 	c.CreateNode()
-	return c.Node.ConsensusConfig.ApplicationName
+	return c.Node.ConsensusConfig.Application.Name
 }
 
 // Check if there is internal keys pair to sign DB proxy transactions. Attach if it is set

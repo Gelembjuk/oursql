@@ -49,19 +49,20 @@ type AllPossibleArgs struct {
 
 // Input summary
 type AppInput struct {
-	Command             string
-	MinterAddress       string
-	ProxyKey            string
-	Logs                string
-	Port                int
-	LocalPort           int
-	Host                string
-	ConfigDir           string
-	Nodes               []net.NodeAddr
-	Args                AllPossibleArgs
-	Database            database.DatabaseConfig
-	DBProxyAddress      string
-	ConseususConfigFile string
+	Command                    string
+	MinterAddress              string
+	ProxyKey                   string
+	Logs                       string
+	Port                       int
+	LocalPort                  int
+	Host                       string
+	ConfigDir                  string
+	Nodes                      []net.NodeAddr
+	Args                       AllPossibleArgs
+	Database                   database.DatabaseConfig
+	DBProxyAddress             string
+	ConseususConfigFile        string
+	ConseususConfigFilePresent bool
 }
 
 type AppConfig struct {
@@ -266,12 +267,13 @@ func parseConfig(dirpath string) (AppInput, error) {
 			return input, err
 		}
 	}
+	input.ConseususConfigFile = ccpath
 
 	if _, err := os.Stat(ccpath); os.IsNotExist(err) {
-		input.ConseususConfigFile = ""
+		input.ConseususConfigFilePresent = false
 
 	} else {
-		input.ConseususConfigFile = ccpath
+		input.ConseususConfigFilePresent = true
 	}
 
 	return input, nil

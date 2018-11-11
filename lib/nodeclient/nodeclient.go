@@ -19,6 +19,12 @@ import (
 	"github.com/gelembjuk/oursql/lib/utils"
 )
 
+const (
+	CommandGetConsensusData = "getcnsdata"
+	CommandGetFirstBlocks   = "getfblocks"
+	CommandGetBalance       = "getbalance"
+)
+
 type NodeClient struct {
 	DataDir     string
 	NodeAddress netlib.NodeAddr
@@ -44,6 +50,12 @@ type ComGetFirstBlocksData struct {
 	Blocks [][]byte // lowest block first
 	// it is serialised BlockShort structure
 	Height int
+}
+
+// Response of GetConsensusData request
+type ComGetConsensusData struct {
+	ConfigFile []byte
+	Module     []byte // this can be long string
 }
 
 type ComGetData struct {
@@ -269,12 +281,30 @@ func (c *NodeClient) SendGetBlocksUpper(address netlib.NodeAddr, startfrom []byt
 // This is used by new nodes
 // TODO we can use SendGetBlocksUpper and empty hash. This will e same
 func (c *NodeClient) SendGetFirstBlocks(address netlib.NodeAddr) (*ComGetFirstBlocksData, error) {
-	request, err := c.BuildCommandData("getfblocks", nil)
+	request, err := c.BuildCommandData(CommandGetFirstBlocks, nil)
 
 	if err != nil {
 		return nil, err
 	}
 	datapayload := ComGetFirstBlocksData{}
+
+	err = c.SendDataWaitResponse(address, request, &datapayload)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &datapayload, nil
+}
+
+// Request for consensus information from a node
+func (c *NodeClient) SendGetConsensusData(address netlib.NodeAddr) (*ComGetConsensusData, error) {
+	request, err := c.BuildCommandData(CommandGetConsensusData, nil)
+
+	if err != nil {
+		return nil, err
+	}
+	datapayload := ComGetConsensusData{}
 
 	err = c.SendDataWaitResponse(address, request, &datapayload)
 
@@ -447,7 +477,7 @@ func (c *NodeClient) SendGetUnspent(addr netlib.NodeAddr, address string, chaint
 func (c *NodeClient) SendGetBalance(addr netlib.NodeAddr, address string) (ComWalletBalance, error) {
 	data := ComGetWalletBalance{address}
 
-	request, err := c.BuildCommandData("getbalance", &data)
+	request, err := c.BuildCommandData(CommandGetBalance, &data)
 
 	datapayload := ComWalletBalance{}
 

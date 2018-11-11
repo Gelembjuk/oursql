@@ -115,11 +115,14 @@ func (s *NodeServer) handleConnection(conn net.Conn) {
 	case "gethistory":
 		rerr = requestobj.handleGetHistory()
 
-	case "getbalance":
+	case nodeclient.CommandGetBalance:
 		rerr = requestobj.handleGetBalance()
 
-	case "getfblocks":
+	case nodeclient.CommandGetFirstBlocks:
 		rerr = requestobj.handleGetFirstBlocks()
+
+	case nodeclient.CommandGetConsensusData:
+		rerr = requestobj.handleGetConsensusData()
 
 	case "tx":
 		rerr = requestobj.handleTx()

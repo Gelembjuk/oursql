@@ -38,6 +38,10 @@ type ConsensusConfigApplication struct {
 	WebSite string
 	Team    string
 }
+type consensusConfigState struct {
+	isDefault bool
+	filePath  string
+}
 type ConsensusConfig struct {
 	Application       ConsensusConfigApplication
 	Kind              string
@@ -50,6 +54,7 @@ type ConsensusConfig struct {
 	UnmanagedTables   []string
 	TableRules        []ConsensusConfigTable
 	InitNodesAddreses []string
+	state             consensusConfigState
 }
 
 // Load config from config file. Some config options an be missed
@@ -90,6 +95,9 @@ func NewConfigFromFile(filepath string) (*ConsensusConfig, error) {
 		config.Settings = structs.Map(s)
 	}
 
+	config.state.isDefault = false
+	config.state.filePath = filepath
+
 	return &config, nil
 }
 
@@ -109,6 +117,10 @@ func NewConfigDefault() (*ConsensusConfig, error) {
 	s.completeSettings()
 
 	c.Settings = structs.Map(s)
+
+	c.state.isDefault = true
+	c.state.filePath = ""
+
 	return &c, nil
 }
 
@@ -116,7 +128,21 @@ func (cc ConsensusConfig) GetInfoForTransactions() structures.ConsensusInfo {
 	return structures.ConsensusInfo{cc.CoinsForBlockMade}
 }
 
+// Exports config to file
 func (cc ConsensusConfig) ExportToFile(filepath string, defaultaddresses string, appname string, thisnodeaddr string) error {
+	jsondata, err := cc.Export(defaultaddresses, appname, thisnodeaddr)
+
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(filepath, jsondata, 0644)
+
+	return err
+}
+
+// Exports config to JSON string
+func (cc ConsensusConfig) Export(defaultaddresses string, appname string, thisnodeaddr string) (jsondata []byte, err error) {
 	addresses := []string{}
 
 	if defaultaddresses != "" {
@@ -146,26 +172,25 @@ func (cc ConsensusConfig) ExportToFile(filepath string, defaultaddresses string,
 	}
 
 	if len(cc.InitNodesAddreses) == 0 {
-		return errors.New("List of default addresses is empty")
+		err = errors.New("List of default addresses is empty")
+		return
 	}
 
 	if appname != "" {
-		cc.ApplicationName = appname
+		cc.Application.Name = appname
 	}
 
-	if cc.ApplicationName == "" {
-		return errors.New("Application name is empty. It is required")
+	if cc.Application.Name == "" {
+		err = errors.New("Application name is empty. It is required")
+		return
 	}
 
-	jsondata, err := json.Marshal(cc)
+	jsondata, err = json.Marshal(cc)
 
-	if err != nil {
-		return err
-	}
-	err = ioutil.WriteFile(filepath, jsondata, 0644)
-
-	return err
+	return
 }
+
+// Returns one of addresses listed in initial addresses
 func (cc ConsensusConfig) GetRandomInitialAddress() *net.NodeAddr {
 	if len(cc.InitNodesAddreses) == 0 {
 		return nil
@@ -177,4 +202,26 @@ func (cc ConsensusConfig) GetRandomInitialAddress() *net.NodeAddr {
 	na.LoadFromString(addr)
 
 	return &na
+}
+
+// Checks if a config structure was loaded from file or not
+func (cc ConsensusConfig) IsDefault() bool {
+
+	return cc.state.isDefault
+}
+
+// Set config file path. this defines a path where a config file should be, even if it is not yet here
+func (cc *ConsensusConfig) SetConfigFilePath(fp string) {
+	cc.state.filePath = fp
+}
+
+// Replace consensus config file . It checks if a config is correct, if can be parsed
+
+func (cc ConsensusConfig) UpdateConfig(jsondoc []byte) error {
+
+	if cc.state.filePath == "" {
+		return errors.New("COnfig file path missed. Can not save")
+	}
+
+	return ioutil.WriteFile(cc.state.filePath, jsondoc, 0644)
 }

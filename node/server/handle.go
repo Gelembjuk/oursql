@@ -326,6 +326,27 @@ func (s *NodeServerRequest) handleGetFirstBlocks() error {
 	return nil
 }
 
+// Handle request from a new node to get consensus information
+// Returns consensus config if any and consensus module ( TODO )
+func (s *NodeServerRequest) handleGetConsensusData() error {
+	s.HasResponse = true
+
+	result := nodeclient.ComGetConsensusData{}
+
+	var err error
+
+	result.ConfigFile, err = s.Node.ConsensusConfig.Export("own", "", s.S.NodeAddress.NodeAddrToString())
+
+	s.Response, err = net.GobEncode(result)
+
+	if err != nil {
+		return err
+	}
+
+	s.Logger.Trace.Printf("Return consensus rules info on request")
+	return nil
+}
+
 // Received the lst of nodes from some other node. add missed nodes to own nodes list
 
 func (s *NodeServerRequest) handleAddr() error {
