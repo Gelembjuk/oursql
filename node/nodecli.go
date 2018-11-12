@@ -143,12 +143,13 @@ func (c *NodeCLI) CreateNode() error {
 	} else {
 		node.ConsensusConfig, err = consensus.NewConfigDefault()
 	}
-	node.ConsensusConfig.SetConfigFilePath(c.Input.ConseususConfigFile)
 
 	if err != nil {
 		c.Logger.Error.Printf("Error when init consensus config %s", err.Error())
 		return err
 	}
+
+	node.ConsensusConfig.SetConfigFilePath(c.Input.ConseususConfigFile)
 
 	node.Init()
 	node.InitNodes(c.Input.Nodes, false)

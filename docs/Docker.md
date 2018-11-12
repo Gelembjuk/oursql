@@ -113,3 +113,14 @@ mysql -h 127.0.0.1 -P 9004 -u blockchain -pblockchain BC
 ```
 
 Execute SQL commands on two DB proxy servers and see how data are replicated!
+
+### Start a blockchain with custom consensus config
+
+Use the option -consensusfile PATH_TO_CONFIG to get a cutom consensus rules, for exmaple, more complex mining or different amount of coins for a minter per a block. See more about [consensus config](Consensus.md)
+
+```
+docker run --name oursql1 -p 9001:8765 -p 9002:8766 -v $(pwd)/path/to/consconf.json:/cons.json -d -it oursql/oursql-server interactiveautocreate -port 9001 -consensusfile /cons.json
+```
+
+$(pwd)/path/to/consconf.json is the path to a config file on a host file system. Must be an absolute path.
+

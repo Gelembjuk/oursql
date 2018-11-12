@@ -165,9 +165,10 @@ func (n *makeBlockchain) importBlockchainConsensusInfo(fromnode net.NodeAddr, no
 	result, err := nodeclient.SendGetConsensusData(fromnode)
 
 	if err != nil {
+		n.Logger.Error.Printf("Failed to import consensus data %s", err.Error())
 		return err
 	}
-
+	n.Logger.Error.Printf("Loaded consensus file with len %d and contents %s", len(result.ConfigFile), string(result.ConfigFile))
 	return n.consensusConfig.UpdateConfig(result.ConfigFile)
 }
 

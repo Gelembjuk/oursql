@@ -335,7 +335,17 @@ func (s *NodeServerRequest) handleGetConsensusData() error {
 
 	var err error
 
-	result.ConfigFile, err = s.Node.ConsensusConfig.Export("own", "", s.S.NodeAddress.NodeAddrToString())
+	appname := s.Node.ConsensusConfig.Application.Name
+
+	if appname == "" {
+		appname = "UnnamedApp"
+	}
+
+	result.ConfigFile, err = s.Node.ConsensusConfig.Export("own", appname, s.S.NodeAddress.NodeAddrToString())
+
+	if err != nil {
+		return err
+	}
 
 	s.Response, err = net.GobEncode(result)
 

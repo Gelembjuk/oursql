@@ -60,43 +60,13 @@ type ConsensusConfig struct {
 // Load config from config file. Some config options an be missed
 // missed options must be replaced with default values correctly
 func NewConfigFromFile(filepath string) (*ConsensusConfig, error) {
-	// we open a file only if it exists. in other case options can be set with command line
-
-	jsonStr, err := ioutil.ReadFile(filepath)
-
-	if err != nil {
-		// error is bad only if file exists but we can not open to read
-		return nil, err
-	}
-
 	config := ConsensusConfig{}
 
-	err = json.Unmarshal(jsonStr, &config)
+	err := config.loadFromFile(filepath)
 
 	if err != nil {
 		return nil, err
 	}
-
-	if config.CoinsForBlockMade == 0 {
-		config.CoinsForBlockMade = 10
-	}
-
-	if config.Kind == "" {
-		config.Kind = KindConseususPoW
-	}
-	if config.Kind == KindConseususPoW {
-		// check all PoW settings are done
-		s := ProofOfWorkSettings{}
-
-		mapstructure.Decode(config.Settings, &s)
-
-		s.completeSettings()
-
-		config.Settings = structs.Map(s)
-	}
-
-	config.state.isDefault = false
-	config.state.filePath = filepath
 
 	return &config, nil
 }
@@ -124,6 +94,57 @@ func NewConfigDefault() (*ConsensusConfig, error) {
 	return &c, nil
 }
 
+func (c *ConsensusConfig) loadFromFile(filepath string) error {
+
+	jsonStr, err := ioutil.ReadFile(filepath)
+
+	if err != nil {
+		// error is bad only if file exists but we can not open to read
+		return err
+	}
+
+	err = c.load(jsonStr)
+
+	if err != nil {
+		return err
+	}
+	c.state.isDefault = false
+	c.state.filePath = filepath
+
+	return nil
+}
+
+func (c *ConsensusConfig) load(jsonStr []byte) error {
+
+	err := json.Unmarshal(jsonStr, c)
+
+	if err != nil {
+
+		return err
+	}
+
+	if c.CoinsForBlockMade == 0 {
+		c.CoinsForBlockMade = 10
+	}
+
+	if c.Kind == "" {
+		c.Kind = KindConseususPoW
+	}
+	if c.Kind == KindConseususPoW {
+		// check all PoW settings are done
+		s := ProofOfWorkSettings{}
+
+		mapstructure.Decode(c.Settings, &s)
+
+		s.completeSettings()
+
+		c.Settings = structs.Map(s)
+	}
+
+	return nil
+}
+
+// Return info about transaction settings
 func (cc ConsensusConfig) GetInfoForTransactions() structures.ConsensusInfo {
 	return structures.ConsensusInfo{cc.CoinsForBlockMade}
 }
@@ -217,11 +238,26 @@ func (cc *ConsensusConfig) SetConfigFilePath(fp string) {
 
 // Replace consensus config file . It checks if a config is correct, if can be parsed
 
-func (cc ConsensusConfig) UpdateConfig(jsondoc []byte) error {
+func (cc *ConsensusConfig) UpdateConfig(jsondoc []byte) error {
 
 	if cc.state.filePath == "" {
 		return errors.New("COnfig file path missed. Can not save")
 	}
 
-	return ioutil.WriteFile(cc.state.filePath, jsondoc, 0644)
+	c := ConsensusConfig{}
+
+	err := c.load(jsondoc)
+
+	if err != nil {
+		return err
+	}
+
+	err = ioutil.WriteFile(cc.state.filePath, jsondoc, 0644)
+
+	if err != nil {
+		return err
+	}
+
+	// load this just saved contents file
+	return cc.loadFromFile(cc.state.filePath)
 }
