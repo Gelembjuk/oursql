@@ -12,7 +12,7 @@ Use OurSQL to create new blockchain mapped to a MySQL DB or to join to existent 
 
 ### Cryptocurrency
 
-OurSQL supports cryptocurrency too. It is a "side effect" of a blockchain used to replicate data. When blocks are created, some wallet receives coins. It is possible to send conins to any other wallet as it works in bitcoin or similar cryptocurrencies. 
+OurSQL supports cryptocurrency too. It is a "side effect" of a blockchain used to replicate data. When blocks are created, some wallet receives coins. It is possible to send coins to any other wallet as it works in bitcoin or similar cryptocurrencies. 
 
 Additionally, it is possible to define "paid" SQL transactions in a [consensus](docs/Consensus.md) rules. To protect some data from unlimited modifications. 
 
