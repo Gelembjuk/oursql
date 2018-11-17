@@ -11,7 +11,7 @@ go get github.com/gelembjuk/oursql
 Install dependencies
 
 ```
-github.com/go-sql-driver/mysql
+go get github.com/go-sql-driver/mysql
 go get github.com/JamesStewy/go-mysqldump
 go get github.com/btcsuite/btcutil
 go get github.com/fatih/structs
