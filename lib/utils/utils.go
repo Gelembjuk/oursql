@@ -171,7 +171,10 @@ func ReverseBytes(data []byte) {
 
 // Converts address string to hash of pubkey
 func AddresToPubKeyHash(address string) ([]byte, error) {
-	pubKeyHash := Base58Decode([]byte(address))
+	return AddresBToPubKeyHash([]byte(address))
+}
+func AddresBToPubKeyHash(address []byte) ([]byte, error) {
+	pubKeyHash := Base58Decode(address)
 
 	if len(pubKeyHash) < 10 {
 		return nil, errors.New("Wrong address")
