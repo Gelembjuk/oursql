@@ -112,7 +112,7 @@ go build
 
 It is ready. Now you can run the OurSQL server. You must have MySQL server running.
 
-You can exacute now 
+Now you can execute 
 
 ```
 ./node
