@@ -34,8 +34,13 @@ type TXOutputIndependentList []TXOutputIndependent
 
 // Lock signs the output
 func (out *TXCurrrencyOutput) Lock(address []byte) {
-	pubKeyHash := utils.Base58Decode(address)
-	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
+	pubKeyHash, err := utils.AddresBToPubKeyHash(address)
+
+	if err != nil {
+		// send to noone !
+		// TODO some better behavior needed here
+		out.PubKeyHash = []byte{}
+	}
 	out.PubKeyHash = pubKeyHash
 }
 

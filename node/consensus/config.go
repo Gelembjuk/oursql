@@ -43,18 +43,19 @@ type consensusConfigState struct {
 	filePath  string
 }
 type ConsensusConfig struct {
-	Application       ConsensusConfigApplication
-	Kind              string
-	CoinsForBlockMade float64
-	Settings          map[string]interface{}
-	AllowTableCreate  bool
-	AllowTableDrop    bool
-	AllowRowDelete    bool
-	TransactionCost   ConsensusConfigCost
-	UnmanagedTables   []string
-	TableRules        []ConsensusConfigTable
-	InitNodesAddreses []string
-	state             consensusConfigState
+	Application            ConsensusConfigApplication
+	Kind                   string
+	CoinsForBlockMade      float64
+	Settings               map[string]interface{}
+	AllowTableCreate       bool
+	AllowTableDrop         bool
+	AllowRowDelete         bool
+	TransactionCost        ConsensusConfigCost
+	UnmanagedTables        []string
+	TableRules             []ConsensusConfigTable
+	InitNodesAddreses      []string
+	PaidTransactionsWallet string
+	state                  consensusConfigState
 }
 
 // Load config from config file. Some config options an be missed
@@ -260,4 +261,13 @@ func (cc *ConsensusConfig) UpdateConfig(jsondoc []byte) error {
 
 	// load this just saved contents file
 	return cc.loadFromFile(cc.state.filePath)
+}
+
+// Returns wallet where to send money spent on paid transactions
+func (cc ConsensusConfig) GetPaidTransactionsWallet() string {
+	if cc.PaidTransactionsWallet != "" {
+		return cc.PaidTransactionsWallet
+	}
+
+	return ""
 }

@@ -297,6 +297,8 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 	if err != nil {
 		return
 	}
+
+	q.Logger.Trace.Printf("Transaction cost %f", amount)
 	// prepare SQL part of a TX
 	// this builds RefID for a TX update
 	sqlUpdate, err := qp.MakeSQLUpdateStructure(qparsed)
@@ -307,7 +309,8 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 
 	// prepare curency TX and add SQL part
 
-	result.txdata, result.stringtosign, err = q.getTransactionsManager().PrepareNewSQLTransaction(pubKey, sqlUpdate, amount, "MINTER")
+	result.txdata, result.stringtosign, err = q.getTransactionsManager().
+		PrepareNewSQLTransaction(pubKey, sqlUpdate, amount, q.config.GetPaidTransactionsWallet())
 
 	if err != nil {
 		return
@@ -409,20 +412,10 @@ func (q queryManager) checkExecutePermissions(qp dbquery.QueryParsed, pubKey []b
 // check custom rule for the table about permissions
 func (q queryManager) checkExecutePermissionsAsTable(qp dbquery.QueryParsed, pubKey []byte) (hasCustom bool, allow bool, err error) {
 	hasCustom = false
-	// check sonsensus rules
-	if !qp.IsUpdate() {
-		return
-	}
 
-	if q.config.TableRules == nil {
-		// no any rules
-		return
-	}
+	t := q.getTableCustomConfig(qp)
 
-	for _, t := range q.config.TableRules {
-		if t.Table != qp.Structure.GetTable() {
-			continue
-		}
+	if t != nil {
 		if !t.AllowRowDelete && qp.Structure.GetKind() == lib.QueryKindDelete {
 			hasCustom = true
 			allow = false
@@ -455,8 +448,66 @@ func (q queryManager) checkExecutePermissionsAsTable(qp dbquery.QueryParsed, pub
 	return
 }
 
+// check custom rule for the table about permissions
+func (q queryManager) getTableCustomConfig(qp dbquery.QueryParsed) *ConsensusConfigTable {
+
+	if !qp.IsUpdate() {
+		return nil
+	}
+
+	if q.config.TableRules == nil {
+		// no any rules
+		return nil
+	}
+
+	for _, t := range q.config.TableRules {
+		if t.Table != qp.Structure.GetTable() {
+			continue
+		}
+		return &t
+	}
+
+	return nil
+}
+
 // check if this query requires payment for execution. return number
 func (q queryManager) checkQueryNeedsPayment(qp dbquery.QueryParsed) (float64, error) {
+
+	// check there is custom rule for this table
+	t := q.getTableCustomConfig(qp)
+
+	var trcost *ConsensusConfigCost
+
+	if t != nil {
+		trcost = &t.TransactionCost
+	} else {
+		trcost = &q.config.TransactionCost
+	}
+
+	// check if current operation has a price
+	if qp.Structure.GetKind() == lib.QueryKindDelete && trcost.RowDelete > 0 {
+
+		return trcost.RowDelete, nil
+	}
+
+	if qp.Structure.GetKind() == lib.QueryKindInsert && trcost.RowInsert > 0 {
+
+		return trcost.RowInsert, nil
+	}
+
+	if qp.Structure.GetKind() == lib.QueryKindUpdate && trcost.RowUpdate > 0 {
+		return trcost.RowUpdate, nil
+	}
+
+	if qp.Structure.GetKind() == lib.QueryKindCreate && trcost.TableCreate > 0 {
+
+		return trcost.TableCreate, nil
+	}
+
+	if trcost.Default > 0 {
+		return trcost.Default, nil
+	}
+
 	return 0, nil
 }
 
