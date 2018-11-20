@@ -126,7 +126,7 @@ func (n *txManager) GetUnapprovedTransactionsForNewBlock(number int) ([]structur
 		// we need to verify each transaction
 		// we will do full deep check of transaction
 		// also, a transaction can have input from other transaction from thi block
-		vtx, err := n.VerifyTransaction(tx, txs, []byte{})
+		vtx, err := n.VerifyTransaction(tx, txs, []byte{}, lib.TXFlagsNothing)
 
 		if err != nil {
 			// this can be case when a transaction is based on other unapproved transaction
@@ -220,46 +220,6 @@ func (n *txManager) CancelTransaction(txid []byte, sqlrollbacktoexecute bool) er
 	return nil
 }
 
-// Verify if currency transaction is correct.
-// If it is build on correct outputs.This does checks agains blockchain. Needs more time
-// NOTE Transaction can have outputs of other transactions that are not yet approved.
-// This must be considered as correct case
-func (n *txManager) VerifyTransaction(tx *structures.Transaction, prevtxs []structures.Transaction, tip []byte) (bool, error) {
-	inputTXs, notFoundInputs, err := n.getCurrencyInputTransactionsState(tx, tip)
-	if err != nil {
-		n.Logger.Trace.Printf("VT error 4: %s", err.Error())
-		return false, err
-	}
-
-	if len(notFoundInputs) > 0 {
-		// some of inputs can be from other transactions in this pool
-		inputTXs, err = n.getUnapprovedTransactionsManager().CheckCurrencyInputsWereBefore(notFoundInputs, prevtxs, inputTXs)
-
-		if err != nil {
-			n.Logger.Trace.Printf("VT error when verify %x: %s", tx.GetID(), err.Error())
-			return false, err
-		}
-	}
-
-	if tx.IsSQLCommand() {
-		n.Logger.Trace.Printf("Verify SQL state: %s", string(tx.SQLCommand.Query))
-		// check SQL part. Ensure this TX can be executed based on tip
-
-		// if tip is a top, check also pool
-
-	}
-
-	// do final check against inputs
-	err = tx.Verify(inputTXs, n.consensusInfo.CoinsForBlockMade)
-
-	if err != nil {
-		n.Logger.Trace.Printf("VT error 6: %s", err.Error())
-		return false, err
-	}
-
-	return true, nil
-}
-
 // Iterate over unapproved transactions, for example to display them . Accepts callback as argument
 func (n *txManager) ForEachUnapprovedTransaction(callback UnApprovedTransactionCallbackInterface) (int, error) {
 	return n.getUnapprovedTransactionsManager().forEachUnapprovedTransaction(callback)
@@ -282,6 +242,7 @@ func (n *txManager) BlockAdded(block *structures.Block, ontopofchain bool) error
 	n.getIndexManager().BlockAdded(block)
 
 	if ontopofchain {
+		n.Logger.Trace.Printf("TX Man. block added to top")
 		// execute TXs that were not in pool
 		n.transactionsFromAddedBlock(block.Transactions)
 		// remove all TXs from pool
@@ -474,7 +435,20 @@ func (n *txManager) CreateCurrencyTransaction(PubKey []byte, privKey ecdsa.Priva
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Sign error: %s", err.Error()))
 	}
-	NewTX, err := n.ReceivedNewCurrencyTransactionData(txBytes, signatures)
+
+	NewTX, err := structures.DeserializeTransaction(txBytes)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = NewTX.CompleteTransaction(signatures)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = n.AddNewTransaction(NewTX, lib.TXFlagsExecute)
 
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("Final ading TX error: %s", err.Error()))
@@ -483,41 +457,11 @@ func (n *txManager) CreateCurrencyTransaction(PubKey []byte, privKey ecdsa.Priva
 	return NewTX, nil
 }
 
-// New transactions created. It is received in serialysed view and signatures separately
-// This data is ready to be convertd to complete gransaction
-func (n *txManager) ReceivedNewCurrencyTransactionData(txBytes []byte, Signature []byte) (*structures.Transaction, error) {
-	tx, err := structures.DeserializeTransaction(txBytes)
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = tx.CompleteTransaction(Signature)
-
-	if err != nil {
-		return nil, err
-	}
-
-	err = n.ReceivedNewTransaction(tx, TXFlagsExecute)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return tx, nil
-}
-
-// New transaction reveived from other node. We need to verify and add to cache of unapproved
-func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction, flags int) error {
-	// verify this transaction
-	err := n.verifyTransactionQuick(tx)
-
-	if err != nil {
-		return err
-	}
+// New transaction reveived from other node. There is no verify. We presume it was verified before this separately
+func (n *txManager) AddNewTransaction(tx *structures.Transaction, flags int) (err error) {
 
 	// if this is SQL transaction, execute it now.
-	if tx.IsSQLCommand() && flags&TXFlagsExecute > 0 {
+	if tx.IsSQLCommand() && flags&lib.TXFlagsExecute > 0 {
 		n.Logger.Trace.Printf("Execute: %s , refID is %s", tx.GetSQLQuery(), string(tx.SQLCommand.ReferenceID))
 
 		_, err := n.getQueryParser().ExecuteQuery(tx.GetSQLQuery())
@@ -527,7 +471,7 @@ func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction, flags int
 		}
 	}
 
-	if flags&TXFlagsNoPoool > 0 {
+	if flags&lib.TXFlagsNoPool > 0 {
 		// don't add to a pool. This can be a case when somethign extra must be done with a TX before adding to a pool
 		return nil
 	}
@@ -538,6 +482,172 @@ func (n *txManager) ReceivedNewTransaction(tx *structures.Transaction, flags int
 		return errors.New(fmt.Sprintf("Can not add TX to the pool: %s", err.Error()))
 	}
 	return nil
+}
+
+// Verify if currency transaction is correct.
+// If it is build on correct outputs.This does checks agains blockchain. Needs more time
+// NOTE Transaction can have outputs of other transactions that are not yet approved.
+// This must be considered as correct case
+func (n *txManager) VerifyTransaction(tx *structures.Transaction, prevtxs []structures.Transaction, tip []byte, flags int) (bool, error) {
+
+	n.Logger.Trace.Printf("TM Verify TX %x", tx.GetID())
+
+	inputTXs, notFoundInputs, err := n.getCurrencyInputTransactionsState(tx, tip)
+	if err != nil {
+		n.Logger.Trace.Printf("VT error 4: %s", err.Error())
+		return false, err
+	}
+
+	if len(notFoundInputs) > 0 {
+		if prevtxs == nil {
+			// some inputs are not existent
+			// we need to try to find them in list of unapproved transactions
+			// if not found then it is bad transaction
+			err := n.getUnapprovedTransactionsManager().CheckInputsArePrepared(notFoundInputs, inputTXs)
+
+			if err != nil {
+				n.Logger.Trace.Printf("VT error when verify in pool %x: %s", tx.GetID(), err.Error())
+				return false, err
+			}
+		} else {
+			// some of inputs can be from other transactions in this pool
+			inputTXs, err = n.getUnapprovedTransactionsManager().CheckCurrencyInputsWereBefore(notFoundInputs, prevtxs, inputTXs)
+
+			if err != nil {
+				n.Logger.Trace.Printf("VT error when verify %x: %s", tx.GetID(), err.Error())
+				return false, err
+			}
+		}
+
+	}
+
+	// do final check against inputs
+	err = tx.Verify(inputTXs, n.consensusInfo.CoinsForBlockMade)
+
+	if err != nil {
+		n.Logger.Trace.Printf("VT error 6: %s", err.Error())
+		return false, err
+	}
+	n.Logger.Trace.Printf("TM Verify TX %x, internal passed . F;ags %d", tx.GetID(), flags)
+
+	if tx.IsSQLCommand() {
+		n.Logger.Trace.Printf("IS SQL")
+	} else {
+		n.Logger.Trace.Printf("IS NOT SQL")
+	}
+	if flags&lib.TXFlagsSkipSQLBaseCheck == 0 {
+		n.Logger.Trace.Printf("Has no flag")
+	} else {
+		n.Logger.Trace.Printf("Has flag %d", flags&lib.TXFlagsSkipSQLBaseCheck)
+	}
+
+	if tx.IsSQLCommand() && flags&lib.TXFlagsSkipSQLBaseCheck == 0 {
+		n.Logger.Trace.Printf("Verify SQL state: %s for TX %x", string(tx.SQLCommand.Query), tx.GetID())
+		// check SQL part. Ensure this TX can be executed based on tip
+
+		// check if this SQL can be executed
+		if len(tx.SQLBaseTX) > 0 {
+			n.Logger.Trace.Printf("Current base is: %x", tx.SQLBaseTX)
+			// check if this previous TX is still actual
+			err := n.checkBaseTransaction(tx.SQLCommand, tx, prevtxs)
+
+			if err != nil {
+				n.Logger.Trace.Printf("VT error 7: %s", err.Error())
+				return false, err
+			}
+		}
+	} else {
+		n.Logger.Trace.Printf("TM Verify not SQL or flag disables SQL check")
+	}
+	return true, nil
+}
+
+// Verifies transaction inputs. Check if that are real existent transactions. And that outputs are not yet used
+// If some transaction is not in blockchain, returns nil pointer in map and this input in separate map
+// Missed inputs can be some unconfirmed transactions
+// Returns: map of previous transactions (full info about input TX). map by input index
+// next map is wrong input, where a TX is not found.
+func (n *txManager) getCurrencyInputTransactionsState(tx *structures.Transaction,
+	tip []byte) (prevTXs map[int]*structures.Transaction, badinputs map[int]structures.TXCurrencyInput, err error) {
+
+	if tx.IsCoinbaseTransfer() {
+		return
+	}
+
+	bcMan, err := blockchain.NewBlockchainManager(n.DB, n.Logger)
+
+	if err != nil {
+		return
+	}
+
+	prevTXs = make(map[int]*structures.Transaction)
+	badinputs = make(map[int]structures.TXCurrencyInput)
+
+	for vind, vin := range tx.Vin {
+		//n.Logger.Trace.Printf("Check tx input %x of %x", vin.Txid, tx.GetID())
+		var txBockHashes [][]byte
+		txBockHashes, err = n.getIndexManager().GetTranactionBlocks(vin.Txid)
+
+		if err != nil {
+			n.Logger.Trace.Printf("Error %s", err.Error())
+			return
+		}
+		var txBockHash []byte
+		txBockHash, err = bcMan.ChooseHashUnderTip(txBockHashes, tip)
+
+		if err != nil {
+			n.Logger.Trace.Printf("Error getting correct hash %s", err.Error())
+			return
+		}
+
+		var prevTX *structures.Transaction
+
+		if txBockHash == nil {
+			//n.Logger.Trace.Printf("Not found TX")
+			prevTX = nil
+		} else {
+
+			// if block is in this chain
+			//n.Logger.Trace.Printf("get TX %x  from block %x", vin.Txid, txBockHash)
+			prevTX, err = bcMan.GetTransactionFromBlock(vin.Txid, txBockHash)
+
+			if err != nil {
+				n.Logger.Trace.Printf("Err 7: %s", err.Error())
+				return
+			}
+
+		}
+
+		if prevTX == nil {
+			// transaction not found
+			badinputs[vind] = vin
+			prevTXs[vind] = nil
+			//n.Logger.Trace.Printf("tx %x is not in blocks", vin.Txid)
+		} else {
+			//n.Logger.Trace.Printf("tx found")
+			// check if this input was not yet spent somewhere
+			var spentouts []TransactionsIndexSpentOutputs
+			spentouts, err = n.getIndexManager().GetTranactionOutputsSpent(vin.Txid, txBockHash, tip)
+
+			if err != nil {
+				return
+			}
+			//n.Logger.Trace.Printf("spending of tx %x count %d", vin.Txid, len(spentouts))
+			if len(spentouts) > 0 {
+
+				for _, o := range spentouts {
+					if o.OutInd == vin.Vout {
+
+						return nil, nil, errors.New("Transaction input was already spent before")
+					}
+				}
+			}
+			// the transaction out was not yet spent
+			prevTXs[vind] = prevTX
+		}
+	}
+
+	return prevTXs, badinputs, nil
 }
 
 // Request to make new transaction and prepare data to sign
@@ -747,8 +857,7 @@ func (n *txManager) prepareNewCurrencyTransactionComplete(PubKey []byte, to stri
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	n.Logger.Trace.Printf("Serialise prepated TX")
-	n.Logger.Trace.Println(tx)
+
 	txBytes, err := structures.SerializeTransaction(tx)
 
 	if err != nil {
@@ -835,153 +944,10 @@ func (n *txManager) getAddressPendingBalance(address string) (float64, error) {
 	return pendingbalance, nil
 }
 
-// Verify if transaction is correct.
-// If it is build on correct outputs.It checks only cache of unspent transactions
-// This function doesn't do full alidation with blockchain
-// NOTE Transaction can have outputs of other transactions that are not yet approved.
-// This must be considered as correct case
-func (n *txManager) verifyTransactionQuick(tx *structures.Transaction) error {
-
-	notFoundInputs, inputTXs, err := n.getUnspentOutputsManager().VerifyTransactionsOutputsAreNotSpent(tx.Vin)
-
-	if err != nil {
-		n.Logger.Trace.Printf("VT error 1: %s", err.Error())
-		return err
-	}
-
-	if len(notFoundInputs) > 0 {
-		// some inputs are not existent
-		// we need to try to find them in list of unapproved transactions
-		// if not found then it is bad transaction
-		err := n.getUnapprovedTransactionsManager().CheckInputsArePrepared(notFoundInputs, inputTXs)
-
-		if err != nil {
-			n.Logger.Trace.Printf("VT error 2: %s", err.Error())
-			return err
-		}
-	}
-	// verify signatures
-
-	err = tx.Verify(inputTXs, n.consensusInfo.CoinsForBlockMade)
-
-	if err != nil {
-		n.Logger.Trace.Printf("VT error 3: %s", err.Error())
-		return err
-	}
-
-	if tx.IsSQLCommand() {
-
-		// check if this SQL can be executed
-		if len(tx.SQLBaseTX) > 0 {
-			// check if this previous TX is still actual
-			inputSQLTX, err := n.getBaseTransaction(tx.SQLCommand)
-			n.Logger.Trace.Printf("Current base TX should be %x for SQL %s", inputSQLTX, string(tx.GetSQLQuery()))
-			if err != nil {
-				return err
-			}
-			if len(inputSQLTX) == 0 {
-				return NewTXVerifySQLBaseError("Base SQL transaction can not be found", []byte{})
-			}
-			if bytes.Compare(inputSQLTX, tx.SQLBaseTX) != 0 {
-				return NewTXVerifySQLBaseError("Base SQL transaction can not be found", inputSQLTX)
-			}
-		}
-	}
-	return nil
-}
-
-// Verifies transaction inputs. Check if that are real existent transactions. And that outputs are not yet used
-// If some transaction is not in blockchain, returns nil pointer in map and this input in separate map
-// Missed inputs can be some unconfirmed transactions
-// Returns: map of previous transactions (full info about input TX). map by input index
-// next map is wrong input, where a TX is not found.
-func (n *txManager) getCurrencyInputTransactionsState(tx *structures.Transaction,
-	tip []byte) (map[int]*structures.Transaction, map[int]structures.TXCurrencyInput, error) {
-
-	//n.Logger.Trace.Printf("get state %x , tip %x", tx.GetID(), tip)
-
-	prevTXs := make(map[int]*structures.Transaction)
-	badinputs := make(map[int]structures.TXCurrencyInput)
-
-	if tx.IsCoinbaseTransfer() {
-
-		return prevTXs, badinputs, nil
-	}
-
-	bcMan, err := blockchain.NewBlockchainManager(n.DB, n.Logger)
-
-	if err != nil {
-		return nil, nil, err
-	}
-
-	for vind, vin := range tx.Vin {
-		//n.Logger.Trace.Printf("Check tx input %x of %x", vin.Txid, tx.GetID())
-		txBockHashes, err := n.getIndexManager().GetTranactionBlocks(vin.Txid)
-
-		if err != nil {
-			n.Logger.Trace.Printf("Error %s", err.Error())
-			return nil, nil, err
-		}
-
-		txBockHash, err := bcMan.ChooseHashUnderTip(txBockHashes, tip)
-
-		if err != nil {
-			n.Logger.Trace.Printf("Error getting correct hash %s", err.Error())
-			return nil, nil, err
-		}
-
-		var prevTX *structures.Transaction
-
-		if txBockHash == nil {
-			//n.Logger.Trace.Printf("Not found TX")
-			prevTX = nil
-		} else {
-
-			// if block is in this chain
-			//n.Logger.Trace.Printf("get TX %x  from block %x", vin.Txid, txBockHash)
-			prevTX, err = bcMan.GetTransactionFromBlock(vin.Txid, txBockHash)
-
-			if err != nil {
-				n.Logger.Trace.Printf("Err 7: %s", err.Error())
-				return nil, nil, err
-			}
-
-		}
-
-		if prevTX == nil {
-			// transaction not found
-			badinputs[vind] = vin
-			prevTXs[vind] = nil
-			//n.Logger.Trace.Printf("tx %x is not in blocks", vin.Txid)
-		} else {
-			//n.Logger.Trace.Printf("tx found")
-			// check if this input was not yet spent somewhere
-			spentouts, err := n.getIndexManager().GetTranactionOutputsSpent(vin.Txid, txBockHash, tip)
-
-			if err != nil {
-				return nil, nil, err
-			}
-			//n.Logger.Trace.Printf("spending of tx %x count %d", vin.Txid, len(spentouts))
-			if len(spentouts) > 0 {
-
-				for _, o := range spentouts {
-					if o.OutInd == vin.Vout {
-
-						return nil, nil, errors.New("Transaction input was already spent before")
-					}
-				}
-			}
-			// the transaction out was not yet spent
-			prevTXs[vind] = prevTX
-		}
-	}
-
-	return prevTXs, badinputs, nil
-}
-
 // Finds a transaction where a refID was last updated or which can be used as a base
 // Firstly looks in a pool of transactions ,if not found, looks in an index
 func (n *txManager) getBaseTransaction(sqlUpdate structures.SQLUpdate) (txID []byte, err error) {
+	n.Logger.Trace.Printf("getBaseTransaction ")
 	// look on a pool
 	txID, err = n.getUnapprovedTransactionsManager().FindSQLReferenceTransaction(sqlUpdate)
 
@@ -990,9 +956,57 @@ func (n *txManager) getBaseTransaction(sqlUpdate structures.SQLUpdate) (txID []b
 	}
 
 	if len(txID) > 0 {
+		n.Logger.Trace.Printf("found in a pool %x", txID)
 		// found in a pool
 		return
 	}
+	return n.getBaseTransactionInChain(sqlUpdate)
+}
+
+// Finds a transaction where a refID was last updated or which can be used as a base
+// Firstly looks in a pool of transactions ,if not found, looks in an index
+func (n *txManager) getBaseTransactionInList(sqlUpdate structures.SQLUpdate, prevtxs []structures.Transaction) (txID []byte, err error) {
+	n.Logger.Trace.Printf("getBaseTransactionInList for prev list of %d txs", len(prevtxs))
+	sqlUpdateMan, err := dbquery.NewSQLUpdateManager(sqlUpdate)
+
+	if err != nil {
+		return
+	}
+
+	// check base TX required
+	if !sqlUpdateMan.RequiresBaseTransation() {
+		txID = []byte{} // empty bytes list means no need to have base TX.
+		return
+	}
+	// if not found, try to get alt ID
+	altRefID, err := sqlUpdateMan.GetAlternativeRefID()
+
+	if err != nil {
+		return
+	}
+
+	for _, tx := range prevtxs {
+		if bytes.Compare(sqlUpdate.ReferenceID, tx.SQLCommand.ReferenceID) == 0 {
+			txID = tx.GetID()
+			return
+		}
+	}
+
+	if altRefID != nil {
+		for _, tx := range prevtxs {
+			if bytes.Compare(altRefID, tx.SQLCommand.ReferenceID) == 0 {
+				txID = tx.GetID()
+				return
+			}
+		}
+	}
+	// nothing found, look in blockchain
+	return n.getBaseTransactionInChain(sqlUpdate)
+}
+
+// Finds a transaction where a refID was last updated or which can be used as a base
+// Looks in current blockchain, not in a pool
+func (n *txManager) getBaseTransactionInChain(sqlUpdate structures.SQLUpdate) (txID []byte, err error) {
 	// now look in a BC using an indes of references
 	sqlUpdateMan, err := dbquery.NewSQLUpdateManager(sqlUpdate)
 
@@ -1044,4 +1058,49 @@ func (n *txManager) getBaseTransaction(sqlUpdate structures.SQLUpdate) (txID []b
 
 	err = errors.New(fmt.Sprintf("Base Trasaction can not be found for %s", string(sqlUpdate.Query)))
 	return
+}
+
+// Verify if base transaction is still valid. We verify transaction before to add it to a blockchain
+// A transaction itself is in a pool at this monent
+func (n *txManager) checkBaseTransaction(sqlUpdate structures.SQLUpdate, tx *structures.Transaction, prevtxs []structures.Transaction) error {
+	var inputSQLTX []byte
+	var err error
+
+	if prevtxs == nil {
+		/*
+			txt, err := n.getUnapprovedTransactionsManager().GetIfExists(tx.GetID())
+
+			if err != nil {
+				return err
+			}
+
+			if txt != nil {
+				// if exists in pool it means we already checked it.
+				// TODO maybe this really needs extra check To think
+				return nil
+			}
+		*/
+
+		// not in a pool. do full check
+		inputSQLTX, err = n.getBaseTransaction(sqlUpdate)
+
+	} else {
+		//
+		inputSQLTX, err = n.getBaseTransactionInList(sqlUpdate, prevtxs)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	n.Logger.Trace.Printf("Current base TX should be %x for SQL %s", inputSQLTX, string(tx.GetSQLQuery()))
+
+	if len(inputSQLTX) == 0 {
+		return NewTXVerifySQLBaseError("Base SQL transaction can not be found", []byte{})
+	}
+	if bytes.Compare(inputSQLTX, tx.SQLBaseTX) != 0 {
+		return NewTXVerifySQLBaseError("Base SQL transaction can not be found", inputSQLTX)
+	}
+
+	return nil
 }

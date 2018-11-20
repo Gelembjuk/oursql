@@ -6,6 +6,7 @@ import re
 import time
 import blocksnodes
 import startnode
+import os
 
 datadir = ""
 
@@ -43,7 +44,7 @@ def test(testfilter):
     
     s1 = bal1 + bal1_2 + bal1_3
     
-    startnode.StartNode(datadir_tmp, address1,nodeport)
+    startnode.StartNode(datadir_tmp, address1,nodeport, os.path.basename(datadir_tmp))
     datadir = datadir_tmp
     
     #get balaces on nodes wallets
@@ -72,6 +73,7 @@ def test(testfilter):
     waddress2_1 = _wallet.CreateWallet(walletdatadir2);
     waddress2_2 = _wallet.CreateWallet(walletdatadir2);
     
+    _lib.StartTestGroup("Make 4 more transactions")
     #send some funds to all that wallets
     amounttosend = "%.8f" % round(bal1[0]/5,8)
     amounttosend3 = "%.8f" % round(bal1_3[0]/5,8)
@@ -84,6 +86,8 @@ def test(testfilter):
     # we control how blocks are created. here we wait on a block started and then send another 3 TX
     # we will get 2 more blocks here
     time.sleep(1)
+    
+    _lib.StartTestGroup("Make 5 more transactions")
     
     _transfers.Send(datadir,address1, waddress2_2 ,amounttosend)
     amounttosend2 = "%.8f" % round(bal1_2[0]/5,8)

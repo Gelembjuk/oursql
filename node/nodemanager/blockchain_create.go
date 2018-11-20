@@ -33,7 +33,7 @@ func (n *makeBlockchain) getTransactionsManager() transactions.TransactionsManag
 }
 
 // Init block maker object. It is used to make new blocks
-func (n *makeBlockchain) getBlockMakeManager() (consensus.BlockMakerInterface, error) {
+func (n *makeBlockchain) getBlockMakeManager() consensus.BlockMakerInterface {
 	return consensus.NewBlockMakerManager(n.consensusConfig, n.MinterAddress, n.DBConn.DB(), n.Logger)
 }
 
@@ -53,7 +53,7 @@ func (n *makeBlockchain) CreateBlockchain() error {
 		return err
 	}
 
-	Minter, _ := n.getBlockMakeManager()
+	Minter := n.getBlockMakeManager()
 
 	n.Logger.Trace.Printf("Complete genesis block proof of work\n")
 

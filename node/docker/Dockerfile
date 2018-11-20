@@ -2,11 +2,7 @@ FROM ubuntu:latest
 MAINTAINER Roman Gelembjuk
 
 # Install latest updates
-RUN apt-get update
-RUN apt-get upgrade -y
-
-# Install mysql client and server
-RUN DEBIAN_FRONTEND=noninteractive apt-get -y install mysql-client mysql-server iproute2
+RUN apt-get update && apt-get upgrade -y && DEBIAN_FRONTEND=noninteractive apt-get -y install mysql-client mysql-server iproute2
 
 # Create temp file to know about the first start of a container
 RUN touch firststart.lock

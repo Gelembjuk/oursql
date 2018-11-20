@@ -81,7 +81,7 @@ func (u unspentTransactions) GetAddressBalance(address string) (float64, error) 
 	return balance, nil
 }
 
-// CGet input value. Input is unspent TX output
+// Get input value. Input is unspent TX output
 func (u unspentTransactions) GetInputValue(input structures.TXCurrencyInput) (float64, error) {
 
 	uodb, err := u.DB.GetUnspentOutputsObject()
@@ -399,6 +399,10 @@ func (u unspentTransactions) FindunspentTransactions() (map[string][]structures.
 			var spent bool
 
 			for outIdx, out := range tx.Vout {
+				if !out.HasOutAddress() {
+					// output can be visout address
+					continue
+				}
 				// Was the output spent?
 				spent = false
 
@@ -527,6 +531,10 @@ func (u unspentTransactions) UpdateOnBlockAdd(block *structures.Block) error {
 		newOutputs := []structures.TXOutputIndependent{}
 
 		for outInd, out := range tx.Vout {
+			if !out.HasOutAddress() {
+				// output can be visout address
+				continue
+			}
 			no := structures.TXOutputIndependent{}
 			no.LoadFromSimple(out, tx.ID, outInd, sender, tx.IsCoinbaseTransfer(), block.Hash)
 			newOutputs = append(newOutputs, no)
@@ -597,6 +605,10 @@ func (u unspentTransactions) UpdateOnBlockCancel(block *structures.Block) error 
 			UnspentOuts := []structures.TXOutputIndependent{}
 
 			for outInd, out := range txi.Vout {
+				if !out.HasOutAddress() {
+					// output can be visout address
+					continue
+				}
 				spent := false
 
 				for _, so := range spending {
@@ -710,6 +722,9 @@ func (u unspentTransactions) ExtendNewTransactionInputs(PubKey []byte, amount, t
 	return inputs, prevTXs, totalamount, nil
 }
 
+/*
+NOTE this function was removed as there is better duplicate in manager getCurrencyInputTransactionsState
+this is left commented, maybe in future will be needed
 // Verifies which transactions outputs are not yet spent.
 // Returns list of inputs that are not found in list of unspent outputs
 func (u unspentTransactions) VerifyTransactionsOutputsAreNotSpent(txilist []structures.TXCurrencyInput) (map[int]structures.TXCurrencyInput, map[int]*structures.Transaction, error) {
@@ -778,3 +793,4 @@ func (u unspentTransactions) VerifyTransactionsOutputsAreNotSpent(txilist []stru
 	}
 	return notFoundInputs, inputTX, nil
 }
+*/

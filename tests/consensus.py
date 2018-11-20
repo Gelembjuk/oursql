@@ -85,7 +85,7 @@ def test(testfilter):
     # get unapproved transactions (after block cancel)
     txlist = _transfers.WaitUnapprovedTransactions(nodes[1]["datadir"], 7)
     
-    _lib.FatalAssert(len(txlist) == 7,"SHould be 7 unapproved TXs")
+    _lib.FatalAssert(len(txlist) == 7,"SHould be 7 unapproved TXs, but got "+str(len(txlist)))
     
     #send another 2 TXs to have 9 required TXs
     balances = _transfers.GetGroupBalance(nodes[1]["datadir"])

@@ -3,6 +3,7 @@ package nodemanager
 import (
 	"errors"
 
+	"github.com/gelembjuk/oursql/lib"
 	"github.com/gelembjuk/oursql/lib/remoteclient"
 	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/blockchain"
@@ -112,14 +113,10 @@ func (n *NodeBlockchain) AddBlock(block *structures.Block) (uint, error) {
 		return blockchain.BCBAddState_notAddedNoPrev, nil
 	}
 
-	Minter, err := consensus.NewBlockMakerManager(n.consensusConfig, n.MinterAddress, n.DBConn.DB(), n.Logger)
-
-	if err != nil {
-		return 0, err
-	}
+	Minter := consensus.NewBlockMakerManager(n.consensusConfig, n.MinterAddress, n.DBConn.DB(), n.Logger)
 
 	// verify this block against rules.
-	err = Minter.VerifyBlock(block)
+	err = Minter.VerifyBlock(block, lib.TXFlagsSkipSQLBaseCheckIfNotOnTop)
 
 	if err != nil {
 		return 0, err

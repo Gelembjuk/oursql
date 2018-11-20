@@ -52,6 +52,7 @@ func (ti *transactionsIndex) BlockAdded(block *structures.Block) error {
 	}
 
 	for _, tx := range block.Transactions {
+		ti.Logger.Trace.Printf("Block Added: Index check TX %x", tx.GetID())
 		// get current lit of blocks
 		blocksHashes, err := txdb.GetBlockHashForTX(tx.GetID())
 
@@ -144,6 +145,7 @@ func (ti *transactionsIndex) BlockRemoved(block *structures.Block) error {
 	}
 
 	for _, tx := range block.Transactions {
+		ti.Logger.Trace.Printf("Block Removed: Index check TX %x", tx.GetID())
 		blocksHashes, err := txdb.GetBlockHashForTX(tx.GetID())
 
 		if err != nil {

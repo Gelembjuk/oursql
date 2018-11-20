@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/gelembjuk/oursql/lib"
 	"github.com/gelembjuk/oursql/lib/net"
 	"github.com/gelembjuk/oursql/lib/nodeclient"
 	"github.com/gelembjuk/oursql/lib/utils"
@@ -184,7 +185,7 @@ func (s *NodeServerRequest) handleTxData() error {
 		return err
 	}
 
-	TX, err := s.Node.GetTransactionsManager().ReceivedNewCurrencyTransactionData(payload.TX, payload.Signature)
+	TX, err := s.Node.ReceivedNewCurrencyTransactionData(payload.TX, payload.Signature)
 
 	if err != nil {
 		return errors.New(fmt.Sprintf("Transaction accepting error: %s", err.Error()))
@@ -693,7 +694,7 @@ func (s *NodeServerRequest) handleTx() error {
 	}
 	s.Logger.Trace.Printf("Received transaction. It does not exists: %x ", tx.GetID())
 	// this will also verify a transaction
-	err = s.Node.GetTransactionsManager().ReceivedNewTransaction(tx, transactions.TXFlagsExecute)
+	err = s.Node.ReceivedNewTransaction(tx, lib.TXFlagsExecute)
 
 	if err != nil {
 		// if error is because some input transaction is not found, then request it and after it this TX again

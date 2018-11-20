@@ -187,6 +187,9 @@ func AddresBToPubKeyHash(address []byte) ([]byte, error) {
 
 // Converts hash of pubkey to address as a string
 func PubKeyHashToAddres(pubKeyHash []byte) (string, error) {
+	if len(pubKeyHash) == 0 {
+		return lib.NullAddressString, nil
+	}
 	versionedPayload := append([]byte{lib.Version}, pubKeyHash...)
 
 	checksum := Checksum(versionedPayload)

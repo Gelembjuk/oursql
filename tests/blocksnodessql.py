@@ -56,11 +56,11 @@ def test(testfilter):
     datadir1 = datadir
     managenodes.RemoveAllNodes(datadir1)
     
-    d = blocksnodes.StartNodeAndImport('30001', '30000', "Server 2", 40002 )
+    d = blocksnodes.StartNodeAndImport('30001', '30000', "Server 2", 40002 ,'_2_')
     datadir2 = d[0]
     address2 = d[1]
     
-    d = blocksnodes.StartNodeAndImport('30002', '30000', "Server 3", 40003 )
+    d = blocksnodes.StartNodeAndImport('30002', '30000', "Server 3", 40003 ,'_3_')
     datadir3 = d[0]
     address3 = d[1]
     

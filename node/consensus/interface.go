@@ -43,7 +43,8 @@ type BlockMakerInterface interface {
 	SetPreparedBlock(block *structures.Block) error
 	IsBlockPrepared() bool
 	CompleteBlock() (*structures.Block, error)
-	VerifyBlock(block *structures.Block) error
+	VerifyBlock(block *structures.Block, flags int) error
+	AddTransactionToPool(tx *structures.Transaction, flags int) error
 }
 
 type SQLTransactionsInterface interface {
@@ -54,13 +55,13 @@ type SQLTransactionsInterface interface {
 	RepeatTransactionsFromCanceledBlocks(txList []structures.Transaction) error
 }
 
-func NewBlockMakerManager(config *ConsensusConfig, minter string, DB database.DBManager, Logger *utils.LoggerMan) (BlockMakerInterface, error) {
+func NewBlockMakerManager(config *ConsensusConfig, minter string, DB database.DBManager, Logger *utils.LoggerMan) BlockMakerInterface {
 	bm := &NodeBlockMaker{}
 	bm.DB = DB
 	bm.Logger = Logger
 	bm.MinterAddress = minter
 	bm.config = config
-	return bm, nil
+	return bm
 }
 
 func NewSQLQueryManager(config *ConsensusConfig, DB database.DBManager, Logger *utils.LoggerMan, pubKey []byte, privKey ecdsa.PrivateKey) (SQLTransactionsInterface, error) {

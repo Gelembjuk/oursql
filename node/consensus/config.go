@@ -10,6 +10,7 @@ import (
 
 	"github.com/fatih/structs"
 	"github.com/gelembjuk/oursql/lib/net"
+	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/structures"
 	"github.com/mitchellh/mapstructure"
 )
@@ -265,9 +266,34 @@ func (cc *ConsensusConfig) UpdateConfig(jsondoc []byte) error {
 
 // Returns wallet where to send money spent on paid transactions
 func (cc ConsensusConfig) GetPaidTransactionsWallet() string {
-	if cc.PaidTransactionsWallet != "" {
-		return cc.PaidTransactionsWallet
+	if cc.PaidTransactionsWallet == "" {
+		return ""
 	}
 
-	return ""
+	pubKeyHash, err := utils.AddresToPubKeyHash(cc.PaidTransactionsWallet)
+
+	if err != nil || len(pubKeyHash) == 0 {
+		return ""
+	}
+	addr, err := utils.PubKeyHashToAddres(pubKeyHash)
+
+	if err != nil {
+		return ""
+	}
+	return addr
+
+}
+
+// Returns wallet where to send money spent on paid transactions
+func (cc ConsensusConfig) GetPaidTransactionsWalletPubKeyHash() []byte {
+	if cc.PaidTransactionsWallet == "" {
+		return []byte{}
+	}
+	pubKeyHash, err := utils.AddresToPubKeyHash(cc.PaidTransactionsWallet)
+
+	if err != nil || len(pubKeyHash) == 0 {
+		return []byte{}
+	}
+
+	return pubKeyHash
 }
