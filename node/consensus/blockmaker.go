@@ -1,10 +1,12 @@
 package consensus
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/gelembjuk/oursql/lib"
 	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/blockchain"
 	"github.com/gelembjuk/oursql/node/config"
@@ -247,7 +249,7 @@ func (n *NodeBlockMaker) makeNewBlockFromTransactions(transactions []structures.
 // 4. all inputs must be in blockchain (correct unspent inputs)
 // 5. Additionally verify each transaction agains signatures, total amount, balance etc
 // 6. Verify hash is correc agains rules
-func (n *NodeBlockMaker) VerifyBlock(block *structures.Block) error {
+func (n *NodeBlockMaker) VerifyBlock(block *structures.Block, flags int) error {
 	//6. Verify hash
 	pow := NewProofOfWork(block, n.config.Settings)
 
@@ -277,28 +279,40 @@ func (n *NodeBlockMaker) VerifyBlock(block *structures.Block) error {
 	if txnum > max {
 		return errors.New("Number of transactions is too high")
 	}
+	n.Logger.Trace.Printf("Check flag %d", flags)
+	if flags&lib.TXFlagsSkipSQLBaseCheckIfNotOnTop > 0 {
+		// check if this block will go to top or no
+		lastHash, _, err := n.getBlockchainManager().GetState()
+		n.Logger.Trace.Printf("Current top hash is %x and new prev hash %x", lastHash, block.PrevBlockHash)
+		if err != nil {
+			return err
+		}
 
+		if bytes.Compare(lastHash, block.PrevBlockHash) != 0 {
+			// this is not adding to current top, skip verify of SQL base TXs
+			flags = flags | lib.TXFlagsSkipSQLBaseCheck
+		}
+	}
+	n.Logger.Trace.Printf("Check flag 2 %d", flags)
 	// 1
 	coinbaseused := false
 
 	prevTXs := []structures.Transaction{}
 
 	for _, tx := range block.Transactions {
+
 		if tx.IsCoinbaseTransfer() {
 			if coinbaseused {
 				return errors.New("2 coin base TX in the block")
 			}
 			coinbaseused = true
 		}
-		vtx, err := n.getTransactionsManager().VerifyTransaction(&tx, prevTXs, block.PrevBlockHash)
+		err := n.VerifyTransaction(&tx, prevTXs, block.PrevBlockHash, flags)
 
 		if err != nil {
-			return errors.New(fmt.Sprintf("TX verify during block verify. Error: %s", err.Error()))
+			return err
 		}
 
-		if !vtx {
-			return errors.New(fmt.Sprintf("Transaction in a block is not valid: %x", tx.GetID()))
-		}
 		//n.Logger.Trace.Printf("checked %x . add it to previous list", tx.GetID())
 		prevTXs = append(prevTXs, tx)
 	}
@@ -307,6 +321,73 @@ func (n *NodeBlockMaker) VerifyBlock(block *structures.Block) error {
 		return errors.New("No coinbase TX in the block")
 	}
 	return nil
+}
+
+// Verify transaction against all rules
+func (n NodeBlockMaker) VerifyTransaction(tx *structures.Transaction, prevTXs []structures.Transaction, prevBlockHash []byte, flags int) error {
+
+	n.Logger.Trace.Printf("BM Verify TX %x with flags %d", tx.GetID(), flags)
+
+	vtx, err := n.getTransactionsManager().VerifyTransaction(tx, prevTXs, prevBlockHash, flags)
+
+	if err != nil {
+		return err
+	}
+
+	if !vtx {
+		return errors.New(fmt.Sprintf("Transaction in a block is not valid: %x", tx.GetID()))
+	}
+
+	// if it is SQL transaction and includes currency part
+	// that we must check if a TX was posted to correct destination address
+	if tx.IsSQLCommand() && tx.IsCurrencyTransfer() {
+		paidTXPubKeyHash := n.config.GetPaidTransactionsWalletPubKeyHash()
+
+		if len(paidTXPubKeyHash) > 0 {
+			// if there is specific address inconsensus rules to send money for SQL updates
+			// check also if amount is according to consensus rules
+			// possible hashes to send money in this transaction
+			possibleHashes := [][]byte{paidTXPubKeyHash}
+
+			byPubKeyHash, err := utils.HashPubKey(tx.ByPubKey)
+
+			if err != nil {
+				return errors.New(fmt.Sprintf("TX verify error. Getting TX author pub key hash failed: %s", err.Error()))
+			}
+
+			possibleHashes = append(possibleHashes, byPubKeyHash)
+
+			err = structures.CheckTXOutputsAreOnlyToGivenAddresses(tx, possibleHashes)
+
+			if err != nil {
+				return err
+			}
+
+			// check amount
+			// TODO
+		}
+	}
+
+	return nil
+}
+
+// Add transaction to a pool. This will call verification and if all is ok it adds to a poool of transactions
+func (n *NodeBlockMaker) AddTransactionToPool(tx *structures.Transaction, flags int) error {
+	// TODO . put local verification than call adding with TX manager
+	// as list of all previous TXs we have current pool state
+
+	if tx.IsCoinbaseTransfer() {
+		// we don't add this
+		return nil
+	}
+
+	err := n.VerifyTransaction(tx, nil, []byte{}, flags)
+
+	if err != nil {
+		return err
+	}
+
+	return n.getTransactionsManager().AddNewTransaction(tx, flags)
 }
 
 //Get minimum and maximum number of transaction allowed in block for current chain

@@ -109,17 +109,18 @@ def GetUnapprovedTransactions(datadir, skiperroronempty = False):
     
     regex = re.compile(ur"--- Transaction ([^:]+):(.*?)    ---", re.DOTALL)
     transactions = re.findall(regex, res)
-
+    #print(res)
     txlist={}
     
     for i in range(len(transactions)):
         tp = "CURRENCY"
-        regex = ur"FROM ([A-Za-z0-9]+) TO ([A-Za-z0-9]+) VALUE ([0-9.]+)"
+        regex = ur"FROM ([A-Za-z0-9 ]+) TO ([A-Za-z0-9]+) VALUE ([0-9.]+)"
         txinfo = re.findall(regex, transactions[i][1])
         
         if len(txinfo) < 1:
             tp = "SQL"
             regex = ur"SQL: ([^\n]+)\n"
+            #print(transactions[i][1])
             txinfo = re.findall(regex, transactions[i][1])
             txinfo = [txinfo[0]]
         else:

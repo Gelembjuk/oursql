@@ -7,3 +7,13 @@ const Version = byte(0x00)
 const AddressChecksumLen = 4
 
 const CurrencySmallestUnit = 0.00000001
+
+const NullAddressString = "NULLADDRESS"
+
+const (
+	TXFlagsNothing                    = 0 // 0
+	TXFlagsExecute                    = 1 // 1
+	TXFlagsNoPool                     = 2 // 2
+	TXFlagsSkipSQLBaseCheck           = 4 // 4
+	TXFlagsSkipSQLBaseCheckIfNotOnTop = 8 // 8
+)

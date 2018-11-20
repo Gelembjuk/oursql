@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gelembjuk/oursql/lib"
 	"github.com/gelembjuk/oursql/lib/net"
 	"github.com/gelembjuk/oursql/lib/nodeclient"
 	"github.com/gelembjuk/oursql/lib/remoteclient"
@@ -117,7 +118,7 @@ func (n *Node) GetBlockChainIterator() (*blockchain.BlockchainIterator, error) {
 }
 
 // Init block maker object. It is used to make new blocks
-func (n *Node) getBlockMakeManager() (consensus.BlockMakerInterface, error) {
+func (n *Node) getBlockMakeManager() consensus.BlockMakerInterface {
 	return consensus.NewBlockMakerManager(n.ConsensusConfig, n.MinterAddress, n.DBConn.DB(), n.Logger)
 }
 
@@ -389,7 +390,7 @@ func (n *Node) TryToMakeBlock(newTransactionID []byte) ([]byte, error) {
 
 	n.Logger.Trace.Println("Create block maker")
 	// check how many transactions are ready to be added to a block
-	Minter, _ := n.getBlockMakeManager()
+	Minter := n.getBlockMakeManager()
 
 	prepres, err := Minter.PrepareNewBlock()
 
@@ -623,8 +624,36 @@ func (n *Node) ReceivedFullBlockFromOtherNode(blockdata []byte) (int, uint, *str
 	return blockstate, addstate, block, nil
 }
 
-// Get node state
+// Received new transaction . This must verify and if all ok it adds to the pool
+func (n *Node) ReceivedNewTransaction(tx *structures.Transaction, flags int) error {
+	return n.getBlockMakeManager().AddTransactionToPool(tx, flags)
+}
 
+// New transactions created. It is received in serialysed view and signatures separately
+// This data is ready to be convertd to complete gransaction
+func (n *Node) ReceivedNewCurrencyTransactionData(txBytes []byte, Signature []byte) (*structures.Transaction, error) {
+	tx, err := structures.DeserializeTransaction(txBytes)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = tx.CompleteTransaction(Signature)
+
+	if err != nil {
+		return nil, err
+	}
+
+	err = n.ReceivedNewTransaction(tx, lib.TXFlagsExecute)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return tx, nil
+}
+
+// Get node state
 func (n *Node) GetNodeState() (nodeclient.ComGetNodeState, error) {
 	result := nodeclient.ComGetNodeState{}
 

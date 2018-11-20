@@ -11,11 +11,11 @@ Errors returned by the proxy must have MySQL codes.
 import (
 	"encoding/hex"
 
+	"github.com/gelembjuk/oursql/lib"
 	"github.com/gelembjuk/oursql/lib/dbproxy"
 	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/nodemanager"
 	"github.com/gelembjuk/oursql/node/structures"
-	"github.com/gelembjuk/oursql/node/transactions"
 )
 
 type queryFilter struct {
@@ -124,7 +124,7 @@ func (q *queryFilter) ResponseCallback(sessionID string, err error) {
 
 	} else if tx, ok := q.sessionTransactions[sessionID]; ok {
 		// Add the TX to the pool
-		err := q.Node.GetTransactionsManager().ReceivedNewTransaction(tx, transactions.TXFlagsNothing)
+		err := q.Node.ReceivedNewTransaction(tx, lib.TXFlagsNothing)
 
 		if err != nil {
 			// Rollback?

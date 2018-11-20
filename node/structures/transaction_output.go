@@ -44,6 +44,10 @@ func (out *TXCurrrencyOutput) Lock(address []byte) {
 	out.PubKeyHash = pubKeyHash
 }
 
+// Lock signs the output
+func (out TXCurrrencyOutput) HasOutAddress() bool {
+	return len(out.PubKeyHash) > 0
+}
 // IsLockedWithKey checks if the output can be used by the owner of the pubkey
 func (out *TXCurrrencyOutput) IsLockedWithKey(pubKeyHash []byte) bool {
 	return bytes.Compare(out.PubKeyHash, pubKeyHash) == 0

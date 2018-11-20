@@ -169,6 +169,10 @@ func (q *sqlParser) parseKindAndTable(sqlquery string) (kind string, table strin
 		kind = lib.QueryKindSelect
 		re = ""
 
+	} else if strings.HasPrefix(lcase, "describe ") {
+		kind = lib.QueryKindSelect
+		re = ""
+
 	} else if strings.HasPrefix(lcase, "update ") {
 		kind = lib.QueryKindUpdate
 		re = "update\\s+([^ ]+)\\s"

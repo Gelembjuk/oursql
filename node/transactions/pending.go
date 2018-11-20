@@ -585,6 +585,7 @@ func (u *unApprovedTransactions) CleanUnapprovedCache() error {
 // Find if there is transaction in a pool that updates given Reference
 // can be used for some operations. INSERT can be based on a table create operation
 // for now this is the only case when altid is really used
+// Current TX can be specified. It is for case when we do verify and a TX is already in a pool
 func (u *unApprovedTransactions) FindSQLReferenceTransaction(sqlUpdate structures.SQLUpdate) (txID []byte, err error) {
 	// it i needed to go over all tranactions in cache and check each of them
 	utdb, err := u.DB.GetUnapprovedTransactionsObject()
@@ -614,6 +615,7 @@ func (u *unApprovedTransactions) FindSQLReferenceTransaction(sqlUpdate structure
 	transactionsReused := [][]byte{}
 
 	err = utdb.ForEach(func(txid, txBytes []byte) error {
+
 		tx, err := structures.DeserializeTransaction(txBytes)
 
 		if err != nil {
