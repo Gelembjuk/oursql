@@ -530,17 +530,6 @@ func (n *txManager) VerifyTransaction(tx *structures.Transaction, prevtxs []stru
 	}
 	n.Logger.Trace.Printf("TM Verify TX %x, internal passed . F;ags %d", tx.GetID(), flags)
 
-	if tx.IsSQLCommand() {
-		n.Logger.Trace.Printf("IS SQL")
-	} else {
-		n.Logger.Trace.Printf("IS NOT SQL")
-	}
-	if flags&lib.TXFlagsSkipSQLBaseCheck == 0 {
-		n.Logger.Trace.Printf("Has no flag")
-	} else {
-		n.Logger.Trace.Printf("Has flag %d", flags&lib.TXFlagsSkipSQLBaseCheck)
-	}
-
 	if tx.IsSQLCommand() && flags&lib.TXFlagsSkipSQLBaseCheck == 0 {
 		n.Logger.Trace.Printf("Verify SQL state: %s for TX %x", string(tx.SQLCommand.Query), tx.GetID())
 		// check SQL part. Ensure this TX can be executed based on tip
@@ -988,16 +977,22 @@ func (n *txManager) getBaseTransactionInList(sqlUpdate structures.SQLUpdate, pre
 	for _, tx := range prevtxs {
 		if bytes.Compare(sqlUpdate.ReferenceID, tx.SQLCommand.ReferenceID) == 0 {
 			txID = tx.GetID()
-			return
 		}
+	}
+
+	if len(txID) > 0 {
+		return
 	}
 
 	if altRefID != nil {
 		for _, tx := range prevtxs {
 			if bytes.Compare(altRefID, tx.SQLCommand.ReferenceID) == 0 {
 				txID = tx.GetID()
-				return
+
 			}
+		}
+		if len(txID) > 0 {
+			return
 		}
 	}
 	// nothing found, look in blockchain
@@ -1067,19 +1062,19 @@ func (n *txManager) checkBaseTransaction(sqlUpdate structures.SQLUpdate, tx *str
 	var err error
 
 	if prevtxs == nil {
-		/*
-			txt, err := n.getUnapprovedTransactionsManager().GetIfExists(tx.GetID())
+		// this is new TX or is already in a pool
+		txt, err := n.getUnapprovedTransactionsManager().GetIfExists(tx.GetID())
 
-			if err != nil {
-				return err
-			}
+		if err != nil {
+			return err
+		}
 
-			if txt != nil {
-				// if exists in pool it means we already checked it.
-				// TODO maybe this really needs extra check To think
-				return nil
-			}
-		*/
+		if txt != nil {
+			n.Logger.Trace.Printf("TX is in pool. Skip base check")
+			// if exists in pool it means we already checked it.
+			// TODO maybe this really needs extra check To think
+			return nil
+		}
 
 		// not in a pool. do full check
 		inputSQLTX, err = n.getBaseTransaction(sqlUpdate)
