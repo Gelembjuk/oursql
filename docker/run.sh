@@ -8,6 +8,9 @@ if [ -f firststart.lock ]; then
     echo -e "\nskip-networking = 1\n" >> /etc/mysql/mysql.conf.d/mysqld.cnf
 fi
 
+# try to fix problem on some hosts
+find /var/lib/mysql/mysql -exec touch -c -a {} +
+
 /etc/init.d/mysql start
 
 timeout=120

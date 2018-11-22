@@ -2,11 +2,12 @@ FROM ubuntu:latest
 MAINTAINER Roman Gelembjuk
 
 # Install latest updates
-RUN apt-get update && apt-get upgrade -y && apt-get install -y gcc make
-RUN apt-get install -y golang-1.10
-RUN DEBIAN_FRONTEND=noninteractive apt-get -y install mysql-client mysql-server iproute2
-
-RUN apt-get install -y git
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y gcc make && \
+    apt-get install -y golang-1.10 && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y install mysql-client mysql-server && \
+    apt-get install -y iproute2 git 
 
 ENV GOPATH="/build/"
 ENV PATH="/usr/lib/go-1.10/bin:${PATH}"
