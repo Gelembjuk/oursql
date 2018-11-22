@@ -102,11 +102,11 @@ def test(testfilter):
     
     _lib.FatalAssert(len(txlist) == 1,"Should be 1 unapproved transaction")
 
-    time.sleep(1)
+    time.sleep(3)
     # and now get transactions from second node
     txlist = _transfers.WaitUnapprovedTransactions(datadir2,1)
     
-    _lib.FatalAssert(len(txlist) == 1,"Should be 1 unapproved transaction on second node. Got "+str(len(txlist)))
+    _lib.FatalAssert(len(txlist) == 1,"Should be 1 unapproved transaction on second node. Got "+str(len(txlist))+" "+str(txlist))
     #print txid1
     #print txlist
     if txid1 not in txlist.keys():
