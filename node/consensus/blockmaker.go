@@ -11,6 +11,7 @@ import (
 	"github.com/gelembjuk/oursql/node/blockchain"
 	"github.com/gelembjuk/oursql/node/config"
 	"github.com/gelembjuk/oursql/node/database"
+	"github.com/gelembjuk/oursql/node/dbquery"
 	"github.com/gelembjuk/oursql/node/structures"
 	"github.com/gelembjuk/oursql/node/transactions"
 )
@@ -23,6 +24,9 @@ type NodeBlockMaker struct {
 	config        *ConsensusConfig
 }
 
+func (n NodeBlockMaker) getQueryParser() dbquery.QueryProcessorInterface {
+	return dbquery.NewQueryProcessor(n.DB, n.Logger)
+}
 func (n *NodeBlockMaker) SetDBManager(DB database.DBManager) {
 	n.DB = DB
 }
@@ -338,34 +342,10 @@ func (n NodeBlockMaker) VerifyTransaction(tx *structures.Transaction, prevTXs []
 		return errors.New(fmt.Sprintf("Transaction in a block is not valid: %x", tx.GetID()))
 	}
 
-	// if it is SQL transaction and includes currency part
-	// that we must check if a TX was posted to correct destination address
-	if tx.IsSQLCommand() && tx.IsCurrencyTransfer() {
-		paidTXPubKeyHash := n.config.GetPaidTransactionsWalletPubKeyHash()
+	err = n.verifyTransactionPaidSQL(tx)
 
-		if len(paidTXPubKeyHash) > 0 {
-			// if there is specific address inconsensus rules to send money for SQL updates
-			// check also if amount is according to consensus rules
-			// possible hashes to send money in this transaction
-			possibleHashes := [][]byte{paidTXPubKeyHash}
-
-			byPubKeyHash, err := utils.HashPubKey(tx.ByPubKey)
-
-			if err != nil {
-				return errors.New(fmt.Sprintf("TX verify error. Getting TX author pub key hash failed: %s", err.Error()))
-			}
-
-			possibleHashes = append(possibleHashes, byPubKeyHash)
-
-			err = structures.CheckTXOutputsAreOnlyToGivenAddresses(tx, possibleHashes)
-
-			if err != nil {
-				return err
-			}
-
-			// check amount
-			// TODO
-		}
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -412,4 +392,59 @@ func (n *NodeBlockMaker) getTransactionNumbersLimits(block *structures.Block) (i
 
 	n.Logger.Trace.Printf("TX count limits %d - %d", min, max)
 	return min, max, nil
+}
+
+//Verify SQL paid transaction. This checks if output is locked to correct address and amount is vald for paid SQL
+func (n *NodeBlockMaker) verifyTransactionPaidSQL(tx *structures.Transaction) error {
+	// if it is SQL transaction and includes currency part
+	// that we must check if a TX was posted to correct destination address
+	if !(tx.IsSQLCommand() && tx.IsCurrencyTransfer()) {
+		return nil
+	}
+	paidTXPubKeyHash := n.config.GetPaidTransactionsWalletPubKeyHash()
+
+	if len(paidTXPubKeyHash) == 0 {
+		return nil
+	}
+
+	// if there is specific address inconsensus rules to send money for SQL updates
+	// check also if amount is according to consensus rules
+	// possible hashes to send money in this transaction
+	possibleHashes := [][]byte{paidTXPubKeyHash}
+
+	byPubKeyHash, err := utils.HashPubKey(tx.ByPubKey)
+
+	if err != nil {
+		return errors.New(fmt.Sprintf("TX verify error. Getting TX author pub key hash failed: %s", err.Error()))
+	}
+
+	possibleHashes = append(possibleHashes, byPubKeyHash)
+
+	err = structures.CheckTXOutputsAreOnlyToGivenAddresses(tx, possibleHashes)
+
+	if err != nil {
+		return err
+	}
+	qp := n.getQueryParser()
+	// this will get sql type and data from comments. data can be pubkey, txBytes, signature
+	qparsed, err := qp.ParseQuery(tx.GetSQLQuery())
+
+	if err != nil {
+		return err
+	}
+
+	// check amount
+	amount, err := n.config.checkQueryNeedsPayment(qparsed)
+
+	if err != nil {
+		return err
+	}
+	n.Logger.Trace.Printf("Check transaction contains %f payment to %x", amount, paidTXPubKeyHash)
+	err = structures.CheckTXOutputValueToAddress(tx, paidTXPubKeyHash, amount)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

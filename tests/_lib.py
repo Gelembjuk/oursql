@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import random, string
 import re
+import errno
 from shutil import copyfile
 import base64
 import json
@@ -232,6 +233,24 @@ def GetConfigFile(datadir):
 def Exit():
     raise NameError('Test failed')
 
+def CopyTestConsensusConfig(todir,consconfname, walletaddr):
+    srcfile = getCurrentDir()+"/datafortests/consconfigfiles/"+consconfname+".json"
+    
+    if not os.path.isfile(srcfile):
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), srcfile)
+    
+    dstfile = todir+"/consensusconfig.json"
+    
+    with open(srcfile) as f:
+        data = json.load(f)
+        f.close()
+    
+        if walletaddr != "":
+            data["PaidTransactionsWallet"] = walletaddr
+        
+        with open(dstfile, 'w') as fp:
+            json.dump(data, fp)
+    
 def CopyTestData(todir,testset):
     srcdir = getCurrentDir()+"/datafortests/"+testset+"/"
     
