@@ -1,7 +1,8 @@
 *.db
 *.dat
 
-*.json
+#*.json
+
 *.txt
 *.cfg
 
@@ -10,6 +11,7 @@
 node/node
 wallet/wallet
 remoteclient/remoteclient
+remoteclient/conf*/*.json
 
 node/conf/
 node/conf1/
@@ -19,3 +21,5 @@ wallet/*/
 
 tests/packagestests/dbquery/config.json
 tests/packagestests/dbquery/dbquery
+
+tests/test*/*.json

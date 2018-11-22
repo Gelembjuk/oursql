@@ -1,0 +1,13 @@
+{
+    "Kind":"proofofwork",
+    "CoinsForBlockMade":10.0,
+    "Settings":{
+        
+    },
+    "AllowTableCreate":true,
+    "AllowTableDrop":true,
+    "AllowRowDelete":true,
+    "UnmanagedTables":[],
+    "TableRules":[],
+    "InitNodesAddreses":[]
+}

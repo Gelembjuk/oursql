@@ -1,0 +1,40 @@
+{
+    "Application": {
+        "Name":"MoreComplexMinting",
+        "WebSite":"http://oursql.org",
+        "Team":"Application Support Team"
+    },
+    "Kind":"proofofwork",
+    "CoinsForBlockMade":5.0,
+    "Settings":{
+        "Complexity":24,
+        "ComplexityStep2":30,
+        "MaxMinNumberTransactionInBlock":1000,
+        "MaxNumberTransactionInBlock":10000
+    },
+    "AllowTableCreate":true,
+    "AllowTableDrop":true,
+    "AllowRowDelete":true,
+    "TransactionCost":{
+        "Default":0.0,
+        "RowDelete":0.0,
+        "RowUpdate":0.0,
+        "RowInsert":0.0,
+        "TableCreate":0.0
+    },
+    "UnmanagedTables":["temp"],
+    "TableRules":[
+        {
+            "Table":"members",
+            "AllowRowDelete":false,
+            "AllowRowUpdate":true,
+            "AllowRowInsert":true,
+            "AllowTableCreate":true,
+            "TransactionCost":{
+                "Default":0.05,
+                "TableCreate":1
+            }
+        }
+    ],
+    "InitNodesAddreses":[]
+}

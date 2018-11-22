@@ -1,0 +1,2 @@
+{"Minter":"","ProxyKey":"","Port":8765,"LocalPort":8765,"Host":"host.local.address","Nodes":[],"Logs":["trace","error"],"LogsDestination":"","Database":{"MysqlHost":"","MysqlPort":3306,"MysqlSocket":"/var/run/mysqld/mysqld.sock","DatabaseName":"BC","DbUser":"blockchain","DbPassword":"blockchain","TablesPrefix":"bc_"},"DBProxyAddress":":8766"}
+
