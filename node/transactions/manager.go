@@ -490,9 +490,8 @@ func (n *txManager) AddNewTransaction(tx *structures.Transaction, flags int) (er
 // This must be considered as correct case
 func (n *txManager) VerifyTransaction(tx *structures.Transaction, prevtxs []structures.Transaction, tip []byte, flags int) (bool, error) {
 
-	n.Logger.Trace.Printf("TM Verify TX %x", tx.GetID())
-
 	inputTXs, notFoundInputs, err := n.getCurrencyInputTransactionsState(tx, tip)
+
 	if err != nil {
 		n.Logger.Trace.Printf("VT error 4: %s", err.Error())
 		return false, err
@@ -528,7 +527,6 @@ func (n *txManager) VerifyTransaction(tx *structures.Transaction, prevtxs []stru
 		n.Logger.Trace.Printf("VT error 6: %s", err.Error())
 		return false, err
 	}
-	n.Logger.Trace.Printf("TM Verify TX %x, internal passed . F;ags %d", tx.GetID(), flags)
 
 	if tx.IsSQLCommand() && flags&lib.TXFlagsSkipSQLBaseCheck == 0 {
 		n.Logger.Trace.Printf("Verify SQL state: %s for TX %x", string(tx.SQLCommand.Query), tx.GetID())
@@ -936,7 +934,7 @@ func (n *txManager) getAddressPendingBalance(address string) (float64, error) {
 // Finds a transaction where a refID was last updated or which can be used as a base
 // Firstly looks in a pool of transactions ,if not found, looks in an index
 func (n *txManager) getBaseTransaction(sqlUpdate structures.SQLUpdate) (txID []byte, err error) {
-	n.Logger.Trace.Printf("getBaseTransaction ")
+
 	// look on a pool
 	txID, err = n.getUnapprovedTransactionsManager().FindSQLReferenceTransaction(sqlUpdate)
 
@@ -955,7 +953,7 @@ func (n *txManager) getBaseTransaction(sqlUpdate structures.SQLUpdate) (txID []b
 // Finds a transaction where a refID was last updated or which can be used as a base
 // Firstly looks in a pool of transactions ,if not found, looks in an index
 func (n *txManager) getBaseTransactionInList(sqlUpdate structures.SQLUpdate, prevtxs []structures.Transaction) (txID []byte, err error) {
-	n.Logger.Trace.Printf("getBaseTransactionInList for prev list of %d txs", len(prevtxs))
+
 	sqlUpdateMan, err := dbquery.NewSQLUpdateManager(sqlUpdate)
 
 	if err != nil {

@@ -266,7 +266,7 @@ func (n *NodeBlockMaker) VerifyBlock(block *structures.Block, flags int) error {
 	if !valid {
 		return errors.New("Block hash is not valid")
 	}
-	n.Logger.Trace.Println("block hash verified")
+	n.Logger.Trace.Println("Block hash verified")
 	// 2. check number of TX
 	txnum := len(block.Transactions) - 1 /*minus coinbase TX*/
 
@@ -283,11 +283,11 @@ func (n *NodeBlockMaker) VerifyBlock(block *structures.Block, flags int) error {
 	if txnum > max {
 		return errors.New("Number of transactions is too high")
 	}
-	n.Logger.Trace.Printf("Check flag %d", flags)
+
 	if flags&lib.TXFlagsSkipSQLBaseCheckIfNotOnTop > 0 {
 		// check if this block will go to top or no
 		lastHash, _, err := n.getBlockchainManager().GetState()
-		n.Logger.Trace.Printf("Current top hash is %x and new prev hash %x", lastHash, block.PrevBlockHash)
+
 		if err != nil {
 			return err
 		}
@@ -297,7 +297,7 @@ func (n *NodeBlockMaker) VerifyBlock(block *structures.Block, flags int) error {
 			flags = flags | lib.TXFlagsSkipSQLBaseCheck
 		}
 	}
-	n.Logger.Trace.Printf("Check flag 2 %d", flags)
+
 	// 1
 	coinbaseused := false
 
@@ -329,8 +329,6 @@ func (n *NodeBlockMaker) VerifyBlock(block *structures.Block, flags int) error {
 
 // Verify transaction against all rules
 func (n NodeBlockMaker) VerifyTransaction(tx *structures.Transaction, prevTXs []structures.Transaction, prevBlockHash []byte, flags int) error {
-
-	n.Logger.Trace.Printf("BM Verify TX %x with flags %d", tx.GetID(), flags)
 
 	vtx, err := n.getTransactionsManager().VerifyTransaction(tx, prevTXs, prevBlockHash, flags)
 
@@ -439,7 +437,7 @@ func (n *NodeBlockMaker) verifyTransactionPaidSQL(tx *structures.Transaction) er
 	if err != nil {
 		return err
 	}
-	n.Logger.Trace.Printf("Check transaction contains %f payment to %x", amount, paidTXPubKeyHash)
+
 	err = structures.CheckTXOutputValueToAddress(tx, paidTXPubKeyHash, amount)
 
 	if err != nil {
