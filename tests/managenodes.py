@@ -94,13 +94,14 @@ def test(testfilter):
     tx = _transfers.Send(datadir1,address,address2,'0.01')
     
     blocks = _blocks.WaitBlocks(datadir1,3)
-    time.sleep(1)
+    time.sleep(2)
     
     tx = txid1 = _transfers.Send(datadir1,address,address2,'1')
+    time.sleep(1)
     
     txlist = transactions.GetUnapprovedTransactions(datadir1)
     
-    _lib.FatalAssert(len(txlist) == 1,"Should be 1 unapproved transaction")
+    _lib.FatalAssert(len(txlist) == 1,"Should be 1 unapproved transaction. Got "+str(len(txlist)))
 
     time.sleep(3)
     # and now get transactions from second node
@@ -136,12 +137,14 @@ def test(testfilter):
     
     txid1 = _transfers.Send(datadir1,address,address3,'4') 
     
-    transactions.GetUnapprovedTransactionsEmpty(datadir3)
+    # unapproved TX is pulled from node 1 on start
+    txlist3 = transactions.GetUnapprovedTransactions(datadir3)
     
-    txlist1 = transactions.GetUnapprovedTransactions(datadir1)
+    _lib.FatalAssert(len(txlist3) == 1,"Should be 1 unapproved transactions on 3")
     
     time.sleep(3) # we need to give a chance to sync all
     
+    txlist1 = transactions.GetUnapprovedTransactions(datadir1)
     txlist2 = transactions.GetUnapprovedTransactions(datadir2)
    
     _lib.FatalAssert(len(txlist1) == 2,"Should be 2 unapproved transactions on 1")
