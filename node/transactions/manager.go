@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/gelembjuk/oursql/lib"
 	"github.com/gelembjuk/oursql/lib/remoteclient"
@@ -174,6 +175,42 @@ func (n *txManager) GetUnapprovedTransactionsForNewBlock(number int) ([]structur
 		}
 	}
 	return txs, nil
+}
+
+// Returns list of transactions from the pool. Filters by time or maxcount, it total is lexx maxcount, returns all
+// Returns only IDs of transactions
+func (n *txManager) GetUnapprovedTransactionsFiltered(minCreateTime int64, maxCount int) ([][]byte, error) {
+	if maxCount < 1 {
+		maxCount = 10000
+	}
+	if minCreateTime < 1 {
+		// by default return all txs for last 30 days
+		minCreateTime = time.Now().Unix() - 3600*24*30
+	}
+
+	var txList []*structures.Transaction
+
+	c, err := n.getUnapprovedTransactionsManager().GetCount()
+
+	if err != nil {
+		return nil, err
+	}
+
+	if c < maxCount {
+		// return all txs
+		txList, err = n.getUnapprovedTransactionsManager().GetTransactions(maxCount)
+	} else {
+		// filter by datetime
+		txList, err = n.getUnapprovedTransactionsManager().GetTransactionsFiltered(maxCount, minCreateTime)
+	}
+
+	txIDs := [][]byte{}
+
+	for _, tx := range txList {
+		txIDs = append(txIDs, tx.GetID())
+	}
+
+	return txIDs, nil
 }
 
 /*

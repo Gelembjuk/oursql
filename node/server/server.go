@@ -32,11 +32,17 @@ type NodeServer struct {
 	StopMainConfirmChan chan struct{}
 	BlockBilderChan     chan []byte
 
+	subBlockBuilderStarted bool
+
+	changesCheckerObj *changesChecker
+
 	DBProxyAddr string
 	DBAddr      string
 	QueryFilter *queryFilter
 
 	NodeAuthStr string
+
+	hadOtherNodesConnects bool
 }
 
 func (s *NodeServer) GetClient() *nodeclient.NodeClient {
@@ -96,10 +102,16 @@ func (s *NodeServer) handleConnection(conn net.Conn) {
 	case "viod":
 		// do nothing
 		s.Logger.Trace.Println("Void command reveived")
+
 	case "block":
 		rerr = requestobj.handleBlock()
+
+	case nodeclient.CommandGetBlock:
+		rerr = requestobj.handleGetBlock()
+
 	case "inv":
 		rerr = requestobj.handleInv()
+
 	case "getblocks":
 		rerr = requestobj.handleGetBlocks()
 
@@ -145,8 +157,14 @@ func (s *NodeServer) handleConnection(conn net.Conn) {
 	case "removenode":
 		rerr = requestobj.handleRemoveNode()
 
-	case "getstate":
+	case nodeclient.CommandGetState:
 		rerr = requestobj.handleGetState()
+
+	case nodeclient.CommandGetUpdates:
+		rerr = requestobj.handleGetUpdates()
+
+	case nodeclient.CommandGetTransaction:
+		rerr = requestobj.handleGetTransaction()
 
 	case "version":
 		rerr = requestobj.handleVersion()
@@ -213,12 +231,16 @@ func (s *NodeServer) StartServer(serverStartResult chan string) error {
 	s.Logger.Trace.Printf("Prepare server to start %s on a localport %d", s.NodeAddress.NodeAddrToString(), s.NodePort)
 
 	// this channel must be inited here. It is used inside StartDatabaseProxy()
+	// DB proxy wil notify about new transactions using this channel
 	s.BlockBilderChan = make(chan []byte, 100)
 
 	started, err := s.StartDatabaseProxy()
 
 	if err != nil {
 		serverStartResult <- err.Error()
+
+		s.stopAllSubroutines()
+
 		return err
 	}
 
@@ -232,9 +254,8 @@ func (s *NodeServer) StartServer(serverStartResult chan string) error {
 	if err != nil {
 		serverStartResult <- err.Error()
 
-		s.StopDatabaseProxy()
+		s.stopAllSubroutines()
 
-		close(s.StopMainConfirmChan)
 		s.Logger.Trace.Println("Fail to start port listening ", err.Error())
 		return err
 	}
@@ -251,9 +272,21 @@ func (s *NodeServer) StartServer(serverStartResult chan string) error {
 	// we don't expect more 100 TX will be received while building a block. if yes, we will skip
 	// adding a signal. this will not be a problem
 
+	err = s.StartChangesChecker()
+
+	if err != nil {
+		serverStartResult <- err.Error()
+
+		s.stopAllSubroutines()
+
+		s.Logger.Trace.Println("Fail to start changes checker ", err.Error())
+		return err
+	}
+
 	// notify daemon about server started fine
 	serverStartResult <- ""
 
+	s.subBlockBuilderStarted = true
 	go s.BlockBuilder()
 
 	s.Logger.Trace.Printf("Start listening connections on port %d", s.NodePort)
@@ -282,12 +315,7 @@ func (s *NodeServer) StartServer(serverStartResult chan string) error {
 			// complete all tasks. save data if needed
 			ln.Close()
 
-			close(s.StopMainConfirmChan)
-
-			s.StopDatabaseProxy()
-
-			s.BlockBilderChan <- []byte{} // send signal to block building thread to exit
-			// empty slice means this is exit signal
+			s.stopAllSubroutines()
 
 			s.Logger.Trace.Println("Stop Listing Network. Correct exit")
 			break
@@ -342,19 +370,20 @@ func (s *NodeServer) BlockBuilder() {
 		if err != nil {
 			s.Logger.Trace.Printf("Block building error %s\n", err.Error())
 		}
-
-		s.Logger.Trace.Printf("Attempt finished")
 	}
 }
 
 // MySQL proxy server. It is in the middle between a DB server and DB client an reads requests
 func (s *NodeServer) StartDatabaseProxy() (started bool, err error) {
+
 	s.QueryFilter, err = InitQueryFilter(s.DBProxyAddr, s.DBAddr, s.Node.Clone(), s.Logger, s.BlockBilderChan)
 	started = true
 
 	if err != nil {
+		s.QueryFilter = nil
+
 		if errc, ok := err.(*dbproxy.DBProxyError); ok {
-			fmt.Println(errc)
+
 			if errc.IsDBProxyConfigError() {
 				return false, nil
 			}
@@ -366,12 +395,38 @@ func (s *NodeServer) StartDatabaseProxy() (started bool, err error) {
 }
 
 // MySQL proxy server. It is in the middle between a DB server and DB client an reads requests
-func (s *NodeServer) StopDatabaseProxy() (err error) {
-	if s.QueryFilter != nil {
-		return s.QueryFilter.Stop()
-	}
-	return nil
+func (s *NodeServer) StartChangesChecker() error {
 
+	s.changesCheckerObj = StartChangesChecker(s)
+
+	return nil
+}
+
+// Stop all sub routines on server stop
+func (s *NodeServer) stopAllSubroutines() {
+	if s.QueryFilter != nil {
+		// MySQL proxy server. It is in the middle between a DB server and DB client an reads requests
+		err := s.QueryFilter.Stop()
+
+		if err != nil {
+			s.Logger.Error.Printf("Error when stop proxy %s", err.Error())
+		}
+		s.QueryFilter = nil
+	}
+
+	if s.changesCheckerObj != nil {
+		s.changesCheckerObj.Stop()
+		s.changesCheckerObj = nil
+	}
+
+	if s.subBlockBuilderStarted {
+		s.BlockBilderChan <- []byte{} // send signal to block building thread to exit
+		// empty slice means this is exit signal
+		s.subBlockBuilderStarted = false
+	}
+
+	// notify daemon process about this server did all completion
+	close(s.StopMainConfirmChan)
 }
 
 // Reads and parses request from network data

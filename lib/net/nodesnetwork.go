@@ -151,3 +151,84 @@ func (n *NodeNetwork) RemoveNodeFromKnown(addr NodeAddr) {
 		n.Storage.RemoveNodeFromKnown(addr)
 	}
 }
+
+// Checks nodes rendomly and returns first found node that is accesible
+// It check if a node was ever connected from this place
+func (n NodeNetwork) GetConnecttionVerifiedNodeAddr() *NodeAddr {
+	n.Logger.Trace.Printf("Currently there are %d nodes", len(n.Nodes))
+
+	if len(n.Nodes) == 0 {
+		return nil
+	}
+
+	rng := utils.MakeRandomRange(0, len(n.Nodes)-1)
+
+	var i int
+
+	for _, i = range rng {
+		node := n.Nodes[i]
+
+		if node.SuccessConnecions > 0 {
+			return &node
+		}
+	}
+	return &n.Nodes[i]
+}
+
+// Same as GetConnecttionVerifiedNodeAddr but returns all verified nodes  or limited list if requested
+func (n NodeNetwork) GetConnecttionVerifiedNodeAddresses(limit int) []*NodeAddr {
+	nodes := []*NodeAddr{}
+
+	n.Logger.Trace.Printf("Nodes Obj contains %d nodes", len(n.Nodes))
+
+	if len(n.Nodes) == 0 {
+		return nodes
+	}
+
+	rng := utils.MakeRandomRange(0, len(n.Nodes)-1)
+
+	var i int
+
+	for _, i = range rng {
+		node := n.Nodes[i]
+
+		if node.SuccessConnecions > 0 {
+			nodes = append(nodes, &node)
+
+			if limit > 0 && len(nodes) >= limit {
+				return nodes
+			}
+		}
+	}
+	if len(nodes) == 0 {
+		for _, n := range n.Nodes {
+			nodes = append(nodes, &n)
+		}
+	}
+	return nodes
+}
+
+// Call this when network operation with some node failed.
+// It will analise error and do some actios to remember state of this node
+func (n *NodeNetwork) HookNeworkOperationResult(err error, nodeindex int) {
+	if err == nil {
+		n.Nodes[nodeindex].ReportSuccessConn()
+		return
+	}
+	if errv, ok := err.(*NetworkError); ok {
+		if errv.WasConnFailure() {
+			n.Nodes[nodeindex].ReportFailedConn()
+		}
+	}
+
+}
+
+// Same as HookNeworkOperationResult but finds a node by address, not by index
+func (n *NodeNetwork) HookNeworkOperationResultForNode(err error, nodeU *NodeAddr) {
+	for i, node := range n.Nodes {
+		if node.CompareToAddress(*nodeU) {
+			n.HookNeworkOperationResult(err, i)
+			break
+		}
+	}
+}

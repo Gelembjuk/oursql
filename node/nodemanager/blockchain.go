@@ -184,3 +184,45 @@ func (n *NodeBlockchain) GetBlocksAfter(hash []byte) ([]*structures.BlockShort, 
 
 	return n.GetBCManager().GetNextBlocks(hash)
 }
+
+// Get BC top info, height and last N block hashes
+func (n *NodeBlockchain) GetBCTopState(bcount int) (height int, topBlocks [][]byte, err error) {
+	bci, err := blockchain.NewBlockchainIterator(n.DBConn.DB())
+
+	if err != nil {
+		n.Logger.Error.Printf("Error when load BC state %s", err.Error())
+		return
+	}
+
+	topBlocks = [][]byte{}
+
+	var blockfull *structures.Block
+
+	for {
+		blockfull, err = bci.Next()
+
+		if err != nil {
+			return
+		}
+
+		if blockfull == nil {
+			err = errors.New("Can not get block with iterator")
+			return
+		}
+
+		if height < 1 {
+			height = blockfull.Height
+		}
+
+		topBlocks = append(topBlocks, blockfull.Hash)
+
+		if len(topBlocks) > bcount {
+			break
+		}
+
+		if len(blockfull.PrevBlockHash) == 0 {
+			break
+		}
+	}
+	return
+}

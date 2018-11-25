@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/gelembjuk/oursql/lib/net"
 	"github.com/gelembjuk/oursql/lib/nodeclient"
@@ -35,6 +36,7 @@ var commandsInteractiveMode = []string{
 	"restoreblockchain",
 	"dumpblockchain",
 	"exportconsensusconfig",
+	"pullupdates",
 	"printchain",
 	"makeblock",
 	"reindexcache",
@@ -238,6 +240,9 @@ func (c NodeCLI) ExecuteCommand() error {
 
 	case "exportconsensusconfig":
 		return c.commandExportConsensusConfig()
+
+	case "pullupdates":
+		return c.commandPullUpdates()
 
 	case "printchain":
 		return c.commandPrintChain()
@@ -482,8 +487,16 @@ func (c *NodeCLI) commandDumpBlockchain() error {
 	return nil
 }
 
-// Print full blockchain
+// Pull updates from all other known nodes
+func (c *NodeCLI) commandPullUpdates() error {
 
+	c.Node.GetCommunicationManager().CheckForChangesOnOtherNodes(time.Now().Unix() - 3600)
+
+	fmt.Println("Updates Pull Complete")
+	return nil
+}
+
+// Print full blockchain
 func (c *NodeCLI) commandPrintChain() error {
 	bci, err := c.Node.GetBlockChainIterator()
 
@@ -856,7 +869,7 @@ func (c *NodeCLI) commandShowNodes() error {
 
 // Add a node to connections
 func (c *NodeCLI) commandAddNode() error {
-	newaddr := net.NodeAddr{c.Input.Args.NodeHost, c.Input.Args.NodePort}
+	newaddr := net.NewNodeAddr(c.Input.Args.NodeHost, c.Input.Args.NodePort)
 
 	if c.AlreadyRunningPort > 0 {
 		nc := c.getLocalNetworkClient()
@@ -877,7 +890,7 @@ func (c *NodeCLI) commandAddNode() error {
 
 // Remove a node from connections
 func (c *NodeCLI) commandRemoveNode() error {
-	remaddr := net.NodeAddr{c.Input.Args.NodeHost, c.Input.Args.NodePort}
+	remaddr := net.NewNodeAddr(c.Input.Args.NodeHost, c.Input.Args.NodePort)
 	fmt.Printf("Remove %s %d", c.Input.Args.NodeHost, c.Input.Args.NodePort)
 	fmt.Println(remaddr)
 
@@ -1044,7 +1057,7 @@ func (c *NodeCLI) commandExportConsensusConfig() error {
 		return errors.New("No known address to use as a default. Set network address for this node first")
 	}
 
-	ownAddres := net.NodeAddr{c.Input.Host, c.Input.Port}
+	ownAddres := net.NewNodeAddr(c.Input.Host, c.Input.Port)
 
 	c.Logger.Trace.Printf("Export Consensus Config file. Own address %s", ownAddres.NodeAddrToString())
 

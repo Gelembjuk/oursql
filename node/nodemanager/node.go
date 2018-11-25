@@ -127,6 +127,16 @@ func (n *Node) GetSQLQueryManager() (consensus.SQLTransactionsInterface, error) 
 	return consensus.NewSQLQueryManager(n.ConsensusConfig, n.DBConn.DB(), n.Logger, n.ProxyPubKey, n.ProxyPrivateKey)
 }
 
+// Create communication object to do requests to othernodes
+func (n *Node) GetCommunicationManager() *communicationManager {
+	n.InitClient()
+
+	cm := communicationManager{}
+	cm.logger = n.Logger
+	cm.node = n
+	return &cm
+}
+
 // Init block maker object. It is used to make new blocks
 func (n *Node) getCreateManager() *makeBlockchain {
 	return &makeBlockchain{n.Logger, n.MinterAddress, n.DBConn, n.ConsensusConfig}
@@ -205,7 +215,7 @@ func (n *Node) InitBlockchainFromOther(host string, port int) (bool, error) {
 		host = nd.Host
 		port = nd.Port
 	}
-	addr := net.NodeAddr{host, port}
+	addr := net.NewNodeAddr(host, port)
 
 	complete, err := n.getCreateManager().InitBlockchainFromOther(addr, n.NodeClient, &n.NodeBC)
 
@@ -230,28 +240,6 @@ func (n *Node) RestoreBlockchain(file string) error {
 	return n.DBConn.Restore(file)
 }
 
-/*
-* Send transaction to all known nodes. This wil send only hash and node hash to check if hash exists or no
- */
-func (n *Node) SendTransactionToAll(tx *structures.Transaction) {
-	n.Logger.Trace.Printf("Send transaction to %d nodes", len(n.NodeNet.Nodes))
-
-	for _, node := range n.NodeNet.Nodes {
-		if node.CompareToAddress(n.NodeClient.NodeAddress) {
-			continue
-		}
-		n.Logger.Trace.Printf("Send TX %x to %s", tx.GetID(), node.NodeAddrToString())
-		n.NodeClient.SendInv(node, "tx", [][]byte{tx.GetID()})
-	}
-}
-
-// Process new
-/*
-func (n *Node) ReceivedNewCurrencyTransactionData(txBytes []byte, Signature []byte) (*structures.Transaction, error) {
-
-}
-*/
-
 // Add node
 // We need this for case when we want to do some more actions after node added
 func (n *Node) AddNodeToKnown(addr net.NodeAddr, sendversion bool) {
@@ -268,26 +256,7 @@ func (n *Node) AddNodeToKnown(addr net.NodeAddr, sendversion bool) {
 	}
 }
 
-// Send block to all known nodes
-// This is used in case when new block was received from other node or
-// created by this node. We will notify our network about new block
-// But not send full block, only hash and previous hash. So, other can copy it
-// Address from where we get it will be skipped
-func (n *Node) SendBlockToAll(newBlock *structures.Block, skipaddr net.NodeAddr) {
-	for _, node := range n.NodeNet.Nodes {
-		if node.CompareToAddress(n.NodeClient.NodeAddress) {
-			continue
-		}
-		blockshortdata, err := newBlock.GetShortCopy().Serialize()
-		if err == nil {
-			n.NodeClient.SendInv(node, "block", [][]byte{blockshortdata})
-		}
-	}
-}
-
-/*
-* Send own version to all known nodes
- */
+// Send own version to all known node
 func (n *Node) SendVersionToNodes(nodes []net.NodeAddr) {
 	opened := n.DBConn.OpenConnectionIfNeeded("GetHeigh", n.SessionID)
 	bestHeight, err := n.NodeBC.GetBestHeight()
@@ -300,16 +269,7 @@ func (n *Node) SendVersionToNodes(nodes []net.NodeAddr) {
 		return
 	}
 
-	if len(nodes) == 0 {
-		nodes = n.NodeNet.Nodes
-	}
-
-	for _, node := range nodes {
-		if node.CompareToAddress(n.NodeClient.NodeAddress) {
-			continue
-		}
-		n.NodeClient.SendVersion(node, bestHeight)
-	}
+	n.GetCommunicationManager().sendVersionToNodes(nodes, bestHeight)
 }
 
 /*
@@ -350,7 +310,7 @@ func (n *Node) Send(PubKey []byte, privKey ecdsa.PrivateKey, to string, amount f
 	if err != nil {
 		return nil, err
 	}
-	n.SendTransactionToAll(tx)
+	n.GetCommunicationManager().sendTransactionToAll(tx)
 
 	return tx.GetID(), nil
 }
@@ -370,7 +330,7 @@ func (n *Node) SQLTransaction(PubKey []byte, privKey ecdsa.PrivateKey, sqlcomman
 		return nil, err
 	}
 	if tx != nil {
-		n.SendTransactionToAll(tx)
+		n.GetCommunicationManager().sendTransactionToAll(tx)
 
 		return tx.GetID(), nil
 	}
@@ -415,7 +375,7 @@ func (n *Node) TryToMakeBlock(newTransactionID []byte) ([]byte, error) {
 
 			if err == nil && tx != nil {
 				// send TX to all other nodes
-				n.SendTransactionToAll(tx)
+				n.GetCommunicationManager().sendTransactionToAll(tx)
 			} else if err != nil {
 				n.Logger.Trace.Printf("Error: %s", err.Error())
 			} else if tx == nil {
@@ -446,7 +406,7 @@ func (n *Node) TryToMakeBlock(newTransactionID []byte) ([]byte, error) {
 		return nil, err
 	}
 	// send new block to all known nodes
-	n.SendBlockToAll(block, net.NodeAddr{} /*nothing to skip*/)
+	n.GetCommunicationManager().SendBlockToAll(block, net.NodeAddr{} /*nothing to skip*/)
 
 	n.Logger.Trace.Println("Block done. Sent to all")
 

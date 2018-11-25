@@ -464,6 +464,47 @@ func (bc *Blockchain) GetBlocksShortInfo(startfrom []byte, maxcount int) []*stru
 	return blocks
 }
 
+// Returns a list of blocks short info stating from given block or from a top and
+// created aftr given time
+func (bc *Blockchain) GetBlocksShortInfoCreatedAfter(startfrom []byte, minCreateTime int64, maxcount int) []*structures.BlockShort {
+	var blocks []*structures.BlockShort
+	var bci *BlockchainIterator
+
+	var err error
+
+	if len(startfrom) > 0 {
+		bci, err = NewBlockchainIteratorFrom(bc.DB, startfrom)
+
+	} else {
+		bci, err = NewBlockchainIterator(bc.DB)
+	}
+
+	if err != nil {
+		return blocks
+	}
+
+	for {
+		block, _ := bci.Next()
+		bs := block.GetShortCopy()
+
+		if block.Timestamp < minCreateTime {
+			break
+		}
+
+		blocks = append(blocks, bs)
+
+		if len(block.PrevBlockHash) == 0 {
+			break
+		}
+
+		if len(blocks) > maxcount {
+			break
+		}
+	}
+
+	return blocks
+}
+
 // returns a list of hashes of all the blocks in the chain
 func (bc *Blockchain) GetNextBlocks(startfrom []byte) ([]*structures.BlockShort, error) {
 	localError := func(err error) ([]*structures.BlockShort, error) {

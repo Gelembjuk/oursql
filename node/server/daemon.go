@@ -306,7 +306,7 @@ func (n *NodeDaemon) DaemonizeServer() error {
 		// to force server to try to handle next command if there were no input connects
 		// if we don't do this it will stay in "Accepting" mode and can not real channel
 		n.Logger.Trace.Println("Send void command on port ", server.NodeAddress.Port)
-		serverAddr := net.NodeAddr{"localhost", server.NodePort}
+		serverAddr := net.NewNodeAddr("localhost", server.NodePort)
 
 		nodeclient := server.GetClient()
 

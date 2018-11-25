@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ripemd160"
 
@@ -265,4 +266,18 @@ func StringInSlice(a string, list []string) bool {
 		}
 	}
 	return false
+}
+
+func MakeRandomRange(min, max int) []int {
+	r := rand.New(rand.NewSource(time.Now().Unix()))
+
+	a := make([]int, max-min+1)
+
+	perm := r.Perm(len(a))
+
+	for i, randIndex := range perm {
+		a[i] = min + randIndex
+	}
+
+	return a
 }

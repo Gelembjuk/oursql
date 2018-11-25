@@ -205,6 +205,46 @@ func (s *NodeServerRequest) handleTxData() error {
 	return nil
 }
 
+// Returns transaction from a pool in sync request
+func (s *NodeServerRequest) handleGetTransaction() error {
+	s.HasResponse = true
+	s.S.hadOtherNodesConnects = true // this request can be from other node only
+
+	var payload nodeclient.ComGetTransaction
+
+	err := s.parseRequestData(&payload)
+
+	if err != nil {
+		return err
+	}
+
+	result := nodeclient.ResponseGetTransaction{}
+
+	tx, err := s.Node.GetTransactionsManager().GetIfExists(payload.TransactionID)
+
+	if err != nil {
+		return err
+	}
+
+	if tx == nil {
+		return errors.New("Transaction not found in a pool")
+	}
+
+	result.Transaction, err = structures.SerializeTransaction(tx)
+
+	if err != nil {
+		return err
+	}
+
+	s.Response, err = net.GobEncode(result)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // Request for new currrency transaction from light client. Builds a transaction without sign.
 // Returns also list of previous transactions selected for input. it is used for signature on client side
 
@@ -297,6 +337,8 @@ func (s *NodeServerRequest) handleTxSQLRequest() error {
 func (s *NodeServerRequest) handleGetFirstBlocks() error {
 	s.HasResponse = true
 
+	s.S.hadOtherNodesConnects = true // this request can be from other node only
+
 	result := nodeclient.ComGetFirstBlocksData{}
 
 	blocks, height, err := s.Node.NodeBC.GetBCManager().GetFirstBlocks(10)
@@ -332,6 +374,8 @@ func (s *NodeServerRequest) handleGetFirstBlocks() error {
 func (s *NodeServerRequest) handleGetConsensusData() error {
 	s.HasResponse = true
 
+	s.S.hadOtherNodesConnects = true // this request can be from other node only
+
 	result := nodeclient.ComGetConsensusData{}
 
 	var err error
@@ -361,6 +405,8 @@ func (s *NodeServerRequest) handleGetConsensusData() error {
 // Received the lst of nodes from some other node. add missed nodes to own nodes list
 
 func (s *NodeServerRequest) handleAddr() error {
+	s.S.hadOtherNodesConnects = true // this request can be from other node only
+
 	var payload []net.NodeAddr
 	err := s.parseRequestData(&payload)
 
@@ -393,6 +439,8 @@ func (s *NodeServerRequest) handleAddr() error {
 
 // Block received from other node
 func (s *NodeServerRequest) handleBlock() error {
+	s.S.hadOtherNodesConnects = true // this request can be from other node only
+
 	var payload nodeclient.ComBlock
 	err := s.parseRequestData(&payload)
 
@@ -410,7 +458,7 @@ func (s *NodeServerRequest) handleBlock() error {
 	if blockstate == 0 {
 		s.Logger.Trace.Printf("send block to all ")
 		// block was added, now we can send it to all other nodes.
-		s.Node.SendBlockToAll(block, payload.AddrFrom)
+		s.Node.GetCommunicationManager().SendBlockToAll(block, payload.AddrFrom)
 	}
 	// this is the list of hashes some node posted before. If there are yes some data then try to get that blocks.
 	s.Logger.Trace.Printf("check count blocks left %d ", s.S.Transit.GetBlocksCount(payload.AddrFrom))
@@ -470,6 +518,8 @@ func (s *NodeServerRequest) handleBlock() error {
 * If such block or transaction is not yet present , then request for full info about it
  */
 func (s *NodeServerRequest) handleInv() error {
+	s.S.hadOtherNodesConnects = true // this request can be from other node only
+
 	var payload nodeclient.ComInv
 
 	err := s.parseRequestData(&payload)
@@ -481,7 +531,7 @@ func (s *NodeServerRequest) handleInv() error {
 	s.Logger.Trace.Printf("SessID: %s . Recevied inventory with %d %s\n", s.SessID, len(payload.Items), payload.Type)
 
 	if payload.Type == "block" {
-
+		// this structure is used to keep info about blocks while loading them one by one
 		s.S.Transit.AddBlocks(payload.AddrFrom, payload.Items)
 
 		for {
@@ -548,6 +598,8 @@ func (s *NodeServerRequest) handleInv() error {
 * If no that starting hash, then data from a top are returned
  */
 func (s *NodeServerRequest) handleGetBlocks() error {
+	s.S.hadOtherNodesConnects = true // this request can be from other node only
+
 	var payload nodeclient.ComGetBlocks
 
 	err := s.parseRequestData(&payload)
@@ -614,10 +666,48 @@ func (s *NodeServerRequest) handleGetBlocksUpper() error {
 	return s.Node.NodeClient.SendInv(payload.AddrFrom, "block", data)
 }
 
+//
+func (s *NodeServerRequest) handleGetBlock() error {
+	s.HasResponse = true
+	s.S.hadOtherNodesConnects = true // this request can be from other node only
+
+	var payload nodeclient.ComGetBlock
+
+	err := s.parseRequestData(&payload)
+
+	if err != nil {
+		return err
+	}
+
+	result := nodeclient.ResponseGetBlock{}
+
+	block, err := s.Node.NodeBC.GetBlock(payload.BlockHash)
+
+	if err != nil {
+		return err
+	}
+
+	result.Block, err = block.Serialize()
+
+	if err != nil {
+		return err
+	}
+
+	s.Response, err = net.GobEncode(result)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 /*
 * Response on request to get full body of a block or transaction
  */
 func (s *NodeServerRequest) handleGetData() error {
+	s.S.hadOtherNodesConnects = true // this request can be from other node only
+
 	var payload nodeclient.ComGetData
 
 	err := s.parseRequestData(&payload)
@@ -672,6 +762,8 @@ func (s *NodeServerRequest) handleGetData() error {
 * For now we don't send it to all other
  */
 func (s *NodeServerRequest) handleTx() error {
+	s.S.hadOtherNodesConnects = true // this request can be from other node only
+
 	var payload nodeclient.ComTx
 
 	err := s.parseRequestData(&payload)
@@ -733,12 +825,70 @@ func (s *NodeServerRequest) handleTx() error {
 	return nil
 }
 
+// Other node requests for last changes on this server and expects to get response on real time
+func (s *NodeServerRequest) handleGetUpdates() error {
+	s.HasResponse = true
+
+	s.S.hadOtherNodesConnects = true // this request can be from other node only
+
+	var payload nodeclient.ComGetUpdates
+
+	err := s.parseRequestData(&payload)
+
+	if err != nil {
+		return err
+	}
+
+	result := nodeclient.ResponseGetUpdates{}
+
+	result.CurrentBlockHeight, err = s.Node.NodeBC.GetBestHeight()
+
+	if err != nil {
+		return err
+	}
+	// load blocks. maximum 50 and created not older 5 minutes since last update check
+	blocks := s.Node.NodeBC.GetBCManager().GetBlocksShortInfoCreatedAfter([]byte{}, payload.LastCheckTime-60*5, 50)
+
+	s.Logger.Trace.Printf("Loaded %d block hashes", len(blocks))
+
+	result.Blocks = [][]byte{}
+
+	for i := len(blocks) - 1; i >= 0; i-- {
+		bdata, _ := blocks[i].Serialize()
+		result.Blocks = append(result.Blocks, bdata)
+	}
+
+	// load transactions from pool only created recently
+	result.CountTransactionsInPool, err = s.Node.GetTransactionsManager().GetUnapprovedCount()
+
+	if err != nil {
+		return err
+	}
+
+	result.TransactionsInPool, err = s.Node.GetTransactionsManager().GetUnapprovedTransactionsFiltered(payload.LastCheckTime-60*30, 1000)
+
+	if err != nil {
+		return err
+	}
+
+	s.Response, err = net.GobEncode(result)
+
+	if err != nil {
+		return err
+	}
+
+	s.Logger.Trace.Printf("Return first %d blocks\n", len(blocks))
+	return nil
+}
+
 /*
 * Process version command. Other node sends own address and index of top block.
 * This node checks if index is bogger then request for a rest of blocks. If index is less
 * then sends own version command and that node will request for blocks
  */
 func (s *NodeServerRequest) handleVersion() error {
+	s.S.hadOtherNodesConnects = true // this request can be from other node only
+
 	var payload nodeclient.ComVersion
 
 	err := s.parseRequestData(&payload)

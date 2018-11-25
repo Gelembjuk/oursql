@@ -23,6 +23,10 @@ const (
 	CommandGetConsensusData = "getcnsdata"
 	CommandGetFirstBlocks   = "getfblocks"
 	CommandGetBalance       = "getbalance"
+	CommandGetState         = "getstate"
+	CommandGetUpdates       = "getupdates"
+	CommandGetTransaction   = "gettransact"
+	CommandGetBlock         = "getblock"
 )
 
 type NodeClient struct {
@@ -182,6 +186,42 @@ type ComGetNodeState struct {
 	UnspentOutputs        int
 }
 
+// To get node last updates
+type ComGetUpdates struct {
+	LastCheckTime      int64
+	CurrentBlockHeight int
+	TopBlocks          [][]byte
+	AddrFrom           netlib.NodeAddr
+}
+
+// Response with updates on a node
+type ResponseGetUpdates struct {
+	CurrentBlockHeight      int
+	CountTransactionsInPool int
+	Blocks                  [][]byte
+	TransactionsInPool      [][]byte
+}
+
+// To get transaction from other node
+type ComGetTransaction struct {
+	TransactionID []byte
+}
+
+// Response for transaction request
+type ResponseGetTransaction struct {
+	Transaction []byte // Transaction serialised
+}
+
+// To get transaction from other node
+type ComGetBlock struct {
+	BlockHash []byte
+}
+
+// Response for transaction request
+type ResponseGetBlock struct {
+	Block []byte // Transaction serialised
+}
+
 // Check if node address looks fine
 func (c *NodeClient) SetAuthStr(auth string) {
 	c.NodeAuthStr = auth
@@ -224,6 +264,26 @@ func (c *NodeClient) SendAddrList(address netlib.NodeAddr, addresses []netlib.No
 	}
 
 	return c.SendData(address, request)
+}
+
+// Request for a block full info form other node
+func (c *NodeClient) SendGetBlock(addr netlib.NodeAddr, blockHash []byte) (*ResponseGetBlock, error) {
+	data := ComGetBlock{blockHash}
+
+	request, err := c.BuildCommandData(CommandGetBlock, &data)
+
+	if err != nil {
+		return nil, err
+	}
+	datapayload := ResponseGetBlock{}
+
+	err = c.SendDataWaitResponse(addr, request, &datapayload)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &datapayload, nil
 }
 
 // Send block to other node
@@ -327,6 +387,28 @@ func (c *NodeClient) SendGetData(address netlib.NodeAddr, kind string, id []byte
 	}
 
 	return c.SendData(address, request)
+}
+
+// Get tranaction with sycn request. Wait response
+func (c *NodeClient) SendGetTransaction(addr netlib.NodeAddr, txID []byte) (*ResponseGetTransaction, error) {
+	data := ComGetTransaction{}
+	data.TransactionID = txID
+
+	request, err := c.BuildCommandData(CommandGetTransaction, &data)
+
+	if err != nil {
+		return nil, err
+	}
+
+	datapayload := ResponseGetTransaction{}
+
+	err = c.SendDataWaitResponse(addr, request, &datapayload)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &datapayload, nil
 }
 
 // Send Transaction to other node
@@ -533,9 +615,9 @@ func (c *NodeClient) SendRemoveNode(node netlib.NodeAddr) error {
 	return nil
 }
 
-// Request to remove a node from contacts
+// Get node blockchain height
 func (c *NodeClient) SendGetState() (ComGetNodeState, error) {
-	request, err := c.BuildCommandDataWithAuth("getstate", nil)
+	request, err := c.BuildCommandDataWithAuth(CommandGetState, nil)
 
 	data := ComGetNodeState{}
 
@@ -546,6 +628,31 @@ func (c *NodeClient) SendGetState() (ComGetNodeState, error) {
 	}
 
 	return data, nil
+}
+
+// Get last updates
+func (c *NodeClient) SendGetUpdates(addr netlib.NodeAddr, lastCheckTime int64, blockHeight int, topBlocks [][]byte) (*ResponseGetUpdates, error) {
+	data := ComGetUpdates{}
+	data.LastCheckTime = lastCheckTime
+	data.AddrFrom = c.NodeAddress
+	data.CurrentBlockHeight = blockHeight
+	data.TopBlocks = topBlocks
+
+	request, err := c.BuildCommandData(CommandGetUpdates, &data)
+
+	if err != nil {
+		return nil, err
+	}
+
+	datapayload := ResponseGetUpdates{}
+
+	err = c.SendDataWaitResponse(addr, request, &datapayload)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &datapayload, nil
 }
 
 // Builds a command data. It prepares a slice of bytes from given data
@@ -616,8 +723,7 @@ func (c *NodeClient) SendData(addr netlib.NodeAddr, data []byte) error {
 		// but this is not always good. we need somethign more smart here
 		// TODO this needs analysis . if removing of a node is good idea
 		//c.NodeNet.RemoveNodeFromKnown(addr)
-
-		return errors.New(fmt.Sprintf("%s is not available", addr.NodeAddrToString()))
+		return netlib.NewCanNotConnectError(fmt.Sprintf("%s is not available", addr.NodeAddrToString()))
 	}
 	defer conn.Close()
 
@@ -626,7 +732,8 @@ func (c *NodeClient) SendData(addr netlib.NodeAddr, data []byte) error {
 	if err != nil {
 		c.Logger.Error.Println(err.Error())
 		c.Logger.Trace.Println("Error: ", err.Error())
-		return err
+
+		return netlib.NewCanNotSendError(err.Error())
 	}
 	return nil
 }
@@ -655,8 +762,7 @@ func (c *NodeClient) SendDataWaitResponse(addr netlib.NodeAddr, data []byte, dat
 		// but this is not always good. we need somethign more smart here
 		// TODO this needs analysis . if removing of a node is good idea
 		//c.NodeNet.RemoveNodeFromKnown(addr)
-
-		return errors.New(fmt.Sprintf("%s is not available", addr.NodeAddrToString()))
+		return netlib.NewCanNotConnectError(fmt.Sprintf("%s is not available", addr.NodeAddrToString()))
 	}
 	defer conn.Close()
 
@@ -678,11 +784,11 @@ func (c *NodeClient) SendDataWaitResponse(addr netlib.NodeAddr, data []byte, dat
 	if err != nil {
 		c.Logger.Error.Println(err.Error())
 		c.Logger.Trace.Println("Response Read Error: ", err.Error())
-		return err
+		return netlib.NewCanNotSendError(err.Error())
 	}
 
 	if len(response) == 0 {
-		err := errors.New("Received 0 bytes as a response. Expected at least 1 byte")
+		err := netlib.NewNoResponseError("Received 0 bytes as a response. Expected at least 1 byte")
 		c.Logger.Error.Println(err.Error())
 		c.Logger.Trace.Println("Response Read Error: ", err.Error())
 		return err
@@ -703,7 +809,7 @@ func (c *NodeClient) SendDataWaitResponse(addr netlib.NodeAddr, data []byte, dat
 		err := dec.Decode(&payload)
 
 		if err != nil {
-			return err
+			return netlib.NewCanNotParseResponseError(err.Error())
 		}
 
 		return errors.New(payload)
@@ -713,7 +819,7 @@ func (c *NodeClient) SendDataWaitResponse(addr netlib.NodeAddr, data []byte, dat
 		err = dec.Decode(datapayload)
 
 		if err != nil {
-			return err
+			return netlib.NewCanNotParseResponseError(err.Error())
 		}
 	}
 
