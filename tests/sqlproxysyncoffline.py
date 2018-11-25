@@ -85,6 +85,7 @@ def test(testfilter):
     
     # wait 3-rd block on a second node
     blocks = _blocks.WaitBlocks(datadir2, 3)
+    time.sleep(1)
     # and 2 row on second
     rows2 = _lib.DBGetRows(datadir2,"SELECT * FROM test ORDER BY a",True)
     _lib.FatalAssert(len(rows2) == 2, "Must be 2 rows in a table")

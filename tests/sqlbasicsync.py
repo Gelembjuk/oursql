@@ -98,19 +98,23 @@ def test(testfilter):
     blocks = _blocks.WaitBlocks(datadir2, 4)
     
     # must be 3 rows because delete transaction was not posted to that node
+    # but this will be changed in 3 seconds. we do this check less 3 seconds after server start
     rows = _lib.DBGetRows(datadir2,"SELECT * FROM test")
     _lib.FatalAssert(len(rows) == 3, "Must be 3 rows in a table")
     
     txid = _sql.ExecuteSQL(datadir,address," DELETE  from   test where a=2")
     
+    time.sleep(1)
     # should be 1 row on first node
     rows = _lib.DBGetRows(datadir,"SELECT * FROM test")
+    
     _lib.FatalAssert(len(rows) == 1, "Must be 1 rows in a table")
     
     time.sleep(1)# give time to send transaction
     # and 2 row on second
     rows = _lib.DBGetRows(datadir2,"SELECT * FROM test")
-    _lib.FatalAssert(len(rows) == 2, "Must be 2 rows in a table")
+    
+    _lib.FatalAssert(len(rows) == 1, "Must be 1 rows in a table")
     
     startnode.StopNode(datadir)
     datadir = ""

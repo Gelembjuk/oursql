@@ -84,7 +84,7 @@ def test(testfilter):
     _sql.ExecuteSQLOnProxySign(datadir," update test SET b=\"row2 updated\" where a = '2'", pub_key, pri_key)
     
     blocks = _blocks.WaitBlocks(datadir, 4)
-    time.sleep(1)# while all caches are cleaned
+    time.sleep(2)# while all caches are cleaned
     
     rows = _lib.DBGetRows(datadir,"SELECT * FROM test", True)
     for row in rows:

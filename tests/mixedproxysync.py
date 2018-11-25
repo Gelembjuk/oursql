@@ -57,7 +57,7 @@ def test(testfilter):
     _lib.FatalAssert(found, "Table not found in the DB")
     
     blocks = _blocks.WaitBlocks(datadir, 2)
-    time.sleep(1)
+    time.sleep(2)
     
     _sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test SET b='row1'")
     _sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test SET a=2,b='row2'")
@@ -70,7 +70,7 @@ def test(testfilter):
     
     blocks = _blocks.WaitBlocks(datadir, 3)
     
-    time.sleep(1)# while all caches are cleaned
+    time.sleep(2)# while all caches are cleaned
     
     txlist = transactions.GetUnapprovedTransactions(datadir)
     
@@ -114,9 +114,12 @@ def test(testfilter):
     # Send money to new node address
     txid1 = _transfers.Send(datadir,address,address2,1)
     
-    # must be 3 rows because delete transaction was not posted to that node
+    time.sleep(2)
+    
+    # must be 2 delete transaction should be imported
     rows = _lib.DBGetRows(datadir2,"SELECT * FROM test",True)
-    _lib.FatalAssert(len(rows) == 3, "Must be 3 rows in a table")
+    
+    _lib.FatalAssert(len(rows) == 2, "Must be 2 rows in a table")
     
     _sql.ExecuteSQLOnProxy(datadir," DELETE  from   test where a=2")
     
@@ -130,7 +133,7 @@ def test(testfilter):
     time.sleep(1)# give time to send transaction
     # and 2 row on second
     rows = _lib.DBGetRows(datadir2,"SELECT * FROM test",True)
-    _lib.FatalAssert(len(rows) == 2, "Must be 2 rows in a table")
+    _lib.FatalAssert(len(rows) == 1, "Must be 1 rows in a table")
     
     blocks = _blocks.WaitBlocks(datadir, 5)
     blocks = _blocks.WaitBlocks(datadir2, 5)
@@ -143,7 +146,7 @@ def test(testfilter):
     # insert on second node. check on first
     _sql.ExecuteSQLOnProxy(datadir2,"INSERT INTO test SET a=2,b='row2'")
     
-    time.sleep(2)# give time to send transaction
+    time.sleep(3)# give time to send transaction
     
     rows = _lib.DBGetRows(datadir,"SELECT * FROM test",True)
     
