@@ -108,7 +108,6 @@ func (dr rowsToTransactions) UpdateOnBlockAdd(block *structures.Block) error {
 
 		if !tx.IsSQLCommand() {
 			// nothing to do
-			dr.Logger.Trace.Printf("NO SQL")
 			continue
 		}
 

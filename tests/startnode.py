@@ -128,7 +128,7 @@ def StopNode(datadir, comment = ""):
     res = _lib.ExecuteNode(['stopnode','-configdir',datadir])
     _lib.FatalAssert(res=="","Should not be any output on succes stop")
 
-    time.sleep(1)
+    time.sleep(2)
     _lib.FatalAssertPIDNotRunning(PID, "Process with ID "+str(PID)+" should not exist")
         
     _lib.StartTest("Stop node again")

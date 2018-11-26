@@ -216,8 +216,15 @@ func (n *communicationManager) pullUpdatesFromNode(node *net.NodeAddr, lastCheck
 
 // Process blocks list received from other node
 func (n *communicationManager) processBlocksFromOtherNode(node *net.NodeAddr, blocks [][]byte) error {
-	for _, bsdata := range blocks {
-		bs, err := structures.NewBlockShortFromBytes(bsdata)
+	l := len(blocks)
+
+	if l == 0 {
+		return nil
+	}
+
+	for i := l - 1; i >= 0; i-- {
+
+		bs, err := structures.NewBlockShortFromBytes(blocks[i])
 
 		if err != nil {
 			n.logger.Error.Printf("Error when deserialize block info %s", err.Error())
