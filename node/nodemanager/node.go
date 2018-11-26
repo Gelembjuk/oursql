@@ -247,7 +247,7 @@ func (n *Node) AddNodeToKnown(addr net.NodeAddr, sendversion bool) {
 	// it will check if addres is in list, if no, it will send list of all known
 	// nodes to that address and ad it to known
 
-	added := n.CheckAddressKnown(addr)
+	added := n.checkAddressKnown(addr, false)
 
 	if added && sendversion {
 		n.Logger.Trace.Printf("Added node %s\n", addr.NodeAddrToString())
@@ -272,23 +272,37 @@ func (n *Node) SendVersionToNodes(nodes []net.NodeAddr) {
 	n.GetCommunicationManager().sendVersionToNodes(nodes, bestHeight)
 }
 
-/*
-* Check if the address is known . If not then add to known
-* and send list of all addresses to that node
- */
-func (n *Node) CheckAddressKnown(addr net.NodeAddr) bool {
+// Check if the address is known . If not then add to known
+// and send list of all addresses to that node
 
-	if !n.NodeNet.CheckIsKnown(addr) {
+func (n *Node) CheckAddressKnown(addr net.NodeAddr) bool {
+	return n.checkAddressKnown(addr, true)
+}
+
+// Check if the address is known . If not then add to known
+// and send list of all addresses to that node
+
+func (n *Node) checkAddressKnown(addr net.NodeAddr, afterinputconnect bool) bool {
+	added := false
+
+	n.Logger.Trace.Printf("Check node is known %s", addr.NodeAddrToString())
+
+	if !n.NodeNet.CheckIsKnown(addr) &&
+		!addr.CompareToAddress(n.NodeClient.NodeAddress) {
 		// send him all addresses
-		//n.Logger.Trace.Printf("sending list of address to %s , %s", addr.NodeAddrToString(), n.NodeNet.Nodes)
+		n.Logger.Trace.Printf("Adding to known to %s", addr.NodeAddrToString())
 		n.NodeClient.SendAddrList(addr, n.NodeNet.Nodes)
 
 		n.NodeNet.AddNodeToKnown(addr)
 
-		return true
+		added = true
+	}
+	if afterinputconnect {
+		// increase count of success calls from this node
+		n.NodeNet.InputConnectFromNode(addr)
 	}
 
-	return false
+	return added
 }
 
 // Send money .

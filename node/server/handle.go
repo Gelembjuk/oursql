@@ -208,7 +208,6 @@ func (s *NodeServerRequest) handleTxData() error {
 // Returns transaction from a pool in sync request
 func (s *NodeServerRequest) handleGetTransaction() error {
 	s.HasResponse = true
-	s.S.hadOtherNodesConnects = true // this request can be from other node only
 
 	var payload nodeclient.ComGetTransaction
 
@@ -217,6 +216,8 @@ func (s *NodeServerRequest) handleGetTransaction() error {
 	if err != nil {
 		return err
 	}
+
+	s.Node.CheckAddressKnown(payload.AddrFrom)
 
 	result := nodeclient.ResponseGetTransaction{}
 
@@ -235,6 +236,46 @@ func (s *NodeServerRequest) handleGetTransaction() error {
 	if err != nil {
 		return err
 	}
+
+	s.Response, err = net.GobEncode(result)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Checks if block exists and returns True or False
+// Other node requests to know if block exists before to send new block to this node
+func (s *NodeServerRequest) handleCheckBlock() error {
+	s.HasResponse = true
+
+	var payload nodeclient.ComCheckBlock
+
+	err := s.parseRequestData(&payload)
+
+	if err != nil {
+		return err
+	}
+
+	s.Node.CheckAddressKnown(payload.AddrFrom)
+
+	result := nodeclient.ResponseCheckBlock{}
+
+	bs, err := structures.NewBlockShortFromBytes(payload.BlockHash)
+
+	if err != nil {
+		return err
+	}
+	// check if block exists
+	blockstate, err := s.Node.NodeBC.CheckBlockState(bs.Hash, bs.PrevBlockHash)
+
+	if err != nil {
+		return err
+	}
+
+	result.Exists = blockstate != 0
 
 	s.Response, err = net.GobEncode(result)
 
@@ -337,8 +378,6 @@ func (s *NodeServerRequest) handleTxSQLRequest() error {
 func (s *NodeServerRequest) handleGetFirstBlocks() error {
 	s.HasResponse = true
 
-	s.S.hadOtherNodesConnects = true // this request can be from other node only
-
 	result := nodeclient.ComGetFirstBlocksData{}
 
 	blocks, height, err := s.Node.NodeBC.GetBCManager().GetFirstBlocks(10)
@@ -374,8 +413,6 @@ func (s *NodeServerRequest) handleGetFirstBlocks() error {
 func (s *NodeServerRequest) handleGetConsensusData() error {
 	s.HasResponse = true
 
-	s.S.hadOtherNodesConnects = true // this request can be from other node only
-
 	result := nodeclient.ComGetConsensusData{}
 
 	var err error
@@ -405,7 +442,6 @@ func (s *NodeServerRequest) handleGetConsensusData() error {
 // Received the lst of nodes from some other node. add missed nodes to own nodes list
 
 func (s *NodeServerRequest) handleAddr() error {
-	s.S.hadOtherNodesConnects = true // this request can be from other node only
 
 	var payload []net.NodeAddr
 	err := s.parseRequestData(&payload)
@@ -439,7 +475,6 @@ func (s *NodeServerRequest) handleAddr() error {
 
 // Block received from other node
 func (s *NodeServerRequest) handleBlock() error {
-	s.S.hadOtherNodesConnects = true // this request can be from other node only
 
 	var payload nodeclient.ComBlock
 	err := s.parseRequestData(&payload)
@@ -518,7 +553,6 @@ func (s *NodeServerRequest) handleBlock() error {
 * If such block or transaction is not yet present , then request for full info about it
  */
 func (s *NodeServerRequest) handleInv() error {
-	s.S.hadOtherNodesConnects = true // this request can be from other node only
 
 	var payload nodeclient.ComInv
 
@@ -598,7 +632,6 @@ func (s *NodeServerRequest) handleInv() error {
 * If no that starting hash, then data from a top are returned
  */
 func (s *NodeServerRequest) handleGetBlocks() error {
-	s.S.hadOtherNodesConnects = true // this request can be from other node only
 
 	var payload nodeclient.ComGetBlocks
 
@@ -666,10 +699,9 @@ func (s *NodeServerRequest) handleGetBlocksUpper() error {
 	return s.Node.NodeClient.SendInv(payload.AddrFrom, "block", data)
 }
 
-//
+// Returns block info. This is used for updates pulling
 func (s *NodeServerRequest) handleGetBlock() error {
 	s.HasResponse = true
-	s.S.hadOtherNodesConnects = true // this request can be from other node only
 
 	var payload nodeclient.ComGetBlock
 
@@ -678,6 +710,8 @@ func (s *NodeServerRequest) handleGetBlock() error {
 	if err != nil {
 		return err
 	}
+
+	s.Node.CheckAddressKnown(payload.AddrFrom)
 
 	result := nodeclient.ResponseGetBlock{}
 
@@ -706,7 +740,6 @@ func (s *NodeServerRequest) handleGetBlock() error {
 * Response on request to get full body of a block or transaction
  */
 func (s *NodeServerRequest) handleGetData() error {
-	s.S.hadOtherNodesConnects = true // this request can be from other node only
 
 	var payload nodeclient.ComGetData
 
@@ -762,7 +795,6 @@ func (s *NodeServerRequest) handleGetData() error {
 * For now we don't send it to all other
  */
 func (s *NodeServerRequest) handleTx() error {
-	s.S.hadOtherNodesConnects = true // this request can be from other node only
 
 	var payload nodeclient.ComTx
 
@@ -829,8 +861,6 @@ func (s *NodeServerRequest) handleTx() error {
 func (s *NodeServerRequest) handleGetUpdates() error {
 	s.HasResponse = true
 
-	s.S.hadOtherNodesConnects = true // this request can be from other node only
-
 	var payload nodeclient.ComGetUpdates
 
 	err := s.parseRequestData(&payload)
@@ -847,7 +877,11 @@ func (s *NodeServerRequest) handleGetUpdates() error {
 		return err
 	}
 	// load blocks. maximum 50 and created not older 5 minutes since last update check
-	blocks := s.Node.NodeBC.GetBCManager().GetBlocksShortInfoCreatedAfter([]byte{}, payload.LastCheckTime-60*5, 50)
+	blocks, err := s.Node.NodeBC.GetBCManager().GetBlocksSince(payload.TopBlocks, payload.LastCheckTime-60*5, 50)
+
+	if err != nil {
+		return err
+	}
 
 	s.Logger.Trace.Printf("Loaded %d block hashes", len(blocks))
 
@@ -871,6 +905,11 @@ func (s *NodeServerRequest) handleGetUpdates() error {
 		return err
 	}
 
+	result.Nodes = s.Node.NodeNet.GetNodesToExport()
+
+	s.Logger.Trace.Println("Return nodes list on request")
+	s.Logger.Trace.Println(result.Nodes)
+
 	s.Response, err = net.GobEncode(result)
 
 	if err != nil {
@@ -887,8 +926,6 @@ func (s *NodeServerRequest) handleGetUpdates() error {
 * then sends own version command and that node will request for blocks
  */
 func (s *NodeServerRequest) handleVersion() error {
-	s.S.hadOtherNodesConnects = true // this request can be from other node only
-
 	var payload nodeclient.ComVersion
 
 	err := s.parseRequestData(&payload)

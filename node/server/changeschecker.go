@@ -68,14 +68,14 @@ func (c *changesChecker) Run() {
 		c.S.Node.GetCommunicationManager().CheckForChangesOnOtherNodes(c.lastCheckTime)
 
 		// decide when to do next check
-		if c.S.hadOtherNodesConnects {
+		if c.S.Node.NodeNet.CheckHadInputConnects() {
 			// other nodes can connect to this node. No need to do extra check often
 			c.ticker = 180 // try again in 3 minutes
 		} else {
 			c.ticker = 5 // 5 seconds as it looks like other nodes can not connect to this node
 		}
 
-		c.S.hadOtherNodesConnects = false
+		c.S.Node.NodeNet.StartNewSessionForInputConnects()
 	}
 	c.logger.Trace.Printf("Changes Checker Return routine")
 	c.completeChan <- true

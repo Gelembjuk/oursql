@@ -862,6 +862,7 @@ func (c *NodeCLI) commandShowNodes() error {
 
 	for _, n := range nodes {
 		fmt.Println("  ", n.NodeAddrToString())
+
 	}
 
 	return nil

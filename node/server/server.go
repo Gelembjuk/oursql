@@ -41,8 +41,6 @@ type NodeServer struct {
 	QueryFilter *queryFilter
 
 	NodeAuthStr string
-
-	hadOtherNodesConnects bool
 }
 
 func (s *NodeServer) GetClient() *nodeclient.NodeClient {
@@ -66,7 +64,7 @@ func (s *NodeServer) handleConnection(conn net.Conn) {
 		return
 	}
 
-	s.Logger.Trace.Printf("Received %s command, %s, old sess %s", command, sessid, s.Node.SessionID)
+	s.Logger.Trace.Printf("Received %s command", command)
 
 	requestobj := NodeServerRequest{}
 	requestobj.Node = s.Node.Clone()
@@ -103,7 +101,7 @@ func (s *NodeServer) handleConnection(conn net.Conn) {
 		// do nothing
 		s.Logger.Trace.Println("Void command reveived")
 
-	case "block":
+	case nodeclient.CommandBlock:
 		rerr = requestobj.handleBlock()
 
 	case nodeclient.CommandGetBlock:
@@ -165,6 +163,9 @@ func (s *NodeServer) handleConnection(conn net.Conn) {
 
 	case nodeclient.CommandGetTransaction:
 		rerr = requestobj.handleGetTransaction()
+
+	case nodeclient.CommandCheckBlock:
+		rerr = requestobj.handleCheckBlock()
 
 	case "version":
 		rerr = requestobj.handleVersion()
