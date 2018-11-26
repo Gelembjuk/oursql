@@ -30,8 +30,21 @@ func (n communicationManager) sendVersionToNodes(nodes []net.NodeAddr, bestHeigh
 }
 
 // Send transaction to all known nodes. This wil send only hash and node hash to check if hash exists or no
-func (n *communicationManager) sendTransactionToAll(tx *structures.Transaction) {
+func (n *communicationManager) sendTransactionToAll(tx *structures.Transaction) error {
 	n.logger.Trace.Printf("Send transaction to %d nodes", len(n.node.NodeNet.Nodes))
+
+	// decide how to send, async or sync
+	if n.node.NodeNet.CheckHadInputConnects() {
+		// can send async. Other nodes can connect to us
+		return n.sendTransactionToAllASync(tx)
+	}
+	// use sync mode.
+	return n.sendTransactionToAllSync(tx)
+}
+
+// Send tranaction ID to all nodes in async mode. We expect nodes will call us back to get TX
+func (n *communicationManager) sendTransactionToAllASync(tx *structures.Transaction) error {
+	n.logger.Trace.Printf("Send transaction to %d nodes in async mode", len(n.node.NodeNet.Nodes))
 
 	for i, node := range n.node.NodeNet.Nodes {
 		if node.CompareToAddress(n.node.NodeClient.NodeAddress) {
@@ -41,6 +54,30 @@ func (n *communicationManager) sendTransactionToAll(tx *structures.Transaction) 
 		err := n.node.NodeClient.SendInv(node, "tx", [][]byte{tx.GetID()})
 		n.node.NodeNet.HookNeworkOperationResult(err, i) // to know if this node is available
 	}
+	return nil
+}
+
+// Send tranaction ID to all nodes in sync mode. We just send full TX to all known nodes and they decide what to do
+func (n *communicationManager) sendTransactionToAllSync(tx *structures.Transaction) error {
+	n.logger.Trace.Printf("Send transaction to %d nodes in sync mode", len(n.node.NodeNet.Nodes))
+
+	// serialize TX
+	txser, err := structures.SerializeTransaction(tx)
+
+	if err != nil {
+		n.logger.Error.Printf("Error on TX ser %s", err.Error())
+		return err
+	}
+
+	for i, node := range n.node.NodeNet.Nodes {
+		if node.CompareToAddress(n.node.NodeClient.NodeAddress) {
+			continue
+		}
+		n.logger.Trace.Printf("Send TX %x to %s", tx.GetID(), node.NodeAddrToString())
+		err := n.node.NodeClient.SendTx(node, txser)
+		n.node.NodeNet.HookNeworkOperationResult(err, i) // to know if this node is available
+	}
+	return nil
 }
 
 // Send block to all known nodes
@@ -48,17 +85,76 @@ func (n *communicationManager) sendTransactionToAll(tx *structures.Transaction) 
 // created by this node. We will notify our network about new block
 // But not send full block, only hash and previous hash. So, other can copy it
 // Address from where we get it will be skipped
-func (n *communicationManager) SendBlockToAll(newBlock *structures.Block, skipaddr net.NodeAddr) {
+func (n *communicationManager) SendBlockToAll(newBlock *structures.Block, skipaddr net.NodeAddr) error {
+	n.logger.Trace.Printf("Send block to all nodes. ")
+	// decide how to send, async or sync
+	if n.node.NodeNet.CheckHadInputConnects() {
+		// can send async. Other nodes can connect to us
+		return n.SendBlockToAllASync(newBlock, skipaddr)
+	}
+	return n.SendBlockToAllSync(newBlock, skipaddr)
+}
+
+// Send block in async mode.For case when this node was contacted from outside
+// This only sends new block hash to all known nodes and they should contact back to get full body
+func (n *communicationManager) SendBlockToAllASync(newBlock *structures.Block, skipaddr net.NodeAddr) error {
+	n.logger.Trace.Printf("Send block to all nodes in ASync mode. %x", newBlock.Hash)
+
+	blockshortdata, err := newBlock.GetShortCopy().Serialize()
+
+	if err != nil {
+		return err
+	}
+
 	for i, node := range n.node.NodeNet.Nodes {
 		if node.CompareToAddress(n.node.NodeClient.NodeAddress) {
 			continue
 		}
-		blockshortdata, err := newBlock.GetShortCopy().Serialize()
-		if err == nil {
-			errc := n.node.NodeClient.SendInv(node, "block", [][]byte{blockshortdata})
-			n.node.NodeNet.HookNeworkOperationResult(errc, i) // to know if this node is available
-		}
+
+		errc := n.node.NodeClient.SendInv(node, "block", [][]byte{blockshortdata})
+		n.node.NodeNet.HookNeworkOperationResult(errc, i) // to know if this node is available
+
 	}
+	return nil
+}
+
+// Send block in sync mode. For each node firstly request if a node has this block
+// If no it eill send a block body
+func (n *communicationManager) SendBlockToAllSync(newBlock *structures.Block, skipaddr net.NodeAddr) error {
+	n.logger.Trace.Printf("Send block to all nodes in Sync mode. %x", newBlock.Hash)
+
+	blockshortdata, err := newBlock.GetShortCopy().Serialize()
+
+	if err != nil {
+		return err
+	}
+
+	for i, node := range n.node.NodeNet.Nodes {
+		if node.CompareToAddress(n.node.NodeClient.NodeAddress) {
+			continue
+		}
+		result, err := n.node.NodeClient.SendCheckBlock(node, blockshortdata)
+
+		n.node.NodeNet.HookNeworkOperationResult(err, i) // to know if this node is available
+
+		if err != nil {
+			n.logger.Trace.Printf("Error when check if block exists on other node %s for %s", err.Error(), node.NodeAddrToString())
+			continue
+		}
+
+		if !result.Exists {
+			// send full block this this node
+			bs, err := newBlock.Serialize()
+
+			if err != nil {
+				n.logger.Trace.Printf("Error when serialise a block %s for %x", err.Error(), newBlock.Hash)
+				continue
+			}
+			n.node.NodeClient.SendBlock(node, bs)
+		}
+
+	}
+	return nil
 }
 
 // Check for updates on other nodes
@@ -104,6 +200,12 @@ func (n *communicationManager) pullUpdatesFromNode(node *net.NodeAddr, lastCheck
 	}
 
 	err = n.processTransactionsFromPoolOnOtherNode(node, result.TransactionsInPool)
+
+	if err != nil {
+		return err
+	}
+
+	err = n.processNodesFromPoolOnOtherNode(node, result.Nodes)
 
 	if err != nil {
 		return err
@@ -194,6 +296,25 @@ func (n *communicationManager) processTransactionsFromPoolOnOtherNode(node *net.
 			continue
 		}
 		n.node.getBlockMakeManager().AddTransactionToPool(tx, lib.TXFlagsExecute)
+	}
+	return nil
+}
+
+// Process nodes addresses list received from other node
+func (n *communicationManager) processNodesFromPoolOnOtherNode(node *net.NodeAddr, nodes []net.NodeAddrShort) error {
+	n.logger.Trace.Printf("Check %d nodes from remote list", len(nodes))
+
+	if len(nodes) == 0 {
+		n.logger.Trace.Printf("Nothing to check")
+		return nil
+	}
+
+	for _, ns := range nodes {
+		addr := net.NodeAddr{}
+		addr.Port = ns.Port
+		addr.Host = string(ns.Host)
+
+		n.node.checkAddressKnown(addr, false)
 	}
 	return nil
 }

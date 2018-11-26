@@ -16,10 +16,16 @@ const AuthStringLength = 20
 
 // Represents a node address
 type NodeAddr struct {
-	Host              string
-	Port              int
-	SuccessConnecions uint
-	FailedConnections uint
+	Host                     string
+	Port                     int
+	SuccessConnections       uint
+	FailedConnections        uint
+	SuccessIncomeConnections uint
+}
+
+type NodeAddrShort struct {
+	Host []byte
+	Port int
 }
 
 func NewNodeAddr(host string, port int) NodeAddr {
@@ -31,12 +37,25 @@ func NewNodeAddr(host string, port int) NodeAddr {
 
 // Convert to string in format host:port
 func (n NodeAddr) NodeAddrToString() string {
+	return n.String()
+}
+
+// Convert to string in format host:port
+func (n NodeAddr) String() string {
 	return n.Host + ":" + strconv.Itoa(n.Port)
 }
 
 // Notify this address got success attempt to connect
 func (n *NodeAddr) ReportSuccessConn() {
-	n.SuccessConnecions = n.SuccessConnecions + 1
+	n.SuccessConnections = n.SuccessConnections + 1
+}
+
+// Get short format of the node
+func (n NodeAddr) GetShortFormat() NodeAddrShort {
+	ns := NodeAddrShort{}
+	ns.Host = []byte(n.Host)
+	ns.Port = n.Port
+	return ns
 }
 
 // Notify this address got failed attempt to connect
@@ -47,7 +66,7 @@ func (n *NodeAddr) ReportFailedConn() {
 // init a record after restore from DB
 func (n *NodeAddr) InitAfterRestore() {
 	n.FailedConnections = 0
-	n.SuccessConnecions = 0
+	n.SuccessConnections = 0
 }
 
 // Compare to other node address if is same

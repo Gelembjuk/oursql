@@ -253,6 +253,7 @@ func (bc *Blockchain) BlockInChain(hash []byte) (bool, error) {
 	return false, nil
 }
 
+// Finds if a hash is in the main chain, returns previous and next hash if it has
 func (bc *Blockchain) GetLocationInChain(hash []byte) (bool, []byte, []byte, error) {
 	length := len(hash)
 

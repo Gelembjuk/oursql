@@ -466,7 +466,7 @@ func (bc *Blockchain) GetBlocksShortInfo(startfrom []byte, maxcount int) []*stru
 
 // Returns a list of blocks short info stating from given block or from a top and
 // created aftr given time
-func (bc *Blockchain) GetBlocksShortInfoCreatedAfter(startfrom []byte, minCreateTime int64, maxcount int) []*structures.BlockShort {
+func (bc *Blockchain) GetBlocksShortInfoCreatedAfter(startfrom []byte, minCreateTime int64, maxcount int) ([]*structures.BlockShort, error) {
 	var blocks []*structures.BlockShort
 	var bci *BlockchainIterator
 
@@ -480,7 +480,7 @@ func (bc *Blockchain) GetBlocksShortInfoCreatedAfter(startfrom []byte, minCreate
 	}
 
 	if err != nil {
-		return blocks
+		return nil, err
 	}
 
 	for {
@@ -502,16 +502,49 @@ func (bc *Blockchain) GetBlocksShortInfoCreatedAfter(startfrom []byte, minCreate
 		}
 	}
 
-	return blocks
+	return blocks, nil
+}
+
+// Get updates since hash and time
+// If we can find a hash form a list in current blockchain, we will return "maxcount" of hashes upper
+// or all hashes. if we don't find we wll return last hashes in a chain and filter by time
+func (bc *Blockchain) GetBlocksSince(startBlocksHashes [][]byte, minCreateTime int64, maxcount int) ([]*structures.BlockShort, error) {
+	// find if any hash exists in current BC
+	startFromHash := []byte{}
+
+	bcdb, err := bc.DB.GetBlockchainObject()
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, hash := range startBlocksHashes {
+		exists, _, _, err := bcdb.GetLocationInChain(hash)
+
+		if err != nil {
+			return nil, err
+		}
+
+		if exists {
+			startFromHash = hash
+			break
+		}
+	}
+
+	if len(startFromHash) > 0 {
+		// return all next hashes
+		return bc.GetNextBlocks(startFromHash, maxcount)
+	}
+	return bc.GetBlocksShortInfoCreatedAfter([]byte{}, minCreateTime, maxcount)
 }
 
 // returns a list of hashes of all the blocks in the chain
-func (bc *Blockchain) GetNextBlocks(startfrom []byte) ([]*structures.BlockShort, error) {
+func (bc *Blockchain) GetNextBlocks(startfrom []byte, maxcount int) ([]*structures.BlockShort, error) {
 	localError := func(err error) ([]*structures.BlockShort, error) {
 		return nil, err
 	}
 
-	maxcount := 1000
+	maxmaxcount := 1000
 
 	blocks := []*structures.BlockShort{}
 
@@ -538,7 +571,10 @@ func (bc *Blockchain) GetNextBlocks(startfrom []byte) ([]*structures.BlockShort,
 
 		blocks = append(blocks, block.GetShortCopy())
 
-		if len(blocks) >= maxcount {
+		if len(blocks) >= maxmaxcount {
+			break
+		}
+		if maxcount > 0 && len(blocks) >= maxcount {
 			break
 		}
 		if len(nextHash) == 0 {

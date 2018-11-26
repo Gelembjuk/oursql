@@ -182,7 +182,7 @@ func (n *NodeBlockchain) GetBlocksAfter(hash []byte) ([]*structures.BlockShort, 
 	// there are 2 cases: block is in main branch , and it is not in main branch
 	// this will be nil if a hash is not in a chain
 
-	return n.GetBCManager().GetNextBlocks(hash)
+	return n.GetBCManager().GetNextBlocks(hash, 0 /*defaut limit*/)
 }
 
 // Get BC top info, height and last N block hashes

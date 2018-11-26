@@ -26,7 +26,10 @@ const (
 	CommandGetState         = "getstate"
 	CommandGetUpdates       = "getupdates"
 	CommandGetTransaction   = "gettransact"
-	CommandGetBlock         = "getblock"
+	CommandCheckBlock       = "checkblock"
+	CommandGetBlock         = "getblock" // requests a block by hash
+	CommandBlock            = "block"    // send block body
+
 )
 
 type NodeClient struct {
@@ -200,11 +203,13 @@ type ResponseGetUpdates struct {
 	CountTransactionsInPool int
 	Blocks                  [][]byte
 	TransactionsInPool      [][]byte
+	Nodes                   []netlib.NodeAddrShort
 }
 
 // To get transaction from other node
 type ComGetTransaction struct {
 	TransactionID []byte
+	AddrFrom      netlib.NodeAddr
 }
 
 // Response for transaction request
@@ -212,9 +217,21 @@ type ResponseGetTransaction struct {
 	Transaction []byte // Transaction serialised
 }
 
+// Request to check if block exists. Executed before to send new block to node
+type ComCheckBlock struct {
+	BlockHash []byte
+	AddrFrom  netlib.NodeAddr
+}
+
+// Response for check block request
+type ResponseCheckBlock struct {
+	Exists bool // True if a node doesn't want to get a body of this TX
+}
+
 // To get transaction from other node
 type ComGetBlock struct {
 	BlockHash []byte
+	AddrFrom  netlib.NodeAddr
 }
 
 // Response for transaction request
@@ -268,7 +285,7 @@ func (c *NodeClient) SendAddrList(address netlib.NodeAddr, addresses []netlib.No
 
 // Request for a block full info form other node
 func (c *NodeClient) SendGetBlock(addr netlib.NodeAddr, blockHash []byte) (*ResponseGetBlock, error) {
-	data := ComGetBlock{blockHash}
+	data := ComGetBlock{blockHash, c.NodeAddress}
 
 	request, err := c.BuildCommandData(CommandGetBlock, &data)
 
@@ -289,7 +306,7 @@ func (c *NodeClient) SendGetBlock(addr netlib.NodeAddr, blockHash []byte) (*Resp
 // Send block to other node
 func (c *NodeClient) SendBlock(addr netlib.NodeAddr, BlockSerialised []byte) error {
 	data := ComBlock{c.NodeAddress, BlockSerialised}
-	request, err := c.BuildCommandData("block", &data)
+	request, err := c.BuildCommandData(CommandBlock, &data)
 
 	if err != nil {
 		return err
@@ -393,6 +410,7 @@ func (c *NodeClient) SendGetData(address netlib.NodeAddr, kind string, id []byte
 func (c *NodeClient) SendGetTransaction(addr netlib.NodeAddr, txID []byte) (*ResponseGetTransaction, error) {
 	data := ComGetTransaction{}
 	data.TransactionID = txID
+	data.AddrFrom = c.NodeAddress
 
 	request, err := c.BuildCommandData(CommandGetTransaction, &data)
 
@@ -401,6 +419,29 @@ func (c *NodeClient) SendGetTransaction(addr netlib.NodeAddr, txID []byte) (*Res
 	}
 
 	datapayload := ResponseGetTransaction{}
+
+	err = c.SendDataWaitResponse(addr, request, &datapayload)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &datapayload, nil
+}
+
+// Check if tranaction exists on other node. To know if to send TX to a node in sync mode
+func (c *NodeClient) SendCheckBlock(addr netlib.NodeAddr, hash []byte) (*ResponseCheckBlock, error) {
+	data := ComCheckBlock{}
+	data.BlockHash = hash
+	data.AddrFrom = c.NodeAddress
+
+	request, err := c.BuildCommandData(CommandCheckBlock, &data)
+
+	if err != nil {
+		return nil, err
+	}
+
+	datapayload := ResponseCheckBlock{}
 
 	err = c.SendDataWaitResponse(addr, request, &datapayload)
 

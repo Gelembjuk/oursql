@@ -51,12 +51,15 @@ def InitBockchain(datadir):
     
     return address
 
-def StartNode(datadir, address, port,comment = ""):
+def StartNode(datadir, address, port,comment = "", hostname = "localhost"):
     _lib.StartTestGroup("Start node "+comment)
     
     _lib.StartTest("Start normal")
 
-    res = _lib.ExecuteNode(['startnode','-configdir',datadir,'-port',port,'-minter',address,'-logs','trace'])
+    if hostname == "":
+        hostname = "localhost"
+
+    res = _lib.ExecuteNode(['startnode','-configdir',datadir,'-port',port,'-host', hostname ,'-minter',address,'-logs','trace'])
     _lib.FatalAssertStr(res,"","Should not be any output on succes start")
 
     # get process of the node. find this process exists

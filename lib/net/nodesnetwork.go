@@ -18,10 +18,12 @@ type NodeNetworkStorage interface {
 
 // This manages list of known nodes by a node
 type NodeNetwork struct {
-	Logger  *utils.LoggerMan
-	Nodes   []NodeAddr
-	Storage NodeNetworkStorage
-	lock    *sync.Mutex
+	Logger                 *utils.LoggerMan
+	Nodes                  []NodeAddr
+	hadInputConnects       bool
+	hadRecentInputConnects bool
+	Storage                NodeNetworkStorage
+	lock                   *sync.Mutex
 }
 
 type NodesListJSON struct {
@@ -105,6 +107,39 @@ func (n *NodeNetwork) CheckIsKnown(addr NodeAddr) bool {
 	return exists
 }
 
+// Action on input connection from a node. We need to remember this node
+// It is needed to know there are input connects from other nodes
+func (n *NodeNetwork) InputConnectFromNode(addr NodeAddr) {
+	for i, node := range n.Nodes {
+		if node.CompareToAddress(addr) {
+			n.Nodes[i].SuccessIncomeConnections = n.Nodes[i].SuccessIncomeConnections + 1
+			break
+		}
+	}
+	n.hadInputConnects = true
+	n.hadRecentInputConnects = true
+}
+
+// Sets input connects marker to false to check if there will be new input connects
+func (n *NodeNetwork) StartNewSessionForInputConnects() {
+	n.hadRecentInputConnects = false
+}
+
+// Check if there were recent input connects
+func (n *NodeNetwork) CheckHadInputConnects() bool {
+	return n.hadRecentInputConnects
+}
+
+// Get list of nodes in short format
+func (n *NodeNetwork) GetNodesToExport() (list []NodeAddrShort) {
+	list = []NodeAddrShort{}
+
+	for _, node := range n.Nodes {
+		list = append(list, node.GetShortFormat())
+	}
+	return
+}
+
 /*
 * Checks if a node exists in list of known nodes and adds it if no
 * Returns true if was added
@@ -168,7 +203,7 @@ func (n NodeNetwork) GetConnecttionVerifiedNodeAddr() *NodeAddr {
 	for _, i = range rng {
 		node := n.Nodes[i]
 
-		if node.SuccessConnecions > 0 {
+		if node.SuccessConnections > 0 {
 			return &node
 		}
 	}
@@ -192,7 +227,7 @@ func (n NodeNetwork) GetConnecttionVerifiedNodeAddresses(limit int) []*NodeAddr 
 	for _, i = range rng {
 		node := n.Nodes[i]
 
-		if node.SuccessConnecions > 0 {
+		if node.SuccessConnections > 0 {
 			nodes = append(nodes, &node)
 
 			if limit > 0 && len(nodes) >= limit {
