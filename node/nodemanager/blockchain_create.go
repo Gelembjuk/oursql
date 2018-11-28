@@ -55,7 +55,7 @@ func (n *makeBlockchain) CreateBlockchain() error {
 
 	Minter := n.getBlockMakeManager()
 
-	n.Logger.Trace.Printf("Complete genesis block proof of work\n")
+	//n.Logger.Trace.Printf("Complete genesis block proof of work\n")
 
 	Minter.SetPreparedBlock(genesisBlock)
 
@@ -244,8 +244,6 @@ func (n *makeBlockchain) addFirstBlock(genesis *structures.Block) error {
 	if err != nil {
 		return err
 	}
-
-	n.Logger.Trace.Printf("Prepare TX caches\n")
 
 	n.getTransactionsManager().BlockAdded(genesis, true)
 

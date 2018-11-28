@@ -20,6 +20,7 @@ import (
 )
 
 const (
+	CommandAddresses        = "addr"
 	CommandGetConsensusData = "getcnsdata"
 	CommandGetFirstBlocks   = "getfblocks"
 	CommandGetBalance       = "getbalance"
@@ -39,6 +40,12 @@ type NodeClient struct {
 	Logger      *utils.LoggerMan
 	NodeNet     *netlib.NodeNetwork
 	NodeAuthStr string
+}
+
+// Command to send list of known addresses to other node
+type ComAddresses struct {
+	AddrFrom  netlib.NodeAddr
+	Addresses []netlib.NodeAddr
 }
 
 type ComBlock struct {
@@ -274,7 +281,11 @@ func (c *NodeClient) SendVoid(address netlib.NodeAddr) error {
 
 // Send list of nodes addresses to other node
 func (c *NodeClient) SendAddrList(address netlib.NodeAddr, addresses []netlib.NodeAddr) error {
-	request, err := c.BuildCommandData("addr", &addresses)
+	data := ComAddresses{}
+	data.Addresses = addresses
+	data.AddrFrom = c.NodeAddress
+
+	request, err := c.BuildCommandData(CommandAddresses, &data)
 
 	if err != nil {
 		return err
@@ -789,7 +800,7 @@ func (c *NodeClient) SendDataWaitResponse(addr netlib.NodeAddr, data []byte, dat
 		return err
 	}
 
-	c.Logger.Trace.Println("Sending data to " + addr.NodeAddrToString() + " and waiting response")
+	c.Logger.TraceExt.Println("Sending data to " + addr.NodeAddrToString() + " and waiting response")
 
 	// connect
 	conn, err := net.Dial(netlib.Protocol, addr.NodeAddrToString())
@@ -807,7 +818,7 @@ func (c *NodeClient) SendDataWaitResponse(addr netlib.NodeAddr, data []byte, dat
 	}
 	defer conn.Close()
 
-	c.Logger.Trace.Printf("Sending %d bytes ", len(data))
+	//c.Logger.Trace.Printf("Sending %d bytes ", len(data))
 	// send command bytes
 	_, err = io.Copy(conn, bytes.NewReader(data))
 
@@ -818,7 +829,7 @@ func (c *NodeClient) SendDataWaitResponse(addr netlib.NodeAddr, data []byte, dat
 	}
 	// read response
 	// read everything
-	c.Logger.Trace.Println("Start readin response")
+	//c.Logger.Trace.Println("Start readin response")
 
 	response, err := ioutil.ReadAll(conn)
 
@@ -835,7 +846,7 @@ func (c *NodeClient) SendDataWaitResponse(addr netlib.NodeAddr, data []byte, dat
 		return err
 	}
 
-	c.Logger.Trace.Printf("Received %d bytes as a response\n", len(response))
+	c.Logger.TraceExt.Printf("Received %d bytes as a response\n", len(response))
 
 	// convert response for provided structure
 	var buff bytes.Buffer

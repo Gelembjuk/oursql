@@ -51,7 +51,6 @@ func (c *blocksMaker) Start() error {
 func (c *blocksMaker) run() {
 
 	for {
-		c.logger.Trace.Printf("BlockBuilder nwaiting new commandx")
 		txID := <-c.blockBilderChan
 
 		c.logger.Trace.Printf("BlockBuilder new transaction %x", txID)
@@ -81,8 +80,6 @@ func (c *blocksMaker) run() {
 		if err != nil {
 			c.logger.Trace.Printf("Block building error %s\n", err.Error())
 		}
-
-		c.logger.Trace.Printf("BlockBuilder . Transaction check complete")
 	}
 
 	c.logger.Trace.Printf("Block Maker Return routine")

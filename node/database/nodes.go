@@ -10,7 +10,7 @@ type Nodes struct {
 
 func (ns *Nodes) getTableName() string {
 	if ns.tableName == "" {
-		ns.tableName = ns.tablePrefix + nodesTable
+		ns.tableName = ns.DB.tablesPrefix + nodesTable
 	}
 	return ns.tableName
 }

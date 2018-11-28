@@ -190,7 +190,7 @@ func (n *NodeNetwork) RemoveNodeFromKnown(addr NodeAddr) {
 // Checks nodes rendomly and returns first found node that is accesible
 // It check if a node was ever connected from this place
 func (n NodeNetwork) GetConnecttionVerifiedNodeAddr() *NodeAddr {
-	n.Logger.Trace.Printf("Currently there are %d nodes", len(n.Nodes))
+	//n.Logger.Trace.Printf("Currently there are %d nodes", len(n.Nodes))
 
 	if len(n.Nodes) == 0 {
 		return nil
@@ -213,8 +213,6 @@ func (n NodeNetwork) GetConnecttionVerifiedNodeAddr() *NodeAddr {
 // Same as GetConnecttionVerifiedNodeAddr but returns all verified nodes  or limited list if requested
 func (n NodeNetwork) GetConnecttionVerifiedNodeAddresses(limit int) []*NodeAddr {
 	nodes := []*NodeAddr{}
-
-	n.Logger.Trace.Printf("Nodes Obj contains %d nodes", len(n.Nodes))
 
 	if len(n.Nodes) == 0 {
 		return nodes

@@ -443,17 +443,21 @@ func (s *NodeServerRequest) handleGetConsensusData() error {
 
 func (s *NodeServerRequest) handleAddr() error {
 
-	var payload []net.NodeAddr
+	var payload nodeclient.ComAddresses
+
 	err := s.parseRequestData(&payload)
 
 	if err != nil {
 		return err
 	}
+
+	s.Node.CheckAddressKnown(payload.AddrFrom)
+
 	addednodes := []net.NodeAddr{}
 
 	//s.Logger.Trace.Printf("SessID: %s . Received nodes %s", s.SessID, payload)
 
-	for _, node := range payload {
+	for _, node := range payload.Addresses {
 		//s.Logger.Trace.Printf("SessID: %s . node %s", s.SessID, node.NodeAddrToString())
 		if s.S.Node.NodeNet.AddNodeToKnown(node) {
 			addednodes = append(addednodes, node)
@@ -883,7 +887,7 @@ func (s *NodeServerRequest) handleGetUpdates() error {
 		return err
 	}
 
-	s.Logger.Trace.Printf("Loaded %d block hashes", len(blocks))
+	s.Logger.TraceExt.Printf("Loaded %d block hashes", len(blocks))
 
 	result.Blocks = [][]byte{}
 
@@ -911,9 +915,9 @@ func (s *NodeServerRequest) handleGetUpdates() error {
 
 	result.Nodes = s.Node.NodeNet.GetNodesToExport()
 
-	s.Logger.Trace.Println("Return transaction on request")
+	s.Logger.TraceExt.Println("Return transaction on request")
 	for _, tx := range result.TransactionsInPool {
-		s.Logger.Trace.Printf("   tx in pool: %x", tx)
+		s.Logger.TraceExt.Printf("   tx in pool: %x", tx)
 	}
 
 	s.Response, err = net.GobEncode(result)
@@ -922,7 +926,7 @@ func (s *NodeServerRequest) handleGetUpdates() error {
 		return err
 	}
 
-	s.Logger.Trace.Printf("Return first %d blocks\n", len(blocks))
+	s.Logger.TraceExt.Printf("Return first %d blocks\n", len(blocks))
 	return nil
 }
 

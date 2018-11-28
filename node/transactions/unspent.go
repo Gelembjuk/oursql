@@ -472,7 +472,7 @@ func (u unspentTransactions) UpdateOnBlockAdd(block *structures.Block) error {
 		return err
 	}
 
-	u.Logger.Trace.Printf("UPdate UTXO on block add %x", block.Hash)
+	//u.Logger.Trace.Printf("UPdate UTXO on block add %x", block.Hash)
 
 	for _, tx := range block.Transactions {
 		//u.Logger.Trace.Printf("UpdateOnBlockAdd check tx %x", tx.GetID())

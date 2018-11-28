@@ -62,7 +62,7 @@ func (s *NodeServer) handleConnection(conn net.Conn) {
 		return
 	}
 
-	s.Logger.Trace.Printf("Received %s command", command)
+	s.Logger.TraceExt.Printf("Received %s command", command)
 
 	requestobj := NodeServerRequest{}
 	requestobj.Node = s.Node.Clone()
@@ -93,7 +93,7 @@ func (s *NodeServer) handleConnection(conn net.Conn) {
 	var rerr error
 
 	switch command {
-	case "addr":
+	case nodeclient.CommandAddresses:
 		rerr = requestobj.handleAddr()
 	case "viod":
 		// do nothing
@@ -189,7 +189,7 @@ func (s *NodeServer) handleConnection(conn net.Conn) {
 		// first byte is bool true to indicate request was success
 		dataresponse := append([]byte{1}, requestobj.Response...)
 
-		s.Logger.Trace.Printf("Responding %d bytes\n", len(dataresponse))
+		s.Logger.TraceExt.Printf("Responding %d bytes\n", len(dataresponse))
 
 		_, err := conn.Write(dataresponse)
 
@@ -199,7 +199,7 @@ func (s *NodeServer) handleConnection(conn net.Conn) {
 	}
 	duration := time.Since(time.Unix(0, starttime))
 	ms := duration.Nanoseconds() / int64(time.Millisecond)
-	s.Logger.Trace.Printf("Complete processing %s command. Time: %d ms, sess %s", command, ms, sessid)
+	s.Logger.TraceExt.Printf("Complete processing %s command. Time: %d ms, sess %s", command, ms, sessid)
 
 	conn.Close()
 }

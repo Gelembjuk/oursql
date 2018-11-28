@@ -91,7 +91,7 @@ func getNodeCLI(input config.AppInput) NodeCLI {
 	cli.Logger.EnableLogs(input.Logs)
 
 	if input.Args.LogDest != "stdout" {
-		cli.Logger.LogToFiles(cli.ConfigDir, "log_trace.txt", "log_info.txt", "log_warning.txt", "log_error.txt")
+		cli.Logger.LogToFiles(cli.ConfigDir, "log_trace.txt", "log_traceext.txt", "log_info.txt", "log_warning.txt", "log_error.txt")
 	} else {
 		cli.Logger.LogToStdout()
 	}

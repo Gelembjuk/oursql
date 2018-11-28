@@ -56,7 +56,7 @@ func (c *changesChecker) Run() {
 			c.ticker = c.ticker - 1
 			continue
 		}
-		c.logger.Trace.Printf("Changes Checker. Go to check state")
+		c.logger.TraceExt.Printf("Changes Checker. Go to check state")
 
 		pullResult, err := c.S.Node.GetCommunicationManager().CheckForChangesOnOtherNodes(c.lastCheckTime)
 
@@ -72,7 +72,7 @@ func (c *changesChecker) Run() {
 			c.ticker = 5 // 5 seconds as it looks like other nodes can not connect to this node
 		}
 
-		c.S.Node.NodeNet.StartNewSessionForInputConnects()
+		//c.S.Node.NodeNet.StartNewSessionForInputConnects()
 	}
 	c.logger.Trace.Printf("Changes Checker Return routine")
 	c.completeChan <- true

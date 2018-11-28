@@ -519,7 +519,7 @@ func (bc *Blockchain) GetBlocksSince(startBlocksHashes [][]byte, minCreateTime i
 	}
 
 	for _, hash := range startBlocksHashes {
-		bc.Logger.Trace.Printf("Check start block %x", hash)
+		//bc.Logger.Trace.Printf("Check start block %x", hash)
 		exists, _, _, err := bcdb.GetLocationInChain(hash)
 
 		if err != nil {
@@ -533,11 +533,11 @@ func (bc *Blockchain) GetBlocksSince(startBlocksHashes [][]byte, minCreateTime i
 	}
 
 	if len(startFromHash) > 0 {
-		bc.Logger.Trace.Printf("One of blocks is in current BC %x", startFromHash)
+		//bc.Logger.Trace.Printf("One of blocks is in current BC %x", startFromHash)
 		// return all next hashes
 		return bc.GetNextBlocks(startFromHash, maxcount)
 	}
-	bc.Logger.Trace.Printf("No block found in current BC %x")
+	//bc.Logger.Trace.Printf("No block found in current BC %x")
 	return bc.GetBlocksShortInfoCreatedAfter([]byte{}, minCreateTime, maxcount)
 }
 
@@ -571,7 +571,7 @@ func (bc *Blockchain) GetNextBlocks(startfrom []byte, maxcount int) ([]*structur
 		if err != nil {
 			return localError(err)
 		}
-		bc.Logger.Trace.Printf("Prepare to return block %x and next is %x", block.Hash, nextHash)
+		//bc.Logger.Trace.Printf("Prepare to return block %x and next is %x", block.Hash, nextHash)
 		blocks = append(blocks, block.GetShortCopy())
 
 		if len(blocks) >= maxmaxcount {

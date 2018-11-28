@@ -22,35 +22,40 @@ const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 // Structure to manage logs
 type LoggerMan struct {
-	State   map[string]bool
-	loggers map[string]*os.File
-	Trace   *log.Logger
-	Info    *log.Logger
-	Warning *log.Logger
-	Error   *log.Logger
+	State    map[string]bool
+	loggers  map[string]*os.File
+	Trace    *log.Logger
+	TraceExt *log.Logger
+	Info     *log.Logger
+	Warning  *log.Logger
+	Error    *log.Logger
 }
 
 // Creates logger object. sets all logging to STDOUT
 func CreateLogger() *LoggerMan {
 	logger := LoggerMan{}
-	logger.loggers = map[string]*os.File{"trace": nil, "error": nil, "info": nil, "warning": nil}
+	logger.loggers = map[string]*os.File{"trace": nil, "traceext": nil, "error": nil, "info": nil, "warning": nil}
 
-	logger.State = map[string]bool{"trace": false, "error": false, "info": false, "warning": false}
+	logger.State = map[string]bool{"trace": false, "traceext": false, "error": false, "info": false, "warning": false}
 
 	logger.Trace = log.New(ioutil.Discard,
-		"TRACE: ",
+		"T: ",
+		log.Ldate|log.Ltime|log.Lshortfile)
+
+	logger.TraceExt = log.New(ioutil.Discard,
+		"TE: ",
 		log.Ldate|log.Ltime|log.Lshortfile)
 
 	logger.Info = log.New(ioutil.Discard,
-		"INFO: ",
+		"I: ",
 		log.Ldate|log.Ltime|log.Lshortfile)
 
 	logger.Warning = log.New(ioutil.Discard,
-		"WARNING: ",
+		"W: ",
 		log.Ldate|log.Ltime|log.Lshortfile)
 
 	logger.Error = log.New(ioutil.Discard,
-		"ERROR: ",
+		"E: ",
 		log.Ldate|log.Ltime|log.Lshortfile)
 
 	return &logger
@@ -86,6 +91,7 @@ func (logger *LoggerMan) GetState() string {
 // disable all logging
 func (logger *LoggerMan) DisableLogging() {
 	logger.Trace.SetOutput(ioutil.Discard)
+	logger.TraceExt.SetOutput(ioutil.Discard)
 	logger.Info.SetOutput(ioutil.Discard)
 	logger.Warning.SetOutput(ioutil.Discard)
 	logger.Error.SetOutput(ioutil.Discard)
@@ -99,12 +105,20 @@ func (logger *LoggerMan) DisableLogging() {
 }
 
 // Changes logging to files
-func (logger *LoggerMan) LogToFiles(datadir, trace, info, warning, errorname string) error {
+func (logger *LoggerMan) LogToFiles(datadir, trace, traceext, info, warning, errorname string) error {
 	if logger.State["trace"] {
 		f1, err1 := os.OpenFile(datadir+trace, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 
 		if err1 == nil {
 			logger.loggers["trace"] = f1
+			logger.Trace.SetOutput(f1)
+		}
+	}
+	if logger.State["traceext"] {
+		f1, err1 := os.OpenFile(datadir+traceext, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+
+		if err1 == nil {
+			logger.loggers["traceext"] = f1
 			logger.Trace.SetOutput(f1)
 		}
 	}
@@ -139,6 +153,9 @@ func (logger *LoggerMan) LogToFiles(datadir, trace, info, warning, errorname str
 func (logger *LoggerMan) LogToStdout() error {
 	if logger.State["trace"] {
 		logger.Trace.SetOutput(os.Stdout)
+	}
+	if logger.State["traceext"] {
+		logger.TraceExt.SetOutput(os.Stdout)
 	}
 	if logger.State["info"] {
 		logger.Info.SetOutput(os.Stdout)

@@ -212,7 +212,7 @@ func (n *NodeBlockMaker) CompleteBlock() (*structures.Block, error) {
 	if config.MinimumBlockBuildingTime > 0 {
 		for t := time.Since(starttime).Seconds(); t < float64(config.MinimumBlockBuildingTime); t = time.Since(starttime).Seconds() {
 			time.Sleep(1 * time.Second)
-			n.Logger.Trace.Printf("Sleep")
+			//n.Logger.Trace.Printf("Sleep")
 		}
 	}
 

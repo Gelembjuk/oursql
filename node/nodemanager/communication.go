@@ -181,7 +181,7 @@ func (n *communicationManager) CheckForChangesOnOtherNodes(lastCheckTime int64) 
 	}
 
 	for _, node := range nodes {
-		n.logger.Trace.Printf("Check node %s", node.NodeAddrToString())
+		n.logger.TraceExt.Printf("Check node %s", node.NodeAddrToString())
 		if node.CompareToAddress(n.node.NodeClient.NodeAddress) {
 			continue
 		}
@@ -302,7 +302,7 @@ func (n *communicationManager) processTransactionsFromPoolOnOtherNode(node *net.
 	for _, txID := range transactions {
 		// if not exist , request for full body of a TX and add to a pool
 		if txe, err := n.node.GetTransactionsManager().GetIfExists(txID); err == nil && txe != nil {
-			n.logger.Trace.Printf("TX already exists: %x ", txID)
+			//n.logger.Trace.Printf("TX already exists: %x ", txID)
 			continue
 		}
 		// request this TX and add to the pool
@@ -329,10 +329,10 @@ func (n *communicationManager) processTransactionsFromPoolOnOtherNode(node *net.
 
 // Process nodes addresses list received from other node
 func (n *communicationManager) processNodesFromPoolOnOtherNode(node *net.NodeAddr, nodes []net.NodeAddrShort) ([]net.NodeAddr, error) {
-	n.logger.Trace.Printf("Check %d nodes from remote list", len(nodes))
+	n.logger.TraceExt.Printf("Check %d nodes from remote list", len(nodes))
 
 	if len(nodes) == 0 {
-		n.logger.Trace.Printf("Nothing to check")
+		n.logger.TraceExt.Printf("Nothing to check")
 		return nil, nil
 	}
 

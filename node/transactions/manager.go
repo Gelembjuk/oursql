@@ -275,11 +275,11 @@ func (n *txManager) CleanUnapprovedCache() error {
 // to execute when new block added . the block must not be on top
 func (n *txManager) BlockAdded(block *structures.Block, ontopofchain bool) error {
 	// update caches
-	n.Logger.Trace.Printf("TX Man. block added %x", block.Hash)
+	//n.Logger.Trace.Printf("TX Man. block added %x", block.Hash)
 	n.getIndexManager().BlockAdded(block)
 
 	if ontopofchain {
-		n.Logger.Trace.Printf("TX Man. block added to top")
+		//n.Logger.Trace.Printf("TX Man. block added to top")
 		// execute TXs that were not in pool
 		n.transactionsFromAddedBlock(block.Transactions)
 		// remove all TXs from pool
@@ -293,7 +293,7 @@ func (n *txManager) BlockAdded(block *structures.Block, ontopofchain bool) error
 
 // Block was removed from the top of primary blockchain branch
 func (n *txManager) BlockRemoved(block *structures.Block) error {
-	n.Logger.Trace.Printf("TX Man. block removed %x", block.Hash)
+	//n.Logger.Trace.Printf("TX Man. block removed %x", block.Hash)
 	// for this operations we don't rollback SQL update
 	// query is added back to pool
 	// there should not be conflicts, as allqueries in pool were based on queries
@@ -309,7 +309,7 @@ func (n *txManager) BlockRemoved(block *structures.Block) error {
 
 // block is now added to primary chain. it existed in DB before
 func (n *txManager) BlockAddedToPrimaryChain(block *structures.Block) error {
-	n.Logger.Trace.Printf("TX Man. block added to primary %x", block.Hash)
+	//n.Logger.Trace.Printf("TX Man. block added to primary %x", block.Hash)
 
 	// execute TXs that were not in pool
 	n.transactionsFromAddedBlock(block.Transactions)
@@ -325,7 +325,7 @@ func (n *txManager) BlockAddedToPrimaryChain(block *structures.Block) error {
 
 // block is removed from primary chain. it continued to be in DB on side branch
 func (n *txManager) BlockRemovedFromPrimaryChain(block *structures.Block) error {
-	n.Logger.Trace.Printf("TX Man. block removed from primary %x", block.Hash)
+	//n.Logger.Trace.Printf("TX Man. block removed from primary %x", block.Hash)
 	// we need to reverse transactions slice. execution of rollback should go
 	// in reversed order
 	l := len(block.Transactions)
@@ -364,7 +364,7 @@ func (n *txManager) rollbackConflictingFromPool(txList []structures.Transaction)
 	pendingPoolObj := n.getUnapprovedTransactionsManager()
 
 	for _, tx := range txList {
-		n.Logger.Trace.Printf("Find conflicts in pool for %x", tx.GetID())
+		//n.Logger.Trace.Printf("Find conflicts in pool for %x", tx.GetID())
 		if tx.IsSQLCommand() {
 			// use loop to find all conflicts for this TX
 			for {

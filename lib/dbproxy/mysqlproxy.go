@@ -96,8 +96,6 @@ func (p *mysqlProxy) Run() error {
 	go func() {
 		defer listener.Close()
 
-		p.traceLog.Printf("Start routine")
-
 		// listener blocked
 		p.state = 2
 
@@ -130,13 +128,12 @@ func (p *mysqlProxy) Run() error {
 			go p.handleConnection(client)
 		}
 
-		p.traceLog.Printf("Return routine")
+		p.traceLog.Printf("Return mysql proxy routine")
 		p.completeChan <- true
 		// listener released
 		p.state = 3
 	}()
 
-	p.traceLog.Printf("Return Run")
 	return nil
 }
 
