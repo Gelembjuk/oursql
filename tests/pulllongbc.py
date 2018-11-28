@@ -18,6 +18,9 @@ import pullsync
 datadir1 = ""
 datadir2 = ""
 
+def allowgrouprun():
+    return False
+
 def aftertest(testfilter):
     global datadir1
     global datadir2

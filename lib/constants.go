@@ -1,7 +1,7 @@
 package lib
 
 const ApplicationTitle = "OurSQL"
-const ApplicationVersion = "0.1.6 beta"
+const ApplicationVersion = "0.1.7 beta"
 
 const Version = byte(0x00)
 const AddressChecksumLen = 4
