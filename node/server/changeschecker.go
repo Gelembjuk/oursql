@@ -1,17 +1,10 @@
 package server
 
-/*
-Error codes
-Errors returned by the proxy must have MySQL codes.
-2 - Query requires public key
-3 - Query requires data to sign
-4 - Error preparing of query parsing
-
-*/
 import (
 	"time"
 
 	"github.com/gelembjuk/oursql/lib/utils"
+	"github.com/gelembjuk/oursql/node/nodemanager"
 )
 
 type changesChecker struct {
@@ -65,7 +58,11 @@ func (c *changesChecker) Run() {
 		}
 		c.logger.Trace.Printf("Changes Checker. Go to check state")
 
-		c.S.Node.GetCommunicationManager().CheckForChangesOnOtherNodes(c.lastCheckTime)
+		pullResult, err := c.S.Node.GetCommunicationManager().CheckForChangesOnOtherNodes(c.lastCheckTime)
+
+		if err == nil {
+			c.processResults(pullResult)
+		}
 
 		// decide when to do next check
 		if c.S.Node.NodeNet.CheckHadInputConnects() {
@@ -91,4 +88,27 @@ func (c *changesChecker) Stop() error {
 	close(c.completeChan)
 
 	return nil
+}
+
+func (c changesChecker) processResults(res nodemanager.ChangesPullResults) {
+	if len(res.AddedTransactions) > 0 {
+		// if some transactions were added, notify to build new block
+		c.S.TryToMakeNewBlock([]byte{1}) // this will check state of the pool and start minting new block if there are enough
+	}
+	if res.AnyChangesPulled() {
+		c.logger.Trace.Println("Pull results")
+		c.logger.Trace.Printf("Transactions %d:", len(res.AddedTransactions))
+		for _, txID := range res.AddedTransactions {
+			c.logger.Trace.Printf("   %x", txID)
+		}
+		c.logger.Trace.Printf("Blocks %d:", len(res.AddedBlocks))
+		for _, bHash := range res.AddedBlocks {
+			c.logger.Trace.Printf("   %x", bHash)
+		}
+		c.logger.Trace.Printf("Nodes %d:", len(res.AddedNodes))
+		for _, n := range res.AddedNodes {
+			c.logger.Trace.Printf("   %s", n)
+		}
+	}
+
 }

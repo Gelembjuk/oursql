@@ -16,7 +16,7 @@ type TransactionsManagerInterface interface {
 	GetUnspentCount() (int, error)
 	GetUnapprovedTransactionsForNewBlock(number int) ([]structures.Transaction, error)
 	// Returns list of transactions from the pool. Filters by time or maxcount, it total is lexx maxcount, returns all
-	GetUnapprovedTransactionsFiltered(minCreateTime int64, maxCount int) ([][]byte, error)
+	GetUnapprovedTransactionsFiltered(minCreateTime int64, maxCount int, ignoreTransactions [][]byte) ([][]byte, error)
 	GetIfExists(txid []byte) (*structures.Transaction, error)
 	GetIfUnapprovedExists(txid []byte) (*structures.Transaction, error)
 

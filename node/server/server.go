@@ -30,11 +30,9 @@ type NodeServer struct {
 	// Channels to manipulate roitunes
 	StopMainChan        chan struct{}
 	StopMainConfirmChan chan struct{}
-	BlockBilderChan     chan []byte
-
-	subBlockBuilderStarted bool
 
 	changesCheckerObj *changesChecker
+	blocksMakerObj    *blocksMaker
 
 	DBProxyAddr string
 	DBAddr      string
@@ -231,18 +229,27 @@ func (s *NodeServer) sendErrorBack(conn net.Conn, err error) {
 func (s *NodeServer) StartServer(serverStartResult chan string) error {
 	s.Logger.Trace.Printf("Prepare server to start %s on a localport %d", s.NodeAddress.NodeAddrToString(), s.NodePort)
 
-	// this channel must be inited here. It is used inside StartDatabaseProxy()
-	// DB proxy wil notify about new transactions using this channel
-	s.BlockBilderChan = make(chan []byte, 100)
-
-	started, err := s.StartDatabaseProxy()
-
-	if err != nil {
+	returnWithError := func(err error) error {
 		serverStartResult <- err.Error()
 
 		s.stopAllSubroutines()
 
+		s.Logger.Trace.Println("Fail to start server: ", err.Error())
+
 		return err
+	}
+	// this channel must be inited here. It is used inside StartDatabaseProxy()
+	// DB proxy wil notify about new transactions using this channel
+	err := s.initBlocksMaker()
+
+	if err != nil {
+		return returnWithError(err)
+	}
+
+	started, err := s.startDatabaseProxy()
+
+	if err != nil {
+		return returnWithError(err)
 	}
 
 	if !started {
@@ -253,12 +260,7 @@ func (s *NodeServer) StartServer(serverStartResult chan string) error {
 	ln, err := net.Listen(netlib.Protocol, ":"+strconv.Itoa(s.NodePort))
 
 	if err != nil {
-		serverStartResult <- err.Error()
-
-		s.stopAllSubroutines()
-
-		s.Logger.Trace.Println("Fail to start port listening ", err.Error())
-		return err
+		return returnWithError(err)
 	}
 	defer ln.Close()
 
@@ -273,22 +275,25 @@ func (s *NodeServer) StartServer(serverStartResult chan string) error {
 	// we don't expect more 100 TX will be received while building a block. if yes, we will skip
 	// adding a signal. this will not be a problem
 
-	err = s.StartChangesChecker()
+	err = s.startChangesChecker()
+	if err != nil {
+		return returnWithError(err)
+	}
+	// run blocks maker routine
+	err = s.blocksMakerObj.Start()
 
 	if err != nil {
-		serverStartResult <- err.Error()
+		return returnWithError(err)
+	}
 
-		s.stopAllSubroutines()
+	err = s.blocksMakerObj.Start()
 
-		s.Logger.Trace.Println("Fail to start changes checker ", err.Error())
-		return err
+	if err != nil {
+		return returnWithError(err)
 	}
 
 	// notify daemon about server started fine
 	serverStartResult <- ""
-
-	s.subBlockBuilderStarted = true
-	go s.BlockBuilder()
 
 	s.Logger.Trace.Printf("Start listening connections on port %d", s.NodePort)
 
@@ -332,52 +337,13 @@ func (s *NodeServer) StartServer(serverStartResult chan string) error {
 * And try to make a block if there are enough transactions
  */
 func (s *NodeServer) TryToMakeNewBlock(tx []byte) {
-	// don't block sending. buffer size is 100
-	// TX will be skipped if a buffer is full
-	select {
-	case s.BlockBilderChan <- tx: // send signal to block building thread to try to make new block now
-	default:
-	}
-}
-
-/*
-* The routine that tries to make blocks.
-* The routine reads last added transaction ID
-* The ID will be real tranaction ID only if this transaction wa new created on this node
-* in this case, if block is not created, the transaction will be sent to all other nodes
-* it is needed to delay sending of transaction to be able to create a block first, before all other eceive new transaction
-* This ID can be also {0} (one byte slice). it means try to create a block but don't send transaction
-* and it can be empty slice . it means to exit from teh routibe
- */
-func (s *NodeServer) BlockBuilder() {
-	for {
-		txID := <-s.BlockBilderChan
-
-		s.Logger.Trace.Printf("BlockBuilder new transaction %x", txID)
-
-		if len(txID) == 0 {
-			// this is return signal from main thread
-			close(s.BlockBilderChan)
-			s.Logger.Trace.Printf("Exit BlockBuilder thread")
-			return
-		}
-
-		// we create separate node object for this thread
-		// pointers are used everywhere. so, it can be some sort of conflict with main thread
-		NodeClone := s.Node.Clone()
-		// try to buid new block
-		_, err := NodeClone.TryToMakeBlock(txID)
-
-		if err != nil {
-			s.Logger.Trace.Printf("Block building error %s\n", err.Error())
-		}
-	}
+	s.blocksMakerObj.NewTransaction(tx)
 }
 
 // MySQL proxy server. It is in the middle between a DB server and DB client an reads requests
-func (s *NodeServer) StartDatabaseProxy() (started bool, err error) {
+func (s *NodeServer) startDatabaseProxy() (started bool, err error) {
 
-	s.QueryFilter, err = InitQueryFilter(s.DBProxyAddr, s.DBAddr, s.Node.Clone(), s.Logger, s.BlockBilderChan)
+	s.QueryFilter, err = InitQueryFilter(s.DBProxyAddr, s.DBAddr, s.Node.Clone(), s.Logger, s.blocksMakerObj)
 	started = true
 
 	if err != nil {
@@ -396,9 +362,17 @@ func (s *NodeServer) StartDatabaseProxy() (started bool, err error) {
 }
 
 // MySQL proxy server. It is in the middle between a DB server and DB client an reads requests
-func (s *NodeServer) StartChangesChecker() error {
+func (s *NodeServer) startChangesChecker() error {
 
 	s.changesCheckerObj = StartChangesChecker(s)
+
+	return nil
+}
+
+// MySQL proxy server. It is in the middle between a DB server and DB client an reads requests
+func (s *NodeServer) initBlocksMaker() error {
+
+	s.blocksMakerObj = InitBlocksMaker(s)
 
 	return nil
 }
@@ -420,10 +394,10 @@ func (s *NodeServer) stopAllSubroutines() {
 		s.changesCheckerObj = nil
 	}
 
-	if s.subBlockBuilderStarted {
-		s.BlockBilderChan <- []byte{} // send signal to block building thread to exit
-		// empty slice means this is exit signal
-		s.subBlockBuilderStarted = false
+	if s.blocksMakerObj != nil {
+		s.blocksMakerObj.Stop()
+
+		s.blocksMakerObj = nil
 	}
 
 	// notify daemon process about this server did all completion

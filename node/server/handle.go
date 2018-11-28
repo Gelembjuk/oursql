@@ -898,8 +898,8 @@ func (s *NodeServerRequest) handleGetUpdates() error {
 	if err != nil {
 		return err
 	}
-
-	result.TransactionsInPool, err = s.Node.GetTransactionsManager().GetUnapprovedTransactionsFiltered(payload.LastCheckTime-60*30, 1000)
+	// NOTE. this shouold not return transactions that are currently under minting.
+	result.TransactionsInPool, err = s.Node.GetTransactionsManager().GetUnapprovedTransactionsFiltered(payload.LastCheckTime-60*30, 1000, [][]byte{})
 
 	if err != nil {
 		return err

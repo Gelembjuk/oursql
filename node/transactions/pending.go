@@ -285,8 +285,8 @@ func (u *unApprovedTransactions) GetTransactions(number int) ([]*structures.Tran
 	return txset, nil
 }
 
-// Get all unapproved transactions filtered by create time. Return only more recent
-func (u *unApprovedTransactions) GetTransactionsFiltered(number int, minCreateTime int64) ([]*structures.Transaction, error) {
+// Get all unapproved transactions filtered by list of Txs to skip
+func (u *unApprovedTransactions) GetTransactionsFilteredByList(number int, ignoreTransactions [][]byte) ([]*structures.Transaction, error) {
 	utdb, err := u.DB.GetUnapprovedTransactionsObject()
 
 	if err != nil {
@@ -296,7 +296,57 @@ func (u *unApprovedTransactions) GetTransactionsFiltered(number int, minCreateTi
 
 	totalnumber := 0
 
-	err = utdb.ForEach(func(k, txBytes []byte) error {
+	err = utdb.ForEach(func(txID, txBytes []byte) error {
+		for _, txF := range ignoreTransactions {
+			if bytes.Compare(txF, txID) == 0 {
+				return nil
+			}
+		}
+		tx, err := structures.DeserializeTransaction(txBytes)
+
+		if err != nil {
+			return err
+		}
+
+		txset = append(txset, tx)
+		totalnumber++
+
+		if totalnumber >= number {
+			// time to exit the loop. we don't need more
+			return database.NewDBCursorStopError()
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// we need to sort transactions. oldest should be first
+	sort.Sort(structures.Transactions(txset))
+	return txset, nil
+}
+
+// Get all unapproved transactions filtered by create time and list to skip. Return only more recent
+func (u *unApprovedTransactions) GetTransactionsFilteredByTime(number int,
+	minCreateTime int64, ignoreTransactions [][]byte) ([]*structures.Transaction, error) {
+
+	utdb, err := u.DB.GetUnapprovedTransactionsObject()
+
+	if err != nil {
+		return nil, err
+	}
+	txset := []*structures.Transaction{}
+
+	totalnumber := 0
+
+	err = utdb.ForEach(func(txID, txBytes []byte) error {
+		for _, txF := range ignoreTransactions {
+			if bytes.Compare(txF, txID) == 0 {
+				return nil
+			}
+		}
+
 		tx, err := structures.DeserializeTransaction(txBytes)
 
 		if err != nil {
@@ -304,7 +354,7 @@ func (u *unApprovedTransactions) GetTransactionsFiltered(number int, minCreateTi
 		}
 
 		if tx.GetTime() < minCreateTime {
-			return database.NewDBCursorStopError()
+			return nil
 		}
 
 		txset = append(txset, tx)
@@ -327,7 +377,6 @@ func (u *unApprovedTransactions) GetTransactionsFiltered(number int, minCreateTi
 }
 
 // Get number of unapproved transactions in a cache
-
 func (u *unApprovedTransactions) GetCount() (int, error) {
 	utdb, err := u.DB.GetUnapprovedTransactionsObject()
 
@@ -336,6 +385,34 @@ func (u *unApprovedTransactions) GetCount() (int, error) {
 	}
 
 	return utdb.GetCount()
+}
+
+// Get number of unapproved transactions in a cache, but ignoring given list of transactions
+func (u *unApprovedTransactions) GetCountFiltered(ignoreTransactions [][]byte) (int, error) {
+	utdb, err := u.DB.GetUnapprovedTransactionsObject()
+
+	if err != nil {
+		return 0, err
+	}
+
+	count := 0
+
+	err = utdb.ForEach(func(txID, txBytes []byte) error {
+		for _, txF := range ignoreTransactions {
+			if bytes.Compare(txF, txID) == 0 {
+				return nil
+			}
+		}
+
+		count = count + 1
+
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
 }
 
 // Add new transaction for the list of unapproved

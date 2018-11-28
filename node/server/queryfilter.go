@@ -25,15 +25,16 @@ type queryFilter struct {
 	sessionTransactions map[string]*structures.Transaction
 	// Use this to notify a main server process about new transaction was added to a pool
 	newTransactionChan chan []byte
+	blockmakerObj      *blocksMaker
 }
 
-func InitQueryFilter(proxyAddr, dbAddr string, node *nodemanager.Node, logger *utils.LoggerMan, newTXChan chan []byte) (q *queryFilter, err error) {
+func InitQueryFilter(proxyAddr, dbAddr string, node *nodemanager.Node, logger *utils.LoggerMan, bmo *blocksMaker) (q *queryFilter, err error) {
 	q = &queryFilter{}
 
 	q.Logger = logger
 	q.Node = node
 	q.sessionTransactions = make(map[string]*structures.Transaction)
-	q.newTransactionChan = newTXChan
+	q.blockmakerObj = bmo
 
 	q.Logger.Trace.Printf("DB Proxy Start on %s  %s", proxyAddr, dbAddr)
 
@@ -134,12 +135,7 @@ func (q *queryFilter) ResponseCallback(sessionID string, err error) {
 
 		// Notify server thread about new TX completed fine
 
-		// non-blocking sending to a channel
-		select {
-		case q.newTransactionChan <- tx.GetID(): // notify server thread about new transaction added to the pool
-		default:
-		}
-		q.Logger.Trace.Printf("Sent to channel TX %x\n", tx.GetID())
+		q.blockmakerObj.NewTransaction(tx.GetID())
 
 		delete(q.sessionTransactions, sessionID)
 	}

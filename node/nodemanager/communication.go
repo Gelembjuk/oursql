@@ -1,6 +1,8 @@
 package nodemanager
 
 import (
+	"bytes"
+
 	"github.com/gelembjuk/oursql/lib"
 	"github.com/gelembjuk/oursql/lib/net"
 	"github.com/gelembjuk/oursql/lib/utils"
@@ -11,6 +13,12 @@ import (
 type communicationManager struct {
 	logger *utils.LoggerMan
 	node   *Node
+}
+
+type ChangesPullResults struct {
+	AddedTransactions [][]byte
+	AddedBlocks       [][]byte
+	AddedNodes        []net.NodeAddr
 }
 
 // Send own version to all known nodes
@@ -158,19 +166,18 @@ func (n *communicationManager) SendBlockToAllSync(newBlock *structures.Block, sk
 }
 
 // Check for updates on other nodes
-func (n *communicationManager) CheckForChangesOnOtherNodes(lastCheckTime int64) error {
+func (n *communicationManager) CheckForChangesOnOtherNodes(lastCheckTime int64) (ChangesPullResults, error) {
+	result := ChangesPullResults{}
 
 	// get max 10 random nodes where connection was success before
 	nodes := n.node.NodeNet.GetConnecttionVerifiedNodeAddresses(10)
-
-	n.logger.Trace.Printf("Commun Man: check from %d nodes", len(nodes))
 
 	// get local blockchain state to send request to other
 
 	myBestHeight, topHashes, err := n.node.NodeBC.GetBCTopState(5)
 
 	if err != nil {
-		return err
+		return result, err
 	}
 
 	for _, node := range nodes {
@@ -179,48 +186,57 @@ func (n *communicationManager) CheckForChangesOnOtherNodes(lastCheckTime int64) 
 			continue
 		}
 
-		n.pullUpdatesFromNode(node, lastCheckTime, topHashes, myBestHeight)
+		nr, err := n.pullUpdatesFromNode(node, lastCheckTime, topHashes, myBestHeight)
+
+		if err == nil {
+			result.mergeResults(nr)
+		}
+
 	}
-	return nil
+	return result, nil
 }
 
 // Load updates from a node
-func (n *communicationManager) pullUpdatesFromNode(node *net.NodeAddr, lastCheckTime int64, topHashes [][]byte, myBestHeight int) error {
+func (n *communicationManager) pullUpdatesFromNode(node *net.NodeAddr,
+	lastCheckTime int64, topHashes [][]byte, myBestHeight int) (res ChangesPullResults, err error) {
+
 	result, err := n.node.NodeClient.SendGetUpdates(*node, lastCheckTime, myBestHeight, topHashes)
 
 	if err != nil {
 		n.node.NodeNet.HookNeworkOperationResultForNode(err, node)
-		return err
+		return
 	}
 
-	err = n.processBlocksFromOtherNode(node, result.Blocks)
+	res.AddedBlocks, err = n.processBlocksFromOtherNode(node, result.Blocks)
 
 	if err != nil {
-		return err
+		return
 	}
 
-	err = n.processTransactionsFromPoolOnOtherNode(node, result.TransactionsInPool)
+	res.AddedTransactions, err = n.processTransactionsFromPoolOnOtherNode(node, result.TransactionsInPool)
 
 	if err != nil {
-		return err
+		return
 	}
 
-	err = n.processNodesFromPoolOnOtherNode(node, result.Nodes)
+	res.AddedNodes, err = n.processNodesFromPoolOnOtherNode(node, result.Nodes)
 
 	if err != nil {
-		return err
+		return
 	}
 
-	return nil
+	return
 }
 
-// Process blocks list received from other node
-func (n *communicationManager) processBlocksFromOtherNode(node *net.NodeAddr, blocks [][]byte) error {
+// Process blocks list received from other node. Returns list of added blocks
+func (n *communicationManager) processBlocksFromOtherNode(node *net.NodeAddr, blocks [][]byte) ([][]byte, error) {
 	l := len(blocks)
 
 	if l == 0 {
-		return nil
+		return nil, nil
 	}
+
+	addedBlocks := [][]byte{}
 
 	for i := l - 1; i >= 0; i-- {
 
@@ -245,7 +261,7 @@ func (n *communicationManager) processBlocksFromOtherNode(node *net.NodeAddr, bl
 			// TODO
 			// no solution yet.
 			n.logger.Trace.Printf("Previous block not found: %x . Exit blocks loop", bs.PrevBlockHash)
-			return nil
+			return addedBlocks, nil
 		}
 
 		if blockstate == 0 {
@@ -258,30 +274,30 @@ func (n *communicationManager) processBlocksFromOtherNode(node *net.NodeAddr, bl
 				continue
 			}
 
-			n.logger.Trace.Printf("Success loaded block %x", bs.Hash)
+			blockstate, _, block, err := n.node.ReceivedFullBlockFromOtherNode(result.Block)
 
-			blockstate, _, _, err := n.node.ReceivedFullBlockFromOtherNode(result.Block)
-
-			n.logger.Trace.Printf("adding new block ith state %d", blockstate)
 			// state of this adding we don't check. not interesting in this place
 			if err != nil {
 				n.logger.Error.Printf("Error when adding block body %s", err.Error())
 				continue
 			}
-
+			if blockstate == 0 {
+				addedBlocks = append(addedBlocks, block.Hash)
+			}
 		}
 	}
-	return nil
+	return addedBlocks, nil
 }
 
-// Process blocks list received from other node
-func (n *communicationManager) processTransactionsFromPoolOnOtherNode(node *net.NodeAddr, transactions [][]byte) error {
-	n.logger.Trace.Printf("Check %d transactions from remote pool", len(transactions))
+// Process blocks list received from other node. Returns list of transactions added to a pool
+func (n *communicationManager) processTransactionsFromPoolOnOtherNode(node *net.NodeAddr, transactions [][]byte) ([][]byte, error) {
 
 	if len(transactions) == 0 {
 		n.logger.Trace.Printf("Nothing to check")
-		return nil
+		return nil, nil
 	}
+
+	addedTransaction := [][]byte{}
 
 	for _, txID := range transactions {
 		// if not exist , request for full body of a TX and add to a pool
@@ -302,26 +318,110 @@ func (n *communicationManager) processTransactionsFromPoolOnOtherNode(node *net.
 			n.logger.Error.Printf("Error when deserialize TX %s", err.Error())
 			continue
 		}
-		n.node.getBlockMakeManager().AddTransactionToPool(tx, lib.TXFlagsExecute)
+		err = n.node.getBlockMakeManager().AddTransactionToPool(tx, lib.TXFlagsExecute)
+
+		if err == nil {
+			addedTransaction = append(addedTransaction, tx.GetID())
+		}
 	}
-	return nil
+	return addedTransaction, nil
 }
 
 // Process nodes addresses list received from other node
-func (n *communicationManager) processNodesFromPoolOnOtherNode(node *net.NodeAddr, nodes []net.NodeAddrShort) error {
+func (n *communicationManager) processNodesFromPoolOnOtherNode(node *net.NodeAddr, nodes []net.NodeAddrShort) ([]net.NodeAddr, error) {
 	n.logger.Trace.Printf("Check %d nodes from remote list", len(nodes))
 
 	if len(nodes) == 0 {
 		n.logger.Trace.Printf("Nothing to check")
-		return nil
+		return nil, nil
 	}
+
+	added := []net.NodeAddr{}
 
 	for _, ns := range nodes {
 		addr := net.NodeAddr{}
 		addr.Port = ns.Port
 		addr.Host = string(ns.Host)
 
-		n.node.checkAddressKnown(addr, false)
+		if n.node.checkAddressKnown(addr, false) {
+			added = append(added, addr)
+		}
 	}
-	return nil
+	return added, nil
+}
+
+// Merge results from different nodes. This structure is used to return total result
+func (p *ChangesPullResults) mergeResults(nr ChangesPullResults) {
+	// Blocks
+	if p.AddedBlocks == nil {
+		p.AddedBlocks = nr.AddedBlocks
+
+	} else if nr.AddedBlocks != nil {
+		// add only blocks that are not yet in the list
+		for _, bh := range nr.AddedBlocks {
+			exists := false
+
+			for _, mbh := range p.AddedBlocks {
+				if bytes.Compare(mbh, bh) == 0 {
+					exists = true
+					break
+				}
+			}
+
+			if !exists {
+				p.AddedBlocks = append(p.AddedBlocks, bh)
+			}
+		}
+
+	}
+	// Transactions
+	if p.AddedTransactions == nil {
+		p.AddedTransactions = nr.AddedTransactions
+
+	} else if nr.AddedTransactions != nil {
+		// add only blocks that are not yet in the list
+		for _, tx := range nr.AddedTransactions {
+			exists := false
+
+			for _, mtx := range p.AddedTransactions {
+				if bytes.Compare(mtx, tx) == 0 {
+					exists = true
+					break
+				}
+			}
+
+			if !exists {
+				p.AddedTransactions = append(p.AddedTransactions, tx)
+			}
+		}
+	}
+	// Nodes
+	for _, nd := range nr.AddedNodes {
+		exists := false
+
+		for _, mnd := range p.AddedNodes {
+			if nd.CompareToAddress(mnd) {
+				exists = true
+				break
+			}
+		}
+
+		if !exists {
+			p.AddedNodes = append(p.AddedNodes, nd)
+		}
+	}
+}
+
+// Detects if there were any changes pulled
+func (p ChangesPullResults) AnyChangesPulled() bool {
+	if len(p.AddedBlocks) > 0 {
+		return true
+	}
+	if len(p.AddedNodes) > 0 {
+		return true
+	}
+	if len(p.AddedTransactions) > 0 {
+		return true
+	}
+	return false
 }

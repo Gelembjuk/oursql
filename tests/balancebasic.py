@@ -108,8 +108,8 @@ def test(testfilter):
     am2 = _wallet.GetBalanceWallet(walletdatadir1, waddress1_2, "localhost", nodeport)
     am3 = _wallet.GetBalanceWallet(walletdatadir2, waddress2_1, "localhost", nodeport)
     am4 = _wallet.GetBalanceWallet(walletdatadir2, waddress2_2, "localhost", nodeport)
-    
-    _lib.FatalAssert(am1[1] == round(float(amounttosend) + float(amounttosend2),8), "Expected balance is different for wallet 1_1")
+    time.sleep(2)
+    _lib.FatalAssert(am1[1] == round(float(amounttosend) + float(amounttosend2),8), "Expected balance is different for wallet 1_1. "+str(str(amounttosend)+","+str(amounttosend2)+"="+str(am1[1])))
     _lib.FatalAssert(am2[1] == round(float(amounttosend) + float(amounttosend2),8), "Expected balance is different for wallet 1_2")
     _lib.FatalAssert(am3[1] == float(amounttosend), "Expected balance is different for wallet 2_1")
     _lib.FatalAssert(am4[1] == float(amounttosend), "Expected balance is different for wallet 2_2")

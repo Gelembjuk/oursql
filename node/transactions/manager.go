@@ -179,7 +179,7 @@ func (n *txManager) GetUnapprovedTransactionsForNewBlock(number int) ([]structur
 
 // Returns list of transactions from the pool. Filters by time or maxcount, it total is lexx maxcount, returns all
 // Returns only IDs of transactions
-func (n *txManager) GetUnapprovedTransactionsFiltered(minCreateTime int64, maxCount int) ([][]byte, error) {
+func (n *txManager) GetUnapprovedTransactionsFiltered(minCreateTime int64, maxCount int, ignoreTransactions [][]byte) ([][]byte, error) {
 	if maxCount < 1 {
 		maxCount = 10000
 	}
@@ -190,7 +190,7 @@ func (n *txManager) GetUnapprovedTransactionsFiltered(minCreateTime int64, maxCo
 
 	var txList []*structures.Transaction
 
-	c, err := n.getUnapprovedTransactionsManager().GetCount()
+	c, err := n.getUnapprovedTransactionsManager().GetCountFiltered(ignoreTransactions)
 
 	if err != nil {
 		return nil, err
@@ -198,10 +198,10 @@ func (n *txManager) GetUnapprovedTransactionsFiltered(minCreateTime int64, maxCo
 
 	if c < maxCount {
 		// return all txs
-		txList, err = n.getUnapprovedTransactionsManager().GetTransactions(maxCount)
+		txList, err = n.getUnapprovedTransactionsManager().GetTransactionsFilteredByList(maxCount, ignoreTransactions)
 	} else {
 		// filter by datetime
-		txList, err = n.getUnapprovedTransactionsManager().GetTransactionsFiltered(maxCount, minCreateTime)
+		txList, err = n.getUnapprovedTransactionsManager().GetTransactionsFilteredByTime(maxCount, minCreateTime, ignoreTransactions)
 	}
 
 	txIDs := [][]byte{}
