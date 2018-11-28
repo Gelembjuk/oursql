@@ -93,7 +93,7 @@ func (c *changesChecker) Stop() error {
 func (c changesChecker) processResults(res nodemanager.ChangesPullResults) {
 	if len(res.AddedTransactions) > 0 {
 		// if some transactions were added, notify to build new block
-		c.S.TryToMakeNewBlock([]byte{1}) // this will check state of the pool and start minting new block if there are enough
+		c.S.blocksMakerObj.DoNewBlock() // this will check state of the pool and start minting new block if there are enough
 	}
 	if res.AnyChangesPulled() {
 		c.logger.Trace.Println("Pull results")

@@ -286,12 +286,6 @@ func (s *NodeServer) StartServer(serverStartResult chan string) error {
 		return returnWithError(err)
 	}
 
-	err = s.blocksMakerObj.Start()
-
-	if err != nil {
-		return returnWithError(err)
-	}
-
 	// notify daemon about server started fine
 	serverStartResult <- ""
 

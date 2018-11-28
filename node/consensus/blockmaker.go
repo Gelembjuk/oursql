@@ -99,7 +99,7 @@ func (n *NodeBlockMaker) checkUnapprovedCache() bool {
 		return false
 	}
 
-	n.Logger.Trace.Printf("Transaction in cache - %d", count)
+	//n.Logger.Trace.Printf("Transaction in cache - %d", count)
 
 	min, max, err := n.getTransactionNumbersLimits(nil)
 
@@ -164,6 +164,21 @@ func (n *NodeBlockMaker) doPrepareNewBlock() error {
 	}
 
 	return nil
+}
+
+// Returns IDs of transactions selected to do a next block
+func (n *NodeBlockMaker) GetPreparedBlockTransactionsIDs() ([][]byte, error) {
+	if n.PreparedBlock == nil {
+		return nil, errors.New("Block was not prepared")
+	}
+	list := [][]byte{}
+	for _, tx := range n.PreparedBlock.Transactions {
+		if tx.IsCoinbaseTransfer() {
+			continue
+		}
+		list = append(list, tx.GetID())
+	}
+	return list, nil
 }
 
 // finalise a block. in this place we do MIMING
@@ -388,7 +403,7 @@ func (n *NodeBlockMaker) getTransactionNumbersLimits(block *structures.Block) (i
 
 	min, max := pow.GetTransactionLimitsPerBlock(h)
 
-	n.Logger.Trace.Printf("TX count limits %d - %d", min, max)
+	//n.Logger.Trace.Printf("TX count limits %d - %d", min, max)
 	return min, max, nil
 }
 

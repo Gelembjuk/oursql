@@ -10,6 +10,8 @@ type blocksMaker struct {
 	started         bool
 	completeChan    chan bool
 	blockBilderChan chan []byte
+
+	transactionsInProgress [][]byte
 }
 
 func InitBlocksMaker(s *NodeServer) (c *blocksMaker) {
@@ -21,6 +23,8 @@ func InitBlocksMaker(s *NodeServer) (c *blocksMaker) {
 	c.started = false
 
 	c.blockBilderChan = make(chan []byte, 100)
+
+	c.transactionsInProgress = [][]byte{}
 
 	return c
 }
@@ -47,6 +51,7 @@ func (c *blocksMaker) Start() error {
 func (c *blocksMaker) run() {
 
 	for {
+		c.logger.Trace.Printf("BlockBuilder nwaiting new commandx")
 		txID := <-c.blockBilderChan
 
 		c.logger.Trace.Printf("BlockBuilder new transaction %x", txID)
@@ -55,23 +60,37 @@ func (c *blocksMaker) run() {
 			// this is return signal from main thread
 			close(c.blockBilderChan)
 			c.logger.Trace.Printf("Exit BlockBuilder thread")
-			return
+			break
 		}
 
 		// we create separate node object for this thread
 		// pointers are used everywhere. so, it can be some sort of conflict with main thread
 		NodeClone := c.S.Node.Clone()
+
+		callbackToStoreTransactions := func(list [][]byte) error {
+			c.transactionsInProgress = list
+			return nil
+		}
+
 		// try to buid new block
-		_, err := NodeClone.TryToMakeBlock(txID)
+		_, err := NodeClone.TryToMakeBlock(txID, callbackToStoreTransactions)
+
+		// clean list of locked transactions
+		c.transactionsInProgress = [][]byte{}
 
 		if err != nil {
 			c.logger.Trace.Printf("Block building error %s\n", err.Error())
 		}
+
+		c.logger.Trace.Printf("BlockBuilder . Transaction check complete")
 	}
 
 	c.logger.Trace.Printf("Block Maker Return routine")
 	c.completeChan <- true
 }
+
+// New transaction appeared in a pool. Block maker should try to do new block
+// if no anough transactions it will just send this TX to all known nodes
 func (c *blocksMaker) NewTransaction(tx []byte) {
 	// don't block sending. buffer size is 100
 	// TX will be skipped if a buffer is full
@@ -80,8 +99,17 @@ func (c *blocksMaker) NewTransaction(tx []byte) {
 	default:
 	}
 }
+
+// Send command to block builder to start doing new block. It will check if there are eenough transactions
+// if no anough it will just continue to wait
 func (c *blocksMaker) DoNewBlock() {
 	c.NewTransaction([]byte{1})
+}
+
+// Returns list of transactions that are currently locked by block building process
+// this are transaction taht are still ina pool but we already started to make new block from it
+func (c blocksMaker) GetLockedTransactions() [][]byte {
+	return c.transactionsInProgress
 }
 
 // Stop the routine
@@ -100,6 +128,8 @@ func (c *blocksMaker) Stop() error {
 	<-c.completeChan
 
 	close(c.completeChan)
+
+	c.started = false
 
 	return nil
 }

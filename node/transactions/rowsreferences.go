@@ -101,10 +101,10 @@ func (dr rowsToTransactions) UpdateOnBlockAdd(block *structures.Block) error {
 		return err
 	}
 
-	dr.Logger.Trace.Printf("Data References on block add %x", block.Hash)
+	//dr.Logger.Trace.Printf("Data References on block add %x", block.Hash)
 
 	for _, tx := range block.Transactions {
-		dr.Logger.Trace.Printf("Data References check tx %x", tx.GetID())
+		//dr.Logger.Trace.Printf("Data References check tx %x", tx.GetID())
 
 		if !tx.IsSQLCommand() {
 			// nothing to do
@@ -116,7 +116,7 @@ func (dr rowsToTransactions) UpdateOnBlockAdd(block *structures.Block) error {
 			dr.Logger.Trace.Printf("NO Reference for  %s", string(tx.GetSQLQuery()))
 			continue
 		}
-		dr.Logger.Trace.Printf("TX %x , refID %s", tx.GetID(), string(tx.SQLCommand.ReferenceID))
+		//dr.Logger.Trace.Printf("TX %x , refID %s", tx.GetID(), string(tx.SQLCommand.ReferenceID))
 
 		// we set new association
 		err = drdb.SetTXForRefID(tx.SQLCommand.ReferenceID, tx.GetID())

@@ -123,7 +123,7 @@ func (bc *Blockchain) AddBlock(block *structures.Block) (uint, error) {
 			return BCBAddState_error, err
 
 		}
-		bc.Logger.Trace.Printf("Set new current hash %x\n", block.Hash)
+		//bc.Logger.Trace.Printf("Set new current hash %x\n", block.Hash)
 
 		if bytes.Compare(lastHash, block.PrevBlockHash) != 0 {
 			// update chain records. it keeps only main chain.

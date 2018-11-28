@@ -721,7 +721,7 @@ func (c *NodeClient) doBuildCommandData(command string, data interface{}, extra 
 	} else {
 		payload = []byte{}
 	}
-	c.Logger.Trace.Printf("Build command %s", command)
+	//c.Logger.Trace.Printf("Build command %s", command)
 	payloadlength := uint32(len(payload))
 	bs := make([]byte, 4)
 	binary.LittleEndian.PutUint32(bs, payloadlength) // convert int to []byte
@@ -752,7 +752,7 @@ func (c *NodeClient) SendData(addr netlib.NodeAddr, data []byte) error {
 		return err
 	}
 
-	c.Logger.Trace.Printf("Sending %d bytes to %s", len(data), addr.NodeAddrToString())
+	//c.Logger.Trace.Printf("Sending %d bytes to %s", len(data), addr.NodeAddrToString())
 	conn, err := net.DialTimeout(netlib.Protocol, addr.NodeAddrToString(), 1*time.Second)
 
 	if err != nil {

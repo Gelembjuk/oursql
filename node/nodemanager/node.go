@@ -42,6 +42,8 @@ type NodeLocks struct {
 	transactionsExecute *sync.Mutex
 }
 
+type PreparedTransactionsCallback func(list [][]byte) error
+
 // Init node.
 // Init interfaces of all DBs, blockchain, unspent transactions, unapproved transactions
 func (n *Node) Init() {
@@ -353,7 +355,7 @@ func (n *Node) SQLTransaction(PubKey []byte, privKey ecdsa.PrivateKey, sqlcomman
 }
 
 // Try to make a block. If no enough transactions, send new transaction to all other nodes
-func (n *Node) TryToMakeBlock(newTransactionID []byte) ([]byte, error) {
+func (n *Node) TryToMakeBlock(newTransactionID []byte, callback PreparedTransactionsCallback) ([]byte, error) {
 	n.Logger.Trace.Println("Try to make new block")
 
 	w := remoteclient.Wallet{}
@@ -362,7 +364,7 @@ func (n *Node) TryToMakeBlock(newTransactionID []byte) ([]byte, error) {
 		return nil, errors.New("Minter address is not provided")
 	}
 
-	n.Logger.Trace.Println("Create block maker")
+	//n.Logger.Trace.Println("Create block maker")
 	// check how many transactions are ready to be added to a block
 	Minter := n.getBlockMakeManager()
 
@@ -400,6 +402,18 @@ func (n *Node) TryToMakeBlock(newTransactionID []byte) ([]byte, error) {
 		return nil, nil
 	}
 
+	// send transactions to calling object
+	txList, err := Minter.GetPreparedBlockTransactionsIDs()
+
+	if err != nil {
+		n.Logger.Trace.Printf("Block preparation error. %s", err)
+		return nil, err
+	}
+	// this is to notify some external object about which transactions from pool are selected for new block
+	if callback != nil {
+		callback(txList)
+	}
+
 	block, err := Minter.CompleteBlock()
 
 	if err != nil {
@@ -407,7 +421,7 @@ func (n *Node) TryToMakeBlock(newTransactionID []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	n.Logger.Trace.Printf("Add block to the blockchain. Hash %x\n", block.Hash)
+	//n.Logger.Trace.Printf("Add block to the blockchain. Hash %x\n", block.Hash)
 
 	// We set DB again because after close it could be update
 	Minter.SetDBManager(n.DBConn.DB())
@@ -422,7 +436,7 @@ func (n *Node) TryToMakeBlock(newTransactionID []byte) ([]byte, error) {
 	// send new block to all known nodes
 	n.GetCommunicationManager().SendBlockToAll(block, net.NodeAddr{} /*nothing to skip*/)
 
-	n.Logger.Trace.Println("Block done. Sent to all")
+	//n.Logger.Trace.Println("Block done. Sent to all")
 
 	return block.Hash, nil
 
@@ -432,7 +446,7 @@ func (n *Node) TryToMakeBlock(newTransactionID []byte) ([]byte, error) {
 // It can be executed when new block was created locally or received from other node
 
 func (n *Node) AddBlock(block *structures.Block) (uint, error) {
-	n.Logger.Trace.Printf("Add block 1. %x", block.Hash)
+
 	bcm, err := n.GetBCManager()
 
 	if err != nil {
@@ -442,11 +456,11 @@ func (n *Node) AddBlock(block *structures.Block) (uint, error) {
 	n.locks.blockAddLock.Lock()
 	defer n.locks.blockAddLock.Unlock()
 
-	n.Logger.Trace.Printf("Add block. Lock passed. %x", block.Hash)
+	//n.Logger.Trace.Printf("Add block. Lock passed. %x", block.Hash)
 	curLastHash, _, err := bcm.GetState()
 
 	// we need to know how the block was added to managed transactions caches correctly
-	n.Logger.Trace.Printf("Going to add a block")
+	//n.Logger.Trace.Printf("Going to add a block")
 	addstate, err := n.NodeBC.AddBlock(block)
 
 	if err != nil {
@@ -454,7 +468,7 @@ func (n *Node) AddBlock(block *structures.Block) (uint, error) {
 		return 0, err
 	}
 
-	n.Logger.Trace.Printf("Block added. Update indexes. %d", addstate)
+	//n.Logger.Trace.Printf("Block added. Update indexes. %d", addstate)
 
 	if addstate == blockchain.BCBAddState_addedToParallel ||
 		addstate == blockchain.BCBAddState_addedToTop ||

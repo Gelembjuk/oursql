@@ -733,7 +733,7 @@ func (c *NodeCLI) commandReindexCache() error {
 
 // Try to mine a block if there is anough unapproved transactions
 func (c *NodeCLI) commandMakeBlock() error {
-	block, err := c.Node.TryToMakeBlock([]byte{})
+	block, err := c.Node.TryToMakeBlock([]byte{}, nil)
 
 	if err != nil {
 		return err

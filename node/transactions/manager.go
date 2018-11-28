@@ -151,7 +151,7 @@ func (n *txManager) GetUnapprovedTransactionsForNewBlock(number int) ([]structur
 	}
 	txlist = nil
 
-	n.Logger.Trace.Printf("After verification %d transaction are left\n", len(txs))
+	//n.Logger.Trace.Printf("After verification %d transaction are left\n", len(txs))
 
 	if len(txs) == 0 {
 		return nil, errors.New("All transactions are invalid! Waiting for new ones...")
@@ -161,7 +161,7 @@ func (n *txManager) GetUnapprovedTransactionsForNewBlock(number int) ([]structur
 	var badtransactions []structures.Transaction
 	txs, badtransactions, err = n.getUnapprovedTransactionsManager().DetectConflicts(txs)
 
-	n.Logger.Trace.Printf("After conflict detection %d - fine, %d - conflicts\n", len(txs), len(badtransactions))
+	//n.Logger.Trace.Printf("After conflict detection %d - fine, %d - conflicts\n", len(txs), len(badtransactions))
 
 	if err != nil {
 		return nil, err
@@ -580,8 +580,6 @@ func (n *txManager) VerifyTransaction(tx *structures.Transaction, prevtxs []stru
 				return false, err
 			}
 		}
-	} else {
-		n.Logger.Trace.Printf("TM Verify not SQL or flag disables SQL check")
 	}
 	return true, nil
 }

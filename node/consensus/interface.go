@@ -42,6 +42,7 @@ type BlockMakerInterface interface {
 	PrepareNewBlock() (int, error)
 	SetPreparedBlock(block *structures.Block) error
 	IsBlockPrepared() bool
+	GetPreparedBlockTransactionsIDs() ([][]byte, error) // returns list of transactions in prepared block
 	CompleteBlock() (*structures.Block, error)
 	VerifyBlock(block *structures.Block, flags int) error
 	AddTransactionToPool(tx *structures.Transaction, flags int) error

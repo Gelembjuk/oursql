@@ -7,9 +7,9 @@
     "Kind":"proofofwork",
     "CoinsForBlockMade":10.0,
     "Settings":{
-        "Complexity":24,
-        "ComplexityStep2":30,
-        "MaxMinNumberTransactionInBlock":4,
+        "Complexity":22,
+        "ComplexityStep2":24,
+        "MaxMinNumberTransactionInBlock":20,
         "MaxNumberTransactionInBlock":10000
     },
     "AllowTableCreate":true,

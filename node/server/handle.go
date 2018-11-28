@@ -195,7 +195,7 @@ func (s *NodeServerRequest) handleTxData() error {
 
 	// send internal command to try to mine new block
 
-	s.S.TryToMakeNewBlock(TX.GetID())
+	s.S.blocksMakerObj.NewTransaction(TX.GetID())
 
 	s.Response, err = net.GobEncode(TX.GetID())
 
@@ -540,7 +540,7 @@ func (s *NodeServerRequest) handleBlock() error {
 	s.Logger.Trace.Printf("check if try to make new %d , %d ", addstate, blockchain.BCBAddState_addedToParallelTop)
 	if addstate == blockchain.BCBAddState_addedToParallelTop {
 		// maybe some transactiosn become unapproved now. try to make new block from them on top of new chain
-		s.S.TryToMakeNewBlock([]byte{1})
+		s.S.blocksMakerObj.DoNewBlock()
 	}
 	s.Node.CheckAddressKnown(payload.AddrFrom)
 
@@ -852,7 +852,7 @@ func (s *NodeServerRequest) handleTx() error {
 	// this node should try to make a block first.
 
 	// try to mine new block. don't send the transaction to other nodes after block make attempt
-	s.S.TryToMakeNewBlock([]byte{0})
+	s.S.blocksMakerObj.DoNewBlock()
 
 	return nil
 }
@@ -899,7 +899,11 @@ func (s *NodeServerRequest) handleGetUpdates() error {
 		return err
 	}
 	// NOTE. this shouold not return transactions that are currently under minting.
-	result.TransactionsInPool, err = s.Node.GetTransactionsManager().GetUnapprovedTransactionsFiltered(payload.LastCheckTime-60*30, 1000, [][]byte{})
+	result.TransactionsInPool, err = s.Node.GetTransactionsManager().
+		GetUnapprovedTransactionsFiltered(
+			payload.LastCheckTime-60*30,
+			1000,
+			s.S.blocksMakerObj.GetLockedTransactions()) // list of transactions locked by block maker, skip them
 
 	if err != nil {
 		return err
@@ -907,8 +911,10 @@ func (s *NodeServerRequest) handleGetUpdates() error {
 
 	result.Nodes = s.Node.NodeNet.GetNodesToExport()
 
-	s.Logger.Trace.Println("Return nodes list on request")
-	s.Logger.Trace.Println(result.Nodes)
+	s.Logger.Trace.Println("Return transaction on request")
+	for _, tx := range result.TransactionsInPool {
+		s.Logger.Trace.Printf("   tx in pool: %x", tx)
+	}
 
 	s.Response, err = net.GobEncode(result)
 
