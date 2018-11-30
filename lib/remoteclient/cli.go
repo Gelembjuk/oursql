@@ -24,6 +24,7 @@ type AppInput struct {
 	Nodes     []net.NodeAddr
 	LogDest   string
 	SQL       string
+	Filepath  string
 }
 
 type WalletCLI struct {
@@ -98,6 +99,7 @@ func (wc *WalletCLI) ExecuteCommand() error {
 	wc.initNodeClient()
 
 	if wc.Input.Command != "createwallet" &&
+		wc.Input.Command != "importwallet" &&
 		wc.Input.Command != "listaddresses" {
 
 		err := wc.checkNodeAddress()
@@ -108,6 +110,9 @@ func (wc *WalletCLI) ExecuteCommand() error {
 
 	if wc.Input.Command == "createwallet" {
 		return wc.commandCreatewallet()
+
+	} else if wc.Input.Command == "importwallet" {
+		return wc.commandImportWallet()
 
 	} else if wc.Input.Command == "listaddresses" {
 		return wc.commandListAddresses()
@@ -146,6 +151,24 @@ func (wc *WalletCLI) commandCreatewallet() error {
 	}
 
 	fmt.Printf("Your new address: %s\n", address)
+
+	return nil
+}
+
+// Creates new wallet and saves it in a wallets file
+// Wallet is a pare of keys
+func (wc *WalletCLI) commandImportWallet() error {
+	addresses, err := wc.WalletsObj.ImportWallet(wc.Input.Filepath)
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Imported %d addresses:\n", len(addresses))
+
+	for _, addr := range addresses {
+		fmt.Printf("   : %s\n", addr)
+	}
 
 	return nil
 }

@@ -21,6 +21,7 @@ var allowWithoutBCReady = []string{"initblockchain",
 	"interactiveautocreate",
 	"restoreblockchain",
 	"createwallet",
+	config.CommandImportWallet,
 	"listaddresses",
 	"nodestate"}
 
@@ -45,6 +46,7 @@ var commandsInteractiveMode = []string{
 	"getbalance",
 	"getbalances",
 	"createwallet",
+	config.CommandImportWallet,
 	"listaddresses",
 	"unapprovedtransactions",
 	"mineblock",
@@ -262,6 +264,9 @@ func (c NodeCLI) ExecuteCommand() error {
 	case "createwallet":
 		return c.forwardCommandToWallet()
 
+	case config.CommandImportWallet:
+		return c.forwardCommandToWallet()
+
 	case "send":
 		return c.commandSend()
 
@@ -373,6 +378,7 @@ func (c *NodeCLI) getWalletsCLI() (*remoteclient.WalletCLI, error) {
 	winput.Amount = c.Input.Args.Amount
 	winput.ToAddress = c.Input.Args.To
 	winput.SQL = c.Input.Args.SQL
+	winput.Filepath = c.Input.Args.FilePath
 
 	if c.Input.Args.From != "" {
 		winput.Address = c.Input.Args.From

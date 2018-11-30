@@ -56,6 +56,40 @@ func (ws *Wallets) CreateWallet() (string, error) {
 	return address, nil
 }
 
+// Import wallets from external file
+func (ws *Wallets) ImportWallet(filepath string) ([]string, error) {
+	if filepath == "" {
+		return nil, errors.New("File path is empty")
+	}
+	extwallets := NewWallets("")
+	extwallets.Logger = ws.Logger
+	extwallets.WalletsFile = filepath
+
+	err := extwallets.LoadFromFile()
+
+	if err != nil {
+		return nil, err
+	}
+
+	addresses := []string{}
+
+	for addr, w := range extwallets.Wallets {
+		if _, ok := ws.Wallets[addr]; ok {
+			continue
+		}
+		ws.Wallets[addr] = w
+		addresses = append(addresses, addr)
+	}
+
+	err = ws.SaveToFile()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return addresses, nil
+}
+
 // GetAddresses returns an array of addresses stored in the wallet file
 func (ws *Wallets) GetAddresses() []string {
 	var addresses []string
@@ -103,6 +137,7 @@ func (ws *Wallets) LoadFromFile() error {
 		return err
 	}
 	for _, w := range wsc.Wallets {
+
 		wallet, err := MakeWalletFromEncoded(w.PubKey, w.PrivateKey)
 
 		if err != nil {

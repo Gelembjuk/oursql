@@ -15,6 +15,10 @@ import (
 	"github.com/gelembjuk/oursql/node/database"
 )
 
+const (
+	CommandImportWallet = "importwallet"
+)
+
 // Thi is the struct with all possible command line arguments
 type AllPossibleArgs struct {
 	AppName             string
@@ -45,6 +49,7 @@ type AllPossibleArgs struct {
 	DestinationFile     string
 	SQL                 string
 	ConsensusFileToCopy string
+	FilePath            string
 }
 
 // Input summary
@@ -132,6 +137,7 @@ func parseConfig(dirpath string) (AppInput, error) {
 		cmd.StringVar(&input.Args.SQL, "sql", "", "SQL command to execute")
 
 		cmd.StringVar(&input.Args.ConsensusFileToCopy, "consensusfile", "", "Consensus file source")
+		cmd.StringVar(&input.Args.FilePath, "filepath", "", "File path")
 
 		configdirPtr := cmd.String("configdir", "", "Location of config files")
 		err := cmd.Parse(os.Args[2:])
@@ -318,6 +324,7 @@ func (c *AppInput) completeDBConfig() {
 // check if this commands really needs a config file
 func (c AppInput) CommandNeedsConfig() bool {
 	if c.Command == "createwallet" ||
+		c.Command == CommandImportWallet ||
 		c.Command == "importblockchain" ||
 		c.Command == "interactiveautocreate" ||
 		c.Command == "listaddresses" ||
@@ -498,6 +505,7 @@ func (c AppInput) PrintUsage() {
 	fmt.Println("  == Any of next commands can have optional argument [-configdir /path/to/dir] [-logdest stdout]==")
 	fmt.Println("=[Auth keys operations]")
 	fmt.Println("  createwallet\n\t- Generates a new key-pair and saves it into the wallet file")
+	fmt.Println("  ", CommandImportWallet, " -filepath FILEPATH\n\t- Generates a new key-pair and saves it into the wallet file")
 	fmt.Println("  listaddresses\n\t- Lists all addresses from the wallet file")
 
 	fmt.Println("=[Blockchain init operations]")
