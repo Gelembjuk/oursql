@@ -293,7 +293,7 @@ func (n *communicationManager) processBlocksFromOtherNode(node *net.NodeAddr, bl
 func (n *communicationManager) processTransactionsFromPoolOnOtherNode(node *net.NodeAddr, transactions [][]byte) ([][]byte, error) {
 
 	if len(transactions) == 0 {
-		n.logger.Trace.Printf("Nothing to check")
+		n.logger.TraceExt.Printf("Nothing to check")
 		return nil, nil
 	}
 
