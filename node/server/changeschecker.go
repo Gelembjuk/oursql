@@ -35,7 +35,7 @@ func StartChangesChecker(s *NodeServer) (c *changesChecker) {
 // Run function to request other nodes for changes regularly
 func (c *changesChecker) Run() {
 	for {
-
+		c.logger.TraceExt.Printf("Check changes")
 		// check if it is time to exit or no
 		exit := false
 
@@ -82,10 +82,13 @@ func (c *changesChecker) Stop() error {
 
 	close(c.stopChan) // notify routine to stop
 
+	c.logger.TraceExt.Println("Wait changes checker routine done")
 	// wait when it is stopped
 	<-c.completeChan
 
 	close(c.completeChan)
+
+	c.logger.TraceExt.Println("Changes Checker Stopped")
 
 	return nil
 }

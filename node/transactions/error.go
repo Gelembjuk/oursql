@@ -9,6 +9,7 @@ import (
 const TXVerifyErrorNoInput = "noinput"
 const TXNotFoundErrorUnspent = "inunspent"
 const TXSQLBaseDifferentError = "sqlbaseisdifferent"
+const TXPrepareNoFundsError = "noenoughfunds"
 
 type TXVerifyError struct {
 	err  string
@@ -21,12 +22,25 @@ type TXNotFoundError struct {
 	kind string
 }
 
+type TXPrepareError struct {
+	err  string
+	kind string
+}
+
 func (e TXVerifyError) Error() string {
 	return fmt.Sprintf("Transaction verify failed: %s, for TX %x", e.err, e.TX)
 }
 
 func (e *TXNotFoundError) Error() string {
-	return fmt.Sprintf("Transaction verify failed: %s, kinf: %s", e.err, e.kind)
+	return fmt.Sprintf("Transaction verify failed: %s, kind: %s", e.err, e.kind)
+}
+
+func (e *TXPrepareError) Error() string {
+	return fmt.Sprintf("Transaction prepare failed: %s, kind: %s", e.err, e.kind)
+}
+
+func (e *TXPrepareError) ErrorOrig() string {
+	return e.err
 }
 
 func (e TXVerifyError) GetKind() string {
@@ -38,6 +52,9 @@ func (e TXVerifyError) IsKind(kind string) bool {
 }
 
 func (e *TXNotFoundError) GetKind() string {
+	return e.kind
+}
+func (e *TXPrepareError) GetKind() string {
 	return e.kind
 }
 
@@ -54,4 +71,7 @@ func NewTXNotFoundError(err string, kind string) error {
 }
 func NewTXNotFoundUOTError(err string) error {
 	return &TXNotFoundError{err, TXNotFoundErrorUnspent}
+}
+func NewTXNoEnoughFundsdError(err string) error {
+	return &TXPrepareError{err, TXPrepareNoFundsError}
 }

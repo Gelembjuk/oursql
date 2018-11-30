@@ -803,7 +803,8 @@ func (c *NodeClient) SendDataWaitResponse(addr netlib.NodeAddr, data []byte, dat
 	c.Logger.TraceExt.Println("Sending data to " + addr.NodeAddrToString() + " and waiting response")
 
 	// connect
-	conn, err := net.Dial(netlib.Protocol, addr.NodeAddrToString())
+	dialer := net.Dialer{Timeout: time.Second * 2}
+	conn, err := dialer.Dial(netlib.Protocol, addr.NodeAddrToString())
 
 	if err != nil {
 		c.Logger.Error.Println(err.Error())

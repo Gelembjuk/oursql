@@ -701,9 +701,19 @@ func (n *txManager) PrepareNewSQLTransaction(PubKey []byte, sqlUpdate structures
 		var totalamount float64
 		var prevTXs map[string]*structures.Transaction
 
+		origamount := amount
+
 		PubKey, amount, inputs, totalamount, prevTXs, err = n.prepareNewCurrencyTransactionStart(PubKey, to, amount)
 
 		if err != nil {
+
+			if errc, ok := err.(*TXPrepareError); ok {
+				if errc.GetKind() == TXPrepareNoFundsError {
+					err = NewTXNoEnoughFundsdError(fmt.Sprintf("%s . Required cost is %f", errc.ErrorOrig(), origamount))
+					return
+				}
+			}
+
 			return
 		}
 
@@ -832,7 +842,7 @@ func (n *txManager) prepareNewCurrencyTransactionStart(PubKey []byte, to string,
 
 		if len(pendingoutputs) == 0 {
 			// nothing to add
-			return localError(errors.New("No enough funds for requested transaction"))
+			return localError(NewTXNoEnoughFundsdError("No enough funds for requested transaction"))
 		}
 		inputs, prevTXs, totalamount, err =
 			n.getUnspentOutputsManager().ExtendNewTransactionInputs(PubKey, amount, totalamount,
