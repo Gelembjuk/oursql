@@ -137,12 +137,12 @@ def test(testfilter):
     
     blocks = _blocks.WaitBlocks(datadir, 5)
     blocks = _blocks.WaitBlocks(datadir2, 5)
-    time.sleep(1)
+    time.sleep(2)
     
     # send money back
     
     txid3 = _transfers.Send(datadir2,address2,address,2)
-    
+    time.sleep(1)
     # insert on second node. check on first
     _sql.ExecuteSQLOnProxy(datadir2,"INSERT INTO test SET a=2,b='row2'")
     

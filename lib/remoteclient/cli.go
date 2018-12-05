@@ -100,6 +100,7 @@ func (wc *WalletCLI) ExecuteCommand() error {
 
 	if wc.Input.Command != "createwallet" &&
 		wc.Input.Command != "importwallet" &&
+		wc.Input.Command != "exportwallet" &&
 		wc.Input.Command != "listaddresses" {
 
 		err := wc.checkNodeAddress()
@@ -111,31 +112,42 @@ func (wc *WalletCLI) ExecuteCommand() error {
 	if wc.Input.Command == "createwallet" {
 		return wc.commandCreatewallet()
 
-	} else if wc.Input.Command == "importwallet" {
+	}
+	if wc.Input.Command == "importwallet" {
 		return wc.commandImportWallet()
 
-	} else if wc.Input.Command == "listaddresses" {
+	}
+	if wc.Input.Command == "exportwallet" {
+		return wc.commandExportWallet()
+
+	}
+	if wc.Input.Command == "listaddresses" {
 		return wc.commandListAddresses()
 
-	} else if wc.Input.Command == "getbalances" ||
+	}
+	if wc.Input.Command == "getbalances" ||
 		wc.Input.Command == "listbalances" {
 		return wc.commandListAddressesExt()
 
-	} else if wc.Input.Command == "getbalance" {
+	}
+	if wc.Input.Command == "getbalance" {
 		return wc.commandGetBalance()
 
-	} else if wc.Input.Command == "send" {
+	}
+	if wc.Input.Command == "send" {
 		return wc.commandSend()
 
-	} else if wc.Input.Command == "sql" {
+	}
+	if wc.Input.Command == "sql" {
 		return wc.commandSQL()
 
-	} else if wc.Input.Command == "showunspent" {
+	}
+	if wc.Input.Command == "showunspent" {
 		return wc.commandUnspentTransactions()
 
-	} else if wc.Input.Command == "showhistory" {
+	}
+	if wc.Input.Command == "showhistory" {
 		return wc.commandShowHistory()
-
 	}
 
 	return errors.New("Unknown wallets command")
@@ -155,8 +167,7 @@ func (wc *WalletCLI) commandCreatewallet() error {
 	return nil
 }
 
-// Creates new wallet and saves it in a wallets file
-// Wallet is a pare of keys
+// Imports wallets from given wallets file
 func (wc *WalletCLI) commandImportWallet() error {
 	addresses, err := wc.WalletsObj.ImportWallet(wc.Input.Filepath)
 
@@ -169,6 +180,19 @@ func (wc *WalletCLI) commandImportWallet() error {
 	for _, addr := range addresses {
 		fmt.Printf("   : %s\n", addr)
 	}
+
+	return nil
+}
+
+// Exports wallets to given file path
+func (wc *WalletCLI) commandExportWallet() error {
+	err := wc.WalletsObj.ExportWallet(wc.Input.Filepath)
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Export complete\n")
 
 	return nil
 }

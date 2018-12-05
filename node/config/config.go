@@ -12,12 +12,25 @@ import (
 	"strings"
 
 	"github.com/gelembjuk/oursql/lib/net"
+	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/database"
 )
 
 const (
 	CommandImportWallet = "importwallet"
+	CommandExportWallet = "exportwallet"
 )
+
+var commandsDoesNotNeedConfig = []string{
+	CommandImportWallet,
+	CommandExportWallet,
+	"createwallet",
+	"importblockchain",
+	"interactiveautocreate",
+	"listaddresses",
+	"help",
+	"restoreblockchain",
+	"importandstart"}
 
 // Thi is the struct with all possible command line arguments
 type AllPossibleArgs struct {
@@ -323,14 +336,7 @@ func (c *AppInput) completeDBConfig() {
 
 // check if this commands really needs a config file
 func (c AppInput) CommandNeedsConfig() bool {
-	if c.Command == "createwallet" ||
-		c.Command == CommandImportWallet ||
-		c.Command == "importblockchain" ||
-		c.Command == "interactiveautocreate" ||
-		c.Command == "listaddresses" ||
-		c.Command == "help" ||
-		c.Command == "restoreblockchain" ||
-		c.Command == "importandstart" {
+	if utils.StringInSlice(c.Command, commandsDoesNotNeedConfig) {
 		return false
 	}
 	return true
@@ -505,7 +511,8 @@ func (c AppInput) PrintUsage() {
 	fmt.Println("  == Any of next commands can have optional argument [-configdir /path/to/dir] [-logdest stdout]==")
 	fmt.Println("=[Auth keys operations]")
 	fmt.Println("  createwallet\n\t- Generates a new key-pair and saves it into the wallet file")
-	fmt.Println("  ", CommandImportWallet, " -filepath FILEPATH\n\t- Generates a new key-pair and saves it into the wallet file")
+	fmt.Println("  ", CommandImportWallet, " -filepath FILEPATH\n\t- Imports wallets from external wallets file.")
+	fmt.Println("  ", CommandExportWallet, " -filepath FILEPATH\n\t- Exports wallets file to given destination. Can be used for backup of wallets")
 	fmt.Println("  listaddresses\n\t- Lists all addresses from the wallet file")
 
 	fmt.Println("=[Blockchain init operations]")

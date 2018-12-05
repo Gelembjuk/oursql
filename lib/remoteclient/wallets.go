@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/gelembjuk/oursql/lib/utils"
@@ -88,6 +89,44 @@ func (ws *Wallets) ImportWallet(filepath string) ([]string, error) {
 	}
 
 	return addresses, nil
+}
+
+// Export wallets to external file. It is just a copy of wallets file
+func (ws *Wallets) ExportWallet(filepath string) error {
+	if filepath == "" {
+		return errors.New("File path is empty")
+	}
+	var walletsFile string
+
+	if ws.WalletsFile != "" {
+		walletsFile = ws.WalletsFile
+	} else {
+		walletsFile = ws.ConfigDir + walletFile
+	}
+
+	sourceFileStat, err := os.Stat(walletsFile)
+
+	if err != nil {
+		return err
+	}
+
+	if !sourceFileStat.Mode().IsRegular() {
+		return fmt.Errorf("%s is not a regular file", walletsFile)
+	}
+
+	source, err := os.Open(walletsFile)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	destination, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer destination.Close()
+	_, err = io.Copy(destination, source)
+	return err
 }
 
 // GetAddresses returns an array of addresses stored in the wallet file

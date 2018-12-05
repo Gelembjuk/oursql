@@ -22,6 +22,7 @@ var allowWithoutBCReady = []string{"initblockchain",
 	"restoreblockchain",
 	"createwallet",
 	config.CommandImportWallet,
+	config.CommandExportWallet,
 	"listaddresses",
 	"nodestate"}
 
@@ -47,6 +48,7 @@ var commandsInteractiveMode = []string{
 	"getbalances",
 	"createwallet",
 	config.CommandImportWallet,
+	config.CommandExportWallet,
 	"listaddresses",
 	"unapprovedtransactions",
 	"mineblock",
@@ -265,6 +267,9 @@ func (c NodeCLI) ExecuteCommand() error {
 		return c.forwardCommandToWallet()
 
 	case config.CommandImportWallet:
+		return c.forwardCommandToWallet()
+
+	case config.CommandExportWallet:
 		return c.forwardCommandToWallet()
 
 	case "send":

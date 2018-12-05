@@ -6,12 +6,19 @@ from os.path import isfile, join
 import traceback
 
 test = ""
+testspos = ""
 
 if len(sys.argv) > 1 :
     test = sys.argv[1]
-    m = re.search(r'^([a-z].+)\.py$',test)
+    
+    m = re.search(r'^([a-z].+)\+$',test)
     if m:
-        test = m.group(1)
+        testspos = m.group(1)
+        test = ""
+    else:    
+        m = re.search(r'^([a-z].+)\.py$',test)
+        if m:
+            test = m.group(1)
 
 if test == "":
     test = "all"
@@ -24,7 +31,7 @@ testfiles = [f for f in listdir(curdir) if isfile(join(curdir, f)) and re.search
 tests = []
 
 for testscript in testfiles:
-    if test == "all" or test+'.py' == testscript:
+    if test == "all" and (testspos == "" or testspos != "" and testspos <= testscript) or test+'.py' == testscript:
         m = re.search(r'^([a-z].+)\.py$',testscript)
         
         if not m:

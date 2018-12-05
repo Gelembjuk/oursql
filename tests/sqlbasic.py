@@ -44,6 +44,7 @@ def test(testfilter):
     _lib.FatalAssert(found, "Table not found in the DB")
     
     blocks = _blocks.WaitBlocks(datadir, 2)
+    time.sleep(1)
     
     tx2 = _sql.ExecuteSQL(datadir,address,"INSERT INTO test SET b='row1'")
     tx3 = _sql.ExecuteSQL(datadir,address,"INSERT INTO test SET a=2,b='row2'")
