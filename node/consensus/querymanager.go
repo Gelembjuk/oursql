@@ -44,6 +44,14 @@ func (q queryManager) getBlockMakerManager() BlockMakerInterface {
 	return NewBlockMakerManager(q.config, "", q.DB, q.Logger)
 }
 
+func (q queryManager) getVerifyManager(prevBlockNumber int) verifyManager {
+	vm := verifyManager{}
+	vm.config = q.config
+	vm.logger = q.Logger
+	vm.previousBlockHeigh = prevBlockNumber
+	return vm
+}
+
 // New query from command line tool
 // The method decides what to do next
 // possible states:
@@ -285,7 +293,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 	}
 
 	// check if the key has permissions to execute this query
-	hasPerm, err := q.checkExecutePermissions(qparsed, pubKey)
+	hasPerm, err := q.getVerifyManager(0).CheckExecutePermissions(&qparsed, pubKey)
 
 	if err != nil {
 		return
@@ -296,7 +304,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 		return
 	}
 
-	amount, err := q.config.checkQueryNeedsPayment(qparsed)
+	amount, err := q.getVerifyManager(0).CheckQueryNeedsPayment(&qparsed)
 
 	if err != nil {
 		return
@@ -373,83 +381,6 @@ func (q queryManager) processQueryWithSignature(txEncoded []byte, signature []by
 		return nil, err
 	}
 	return tx, nil
-}
-
-// check if this pubkey can execute this query
-func (q queryManager) checkExecutePermissions(qp dbquery.QueryParsed, pubKey []byte) (bool, error) {
-	// check sonsensus rules
-	if !qp.IsUpdate() {
-		return true, nil
-	}
-
-	hasCustom, allow, err := q.checkExecutePermissionsAsTable(qp, pubKey)
-
-	if err != nil {
-		return false, err
-	}
-
-	if hasCustom {
-		return allow, nil
-	}
-
-	if qp.Structure.GetKind() == lib.QueryKindCreate {
-		if !q.config.AllowTableCreate {
-			return false, nil
-		}
-	}
-
-	if qp.Structure.GetKind() == lib.QueryKindDrop {
-		if !q.config.AllowTableDrop {
-			return false, nil
-		}
-	}
-
-	if qp.Structure.GetKind() == lib.QueryKindDelete {
-		if !q.config.AllowRowDelete {
-			return false, nil
-		}
-	}
-
-	return true, nil
-}
-
-// check custom rule for the table about permissions
-func (q queryManager) checkExecutePermissionsAsTable(qp dbquery.QueryParsed, pubKey []byte) (hasCustom bool, allow bool, err error) {
-	hasCustom = false
-
-	t := q.config.getTableCustomConfig(qp)
-
-	if t != nil {
-		if !t.AllowRowDelete && qp.Structure.GetKind() == lib.QueryKindDelete {
-			hasCustom = true
-			allow = false
-			return
-		}
-
-		if !t.AllowRowInsert && qp.Structure.GetKind() == lib.QueryKindInsert {
-			hasCustom = true
-			allow = false
-			return
-		}
-
-		if !t.AllowRowUpdate && qp.Structure.GetKind() == lib.QueryKindUpdate {
-			hasCustom = true
-			allow = false
-			return
-		}
-
-		if !t.AllowTableCreate && qp.Structure.GetKind() == lib.QueryKindCreate {
-			hasCustom = true
-			allow = false
-			return
-		}
-		// has custom rule and operaion is not disabled
-		hasCustom = true
-		allow = true
-		return
-	}
-
-	return
 }
 
 // check if this query must be added to transaction. all SELECT queries must be ignored.
