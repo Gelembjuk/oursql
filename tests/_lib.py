@@ -10,6 +10,7 @@ import base64
 import json
 import configparser
 import ecdsa
+import time
 
 NODE_BIN = '../node/node'
 WALLET_BIN = '../remoteclient/remoteclient'
@@ -268,6 +269,23 @@ def CopyTestData(todir,testset):
                        '-mysqlpass', dbconfig['password'],
                        '-mysqldb', dbconfig['database']])
     FatalAssertSubstr(res,"Blockchain was inited from DB dump","DB restore was not success")
+    
+def CheckPIDNotRunning(pid, maxtimeout = 6):
+    """ Check For the existence of a unix pid. """
+    c = 0
+    
+    while True:
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return True
+        
+        c = c + 1
+        
+        time.sleep(1)
+        
+        if c > maxtimeout:
+            return False
 #=============================================================================================================
 # Assert functions
 def Fatal(comment):

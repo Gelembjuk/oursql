@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/fatih/structs"
-	"github.com/gelembjuk/oursql/lib"
 	"github.com/gelembjuk/oursql/lib/net"
 	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/dbquery"
@@ -22,11 +21,12 @@ const (
 )
 
 type ConsensusConfigCost struct {
-	Default     float64
-	RowDelete   float64
-	RowUpdate   float64
-	RowInsert   float64
-	TableCreate float64
+	Default         float64
+	RowDelete       float64
+	RowUpdate       float64
+	RowInsert       float64
+	TableCreate     float64
+	ApplyAfterBlock int
 }
 type ConsensusConfigTable struct {
 	Table            string
@@ -35,6 +35,7 @@ type ConsensusConfigTable struct {
 	AllowRowInsert   bool
 	AllowTableCreate bool
 	TransactionCost  ConsensusConfigCost
+	ApplyAfterBlock  int
 }
 type ConsensusConfigApplication struct {
 	Name    string
@@ -301,7 +302,7 @@ func (cc ConsensusConfig) GetPaidTransactionsWalletPubKeyHash() []byte {
 }
 
 // check custom rule for the table about permissions
-func (cc ConsensusConfig) getTableCustomConfig(qp dbquery.QueryParsed) *ConsensusConfigTable {
+func (cc ConsensusConfig) getTableCustomConfig(qp *dbquery.QueryParsed) *ConsensusConfigTable {
 
 	if !qp.IsUpdate() {
 		return nil
@@ -320,45 +321,4 @@ func (cc ConsensusConfig) getTableCustomConfig(qp dbquery.QueryParsed) *Consensu
 	}
 
 	return nil
-}
-
-// check if this query requires payment for execution. return number
-func (cc ConsensusConfig) checkQueryNeedsPayment(qp dbquery.QueryParsed) (float64, error) {
-
-	// check there is custom rule for this table
-	t := cc.getTableCustomConfig(qp)
-
-	var trcost *ConsensusConfigCost
-
-	if t != nil {
-		trcost = &t.TransactionCost
-	} else {
-		trcost = &cc.TransactionCost
-	}
-
-	// check if current operation has a price
-	if qp.Structure.GetKind() == lib.QueryKindDelete && trcost.RowDelete > 0 {
-
-		return trcost.RowDelete, nil
-	}
-
-	if qp.Structure.GetKind() == lib.QueryKindInsert && trcost.RowInsert > 0 {
-
-		return trcost.RowInsert, nil
-	}
-
-	if qp.Structure.GetKind() == lib.QueryKindUpdate && trcost.RowUpdate > 0 {
-		return trcost.RowUpdate, nil
-	}
-
-	if qp.Structure.GetKind() == lib.QueryKindCreate && trcost.TableCreate > 0 {
-
-		return trcost.TableCreate, nil
-	}
-
-	if trcost.Default > 0 {
-		return trcost.Default, nil
-	}
-
-	return 0, nil
 }

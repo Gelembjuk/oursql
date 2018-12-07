@@ -82,6 +82,13 @@ func (n *NodeBlockMaker) getBlockchainManager() *blockchain.Blockchain {
 
 	return bcm
 }
+func (n NodeBlockMaker) getVerifyManager(prevBlockNumber int) verifyManager {
+	vm := verifyManager{}
+	vm.config = n.config
+	vm.logger = n.Logger
+	vm.previousBlockHeigh = prevBlockNumber
+	return vm
+}
 
 // Checks if this is good time for this node to make a block
 // In this version it is always true
@@ -355,10 +362,24 @@ func (n NodeBlockMaker) VerifyTransaction(tx *structures.Transaction, prevTXs []
 		return errors.New(fmt.Sprintf("Transaction in a block is not valid: %x", tx.GetID()))
 	}
 
-	err = n.verifyTransactionPaidSQL(tx)
+	if tx.IsSQLCommand() {
+		qparsed, err := n.parseQueryFromTX(tx)
 
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
+		// check execution permissions to ensure this SQL operation is allowed
+		err = n.verifyTransactionSQLPermissions(tx, qparsed)
+
+		if err != nil {
+			return err
+		}
+		// check if paid part is correct. contains correct amount anddestination address
+		err = n.verifyTransactionPaidSQL(tx, qparsed)
+
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -406,9 +427,20 @@ func (n *NodeBlockMaker) getTransactionNumbersLimits(block *structures.Block) (i
 	//n.Logger.Trace.Printf("TX count limits %d - %d", min, max)
 	return min, max, nil
 }
+func (n NodeBlockMaker) parseQueryFromTX(tx *structures.Transaction) (*dbquery.QueryParsed, error) {
+	qp := n.getQueryParser()
+	// this will get sql type and data from comments. data can be pubkey, txBytes, signature
+	qparsed, err := qp.ParseQuery(tx.GetSQLQuery())
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &qparsed, nil
+}
 
 //Verify SQL paid transaction. This checks if output is locked to correct address and amount is vald for paid SQL
-func (n *NodeBlockMaker) verifyTransactionPaidSQL(tx *structures.Transaction) error {
+func (n *NodeBlockMaker) verifyTransactionPaidSQL(tx *structures.Transaction, qparsed *dbquery.QueryParsed) error {
 	// if it is SQL transaction and includes currency part
 	// that we must check if a TX was posted to correct destination address
 	if !(tx.IsSQLCommand() && tx.IsCurrencyTransfer()) {
@@ -438,16 +470,17 @@ func (n *NodeBlockMaker) verifyTransactionPaidSQL(tx *structures.Transaction) er
 	if err != nil {
 		return err
 	}
-	qp := n.getQueryParser()
-	// this will get sql type and data from comments. data can be pubkey, txBytes, signature
-	qparsed, err := qp.ParseQuery(tx.GetSQLQuery())
 
-	if err != nil {
-		return err
+	if qparsed == nil {
+		qparsed, err = n.parseQueryFromTX(tx)
+		if err != nil {
+			return err
+		}
+
 	}
 
 	// check amount
-	amount, err := n.config.checkQueryNeedsPayment(qparsed)
+	amount, err := n.getVerifyManager(0).CheckQueryNeedsPayment(qparsed)
 
 	if err != nil {
 		return err
@@ -457,6 +490,27 @@ func (n *NodeBlockMaker) verifyTransactionPaidSQL(tx *structures.Transaction) er
 
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+//Verify SQL can be executed. This checks if there are permissions to execute this SQL at this point of blockchain
+func (n NodeBlockMaker) verifyTransactionSQLPermissions(tx *structures.Transaction, qparsed *dbquery.QueryParsed) error {
+	// if it is SQL transaction and includes currency part
+	// that we must check if a TX was posted to correct destination address
+	if !tx.IsSQLCommand() {
+		return nil
+	}
+
+	hasPerm, err := n.getVerifyManager(0).CheckExecutePermissions(qparsed, tx.ByPubKey)
+
+	if err != nil {
+		return err
+	}
+
+	if !hasPerm {
+		return errors.New("No permissions to execute this query")
 	}
 
 	return nil
