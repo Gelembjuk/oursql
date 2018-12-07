@@ -40,16 +40,13 @@ func (q queryManager) getTransactionsManager() transactions.TransactionsManagerI
 	return transactions.NewManager(q.DB, q.Logger, q.config.GetInfoForTransactions())
 }
 
-func (q queryManager) getBlockMakerManager() BlockMakerInterface {
-	return NewBlockMakerManager(q.config, "", q.DB, q.Logger)
-}
-
-func (q queryManager) getVerifyManager(prevBlockNumber int) verifyManager {
-	vm := verifyManager{}
-	vm.config = q.config
-	vm.logger = q.Logger
-	vm.previousBlockHeigh = prevBlockNumber
-	return vm
+func (q queryManager) getBlockMakerManager() *NodeBlockMaker {
+	bm := &NodeBlockMaker{}
+	bm.DB = q.DB
+	bm.Logger = q.Logger
+	bm.MinterAddress = ""
+	bm.config = q.config
+	return bm
 }
 
 // New query from command line tool
@@ -291,9 +288,13 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 			return
 		}
 	}
-
+	_, prevBlockHeight, err := q.getBlockMakerManager().getBlockchainManager().GetState()
+	q.Logger.Trace.Printf("Base block heigh %d", prevBlockHeight)
+	if err != nil {
+		return
+	}
 	// check if the key has permissions to execute this query
-	hasPerm, err := q.getVerifyManager(0).CheckExecutePermissions(&qparsed, pubKey)
+	hasPerm, err := q.getBlockMakerManager().getVerifyManager(prevBlockHeight).CheckExecutePermissions(&qparsed, pubKey)
 
 	if err != nil {
 		return
@@ -304,7 +305,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 		return
 	}
 
-	amount, err := q.getVerifyManager(0).CheckQueryNeedsPayment(&qparsed)
+	amount, err := q.getBlockMakerManager().getVerifyManager(prevBlockHeight).CheckQueryNeedsPayment(&qparsed)
 
 	if err != nil {
 		return

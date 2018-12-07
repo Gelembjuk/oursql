@@ -172,6 +172,7 @@ func (p *mysqlProxy) WaitStop() {
 
 // handleConnection ...
 func (p *mysqlProxy) handleConnection(client net.Conn) {
+	p.traceLog.Printf("Handle incoming connection from %s", client.RemoteAddr().String())
 	defer p.traceLog.Printf("Close incoming connection from %s", client.RemoteAddr().String())
 
 	defer client.Close()

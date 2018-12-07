@@ -1011,7 +1011,7 @@ func (n *txManager) getBaseTransactionInList(sqlUpdate structures.SQLUpdate, pre
 		return
 	}
 	// if not found, try to get alt ID
-	altRefID, err := sqlUpdateMan.GetAlternativeRefID()
+	altRefID, _, err := sqlUpdateMan.GetAlternativeRefID()
 
 	if err != nil {
 		return
@@ -1058,7 +1058,7 @@ func (n *txManager) getBaseTransactionInChain(sqlUpdate structures.SQLUpdate) (t
 		return
 	}
 	// if not found, try to get alt ID
-	altRefID, err := sqlUpdateMan.GetAlternativeRefID()
+	altRefID, _, err := sqlUpdateMan.GetAlternativeRefID()
 
 	if err != nil {
 		return

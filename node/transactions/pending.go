@@ -719,7 +719,7 @@ func (u *unApprovedTransactions) FindSQLReferenceTransaction(sqlUpdate structure
 	}
 
 	// if not found, try to get alt ID
-	altRefID, err := sqlUpdateMan.GetAlternativeRefID()
+	altRefID, altCanBeReused, err := sqlUpdateMan.GetAlternativeRefID()
 
 	if err != nil {
 		return
@@ -754,9 +754,11 @@ func (u *unApprovedTransactions) FindSQLReferenceTransaction(sqlUpdate structure
 				txID = utils.CopyBytes(tx.GetID())
 			}
 		}
+
 		if bytes.Compare(tx.SQLCommand.ReferenceID, altRefID) == 0 {
+
 			// we found this refereence , check if input TX was not yet used as input in other tx
-			if !u.helperCheckTXInList(tx.GetID(), transactionsReused) {
+			if altCanBeReused || !u.helperCheckTXInList(tx.GetID(), transactionsReused) {
 				AlttxID = tx.GetID()
 			}
 		}

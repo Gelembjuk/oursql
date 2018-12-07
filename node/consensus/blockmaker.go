@@ -37,6 +37,25 @@ func (n *NodeBlockMaker) SetMinterAddress(minter string) {
 	n.MinterAddress = minter
 }
 
+// Transaction operations and cache manager
+func (n *NodeBlockMaker) getTransactionsManager() transactions.TransactionsManagerInterface {
+	return transactions.NewManager(n.DB, n.Logger, n.config.GetInfoForTransactions())
+}
+
+// Blockchain DB manager.
+func (n *NodeBlockMaker) getBlockchainManager() *blockchain.Blockchain {
+	bcm, _ := blockchain.NewBlockchainManager(n.DB, n.Logger)
+
+	return bcm
+}
+func (n NodeBlockMaker) getVerifyManager(prevBlockNumber int) verifyManager {
+	vm := verifyManager{}
+	vm.config = n.config
+	vm.logger = n.Logger
+	vm.previousBlockHeigh = prevBlockNumber
+	return vm
+}
+
 func (n *NodeBlockMaker) PrepareNewBlock() (int, error) {
 
 	if n.PreparedBlock != nil {
@@ -69,25 +88,6 @@ func (n *NodeBlockMaker) PrepareNewBlock() (int, error) {
 // check if a block was prepared already
 func (n *NodeBlockMaker) IsBlockPrepared() bool {
 	return n.PreparedBlock != nil
-}
-
-// Transaction operations and cache manager
-func (n *NodeBlockMaker) getTransactionsManager() transactions.TransactionsManagerInterface {
-	return transactions.NewManager(n.DB, n.Logger, n.config.GetInfoForTransactions())
-}
-
-// Blockchain DB manager.
-func (n *NodeBlockMaker) getBlockchainManager() *blockchain.Blockchain {
-	bcm, _ := blockchain.NewBlockchainManager(n.DB, n.Logger)
-
-	return bcm
-}
-func (n NodeBlockMaker) getVerifyManager(prevBlockNumber int) verifyManager {
-	vm := verifyManager{}
-	vm.config = n.config
-	vm.logger = n.Logger
-	vm.previousBlockHeigh = prevBlockNumber
-	return vm
 }
 
 // Checks if this is good time for this node to make a block
@@ -333,7 +333,7 @@ func (n *NodeBlockMaker) VerifyBlock(block *structures.Block, flags int) error {
 			}
 			coinbaseused = true
 		}
-		err := n.VerifyTransaction(&tx, prevTXs, block.PrevBlockHash, flags)
+		err := n.VerifyTransaction(&tx, prevTXs, block.PrevBlockHash, block.Height-1, flags)
 
 		if err != nil {
 			return err
@@ -350,7 +350,8 @@ func (n *NodeBlockMaker) VerifyBlock(block *structures.Block, flags int) error {
 }
 
 // Verify transaction against all rules
-func (n NodeBlockMaker) VerifyTransaction(tx *structures.Transaction, prevTXs []structures.Transaction, prevBlockHash []byte, flags int) error {
+func (n NodeBlockMaker) VerifyTransaction(tx *structures.Transaction, prevTXs []structures.Transaction,
+	prevBlockHash []byte, prevBlockHeight int, flags int) error {
 
 	vtx, err := n.getTransactionsManager().VerifyTransaction(tx, prevTXs, prevBlockHash, flags)
 
@@ -368,14 +369,23 @@ func (n NodeBlockMaker) VerifyTransaction(tx *structures.Transaction, prevTXs []
 		if err != nil {
 			return err
 		}
+
+		if prevBlockHeight < 0 {
+			// get current blockheight
+			prevBlockHash, prevBlockHeight, err = n.getBlockchainManager().GetState()
+
+			if err != nil {
+				return err
+			}
+		}
 		// check execution permissions to ensure this SQL operation is allowed
-		err = n.verifyTransactionSQLPermissions(tx, qparsed)
+		err = n.verifyTransactionSQLPermissions(tx, qparsed, prevBlockHeight)
 
 		if err != nil {
 			return err
 		}
 		// check if paid part is correct. contains correct amount anddestination address
-		err = n.verifyTransactionPaidSQL(tx, qparsed)
+		err = n.verifyTransactionPaidSQL(tx, qparsed, prevBlockHeight)
 
 		if err != nil {
 			return err
@@ -395,7 +405,7 @@ func (n *NodeBlockMaker) AddTransactionToPool(tx *structures.Transaction, flags 
 		return nil
 	}
 
-	err := n.VerifyTransaction(tx, nil, []byte{}, flags)
+	err := n.VerifyTransaction(tx, nil, []byte{}, -1, flags)
 
 	if err != nil {
 		return err
@@ -440,7 +450,7 @@ func (n NodeBlockMaker) parseQueryFromTX(tx *structures.Transaction) (*dbquery.Q
 }
 
 //Verify SQL paid transaction. This checks if output is locked to correct address and amount is vald for paid SQL
-func (n *NodeBlockMaker) verifyTransactionPaidSQL(tx *structures.Transaction, qparsed *dbquery.QueryParsed) error {
+func (n *NodeBlockMaker) verifyTransactionPaidSQL(tx *structures.Transaction, qparsed *dbquery.QueryParsed, prevBlockHeight int) error {
 	// if it is SQL transaction and includes currency part
 	// that we must check if a TX was posted to correct destination address
 	if !(tx.IsSQLCommand() && tx.IsCurrencyTransfer()) {
@@ -480,7 +490,7 @@ func (n *NodeBlockMaker) verifyTransactionPaidSQL(tx *structures.Transaction, qp
 	}
 
 	// check amount
-	amount, err := n.getVerifyManager(0).CheckQueryNeedsPayment(qparsed)
+	amount, err := n.getVerifyManager(prevBlockHeight).CheckQueryNeedsPayment(qparsed)
 
 	if err != nil {
 		return err
@@ -496,14 +506,14 @@ func (n *NodeBlockMaker) verifyTransactionPaidSQL(tx *structures.Transaction, qp
 }
 
 //Verify SQL can be executed. This checks if there are permissions to execute this SQL at this point of blockchain
-func (n NodeBlockMaker) verifyTransactionSQLPermissions(tx *structures.Transaction, qparsed *dbquery.QueryParsed) error {
+func (n NodeBlockMaker) verifyTransactionSQLPermissions(tx *structures.Transaction, qparsed *dbquery.QueryParsed, prevBlockHeight int) error {
 	// if it is SQL transaction and includes currency part
 	// that we must check if a TX was posted to correct destination address
 	if !tx.IsSQLCommand() {
 		return nil
 	}
 
-	hasPerm, err := n.getVerifyManager(0).CheckExecutePermissions(qparsed, tx.ByPubKey)
+	hasPerm, err := n.getVerifyManager(prevBlockHeight).CheckExecutePermissions(qparsed, tx.ByPubKey)
 
 	if err != nil {
 		return err

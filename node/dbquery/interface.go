@@ -18,7 +18,7 @@ type QueryProcessorInterface interface {
 type SQLUpdateInterface interface {
 	CheckUpdateCanFollow(sqlUpdPrev *structures.SQLUpdate) error
 	CheckAllowsMultipleSubtransactions(sqlUpdPrev *structures.SQLUpdate) (bool, error)
-	GetAlternativeRefID() ([]byte, error)
+	GetAlternativeRefID() ([]byte, bool, error)
 	RequiresBaseTransation() bool
 }
 

@@ -34,6 +34,10 @@ func (vm verifyManager) CheckExecutePermissions(qp *dbquery.QueryParsed, pubKey 
 		return allow, nil
 	}
 
+	if vm.config.ApplyRulesAfterBlock > vm.previousBlockHeigh {
+		return true, nil
+	}
+
 	if qp.Structure.GetKind() == lib.QueryKindCreate {
 		if !vm.config.AllowTableCreate {
 			return false, nil
@@ -61,37 +65,44 @@ func (vm verifyManager) checkExecutePermissionsAsTable(qp *dbquery.QueryParsed, 
 
 	t := vm.config.getTableCustomConfig(qp)
 
-	if t != nil {
-		if !t.AllowRowDelete && qp.Structure.GetKind() == lib.QueryKindDelete {
-			hasCustom = true
-			allow = false
-			return
-		}
+	if t == nil {
+		return
+	}
 
-		if !t.AllowRowInsert && qp.Structure.GetKind() == lib.QueryKindInsert {
-			hasCustom = true
-			allow = false
-			return
-		}
-
-		if !t.AllowRowUpdate && qp.Structure.GetKind() == lib.QueryKindUpdate {
-			hasCustom = true
-			allow = false
-			return
-		}
-
-		if !t.AllowTableCreate && qp.Structure.GetKind() == lib.QueryKindCreate {
-			hasCustom = true
-			allow = false
-			return
-		}
-		// has custom rule and operaion is not disabled
+	if t.ApplyAfterBlock > vm.previousBlockHeigh {
 		hasCustom = true
 		allow = true
 		return
 	}
 
+	if !t.AllowRowDelete && qp.Structure.GetKind() == lib.QueryKindDelete {
+		hasCustom = true
+		allow = false
+		return
+	}
+
+	if !t.AllowRowInsert && qp.Structure.GetKind() == lib.QueryKindInsert {
+		hasCustom = true
+		allow = false
+		return
+	}
+
+	if !t.AllowRowUpdate && qp.Structure.GetKind() == lib.QueryKindUpdate {
+		hasCustom = true
+		allow = false
+		return
+	}
+
+	if !t.AllowTableCreate && qp.Structure.GetKind() == lib.QueryKindCreate {
+		hasCustom = true
+		allow = false
+		return
+	}
+	// has custom rule and operaion is not disabled
+	hasCustom = true
+	allow = true
 	return
+
 }
 
 // check if this query requires payment for execution. return number
@@ -106,6 +117,11 @@ func (vm verifyManager) CheckQueryNeedsPayment(qp *dbquery.QueryParsed) (float64
 		trcost = &t.TransactionCost
 	} else {
 		trcost = &vm.config.TransactionCost
+	}
+	vm.logger.Trace.Printf("Block height check: sett %d and prev %d", trcost.ApplyAfterBlock, vm.previousBlockHeigh)
+	if trcost.ApplyAfterBlock > vm.previousBlockHeigh {
+		// rule will affect later when more blocks are there
+		return 0, nil
 	}
 
 	// check if current operation has a price

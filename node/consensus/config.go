@@ -51,6 +51,7 @@ type ConsensusConfig struct {
 	Kind                   string
 	CoinsForBlockMade      float64
 	Settings               map[string]interface{}
+	ApplyRulesAfterBlock   int
 	AllowTableCreate       bool
 	AllowTableDrop         bool
 	AllowRowDelete         bool

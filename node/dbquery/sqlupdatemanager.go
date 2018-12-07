@@ -122,15 +122,18 @@ func (um sqlUpdateManager) CheckAllowsMultipleSubtransactions(sqlUpdPrev *struct
 
 	return
 }
-func (um sqlUpdateManager) GetAlternativeRefID() (RefID []byte, err error) {
+func (um sqlUpdateManager) GetAlternativeRefID() (RefID []byte, canBeReused bool, err error) {
 	// if this is insert operation, return a table create RefID
+
+	canBeReused = false
 
 	if um.Parsed.GetKind() == lib.QueryKindInsert {
 		RefID = []byte(um.Parsed.GetTable() + ":*") // this is RefID of a table create  operation
+		canBeReused = true
 		return
 	}
 
-	return nil, nil // no alternative refID
+	return // no alternative refID
 }
 
 // Checks if a query requires base transactions

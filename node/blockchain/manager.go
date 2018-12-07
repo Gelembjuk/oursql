@@ -363,7 +363,6 @@ func (bc *Blockchain) GetBestHeight() (int, error) {
 }
 
 // Returns info about the top block. Hash and Height
-
 func (bc *Blockchain) GetState() ([]byte, int, error) {
 	bcdb, err := bc.DB.GetBlockchainObject()
 

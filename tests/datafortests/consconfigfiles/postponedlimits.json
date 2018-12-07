@@ -1,0 +1,57 @@
+{
+    "Application": {
+        "Name":"MyBlockchainApp",
+        "WebSite":"http://oursql.org",
+        "Team":"Application Support Team"
+    },
+    "Kind":"proofofwork",
+    "CoinsForBlockMade":15.0,
+    "Settings":{
+        "Complexity":16,
+        "ComplexityStep2":24,
+        "MaxMinNumberTransactionInBlock":1000,
+        "MaxNumberTransactionInBlock":10000
+    },
+    "ApplyRulesAfterBlock":2,
+    "AllowTableCreate":true,
+    "AllowTableDrop":false,
+    "AllowRowDelete":true,
+    "TransactionCost":{
+        "ApplyAfterBlock":2,
+        "Default":0.0,
+        "RowDelete":0.0,
+        "RowUpdate":0.0,
+        "RowInsert":0.0,
+        "TableCreate":5.0
+    },
+    "UnmanagedTables":["temp"],
+    "TableRules":[
+        {
+            "Table":"members",
+            "AllowRowDelete":false,
+            "AllowRowUpdate":true,
+            "AllowRowInsert":true,
+            "AllowTableCreate":true,
+            "TransactionCost":{
+                "Default":0.5,
+                "TableCreate":10,
+                "ApplyAfterBlock":5
+            }
+        },
+        {
+            "ApplyAfterBlock":4,
+            "Table":"test",
+            "AllowRowDelete":false,
+            "AllowRowUpdate":false,
+            "AllowRowInsert":true,
+            "AllowTableCreate":true,
+            "TransactionCost":{
+                "Default":0.5,
+                "TableCreate":10,
+                "ApplyAfterBlock":5
+            }
+        }
+    ],
+    "PaidTransactionsWallet":"",
+    "InitNodesAddreses":[]
+}
