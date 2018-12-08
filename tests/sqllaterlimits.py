@@ -112,12 +112,9 @@ def test(testfilter):
     _sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test SET b='row5'")
     _sql.ExecuteSQLOnProxy(datadir, "CREATE TABLE test2 (a INT auto_increment PRIMARY KEY, b VARCHAR(20))")
     
-    #_sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test2 SET b='row1'")
-    #_sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test2 SET b='row2'")
-    #_sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test2 SET b='row3'")
-    _transfers.Send(datadir,address, address3 ,1)
-    _transfers.Send(datadir,address, address3 ,1)
-    _transfers.Send(datadir,address, address3 ,1)
+    _sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test2 SET b='row1'")
+    _sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test2 SET b='row2'")
+    _sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test2 SET b='row3'")
     
     blocks = _blocks.WaitBlocks(datadir, 7)
     time.sleep(1)
