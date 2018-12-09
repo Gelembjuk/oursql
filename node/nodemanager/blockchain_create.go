@@ -38,15 +38,21 @@ func (n *makeBlockchain) getBlockMakeManager() consensus.BlockMakerInterface {
 }
 
 // Create new blockchain, add genesis block witha given text
-func (n *makeBlockchain) CreateBlockchain() error {
+func (n *makeBlockchain) CreateBlockchain(genesisCoinbaseData string, initOnNotEmpty bool) error {
 	// firstly, check if DB is accesible
 	n.Logger.Trace.Printf("Check DB connection is fine")
-	err := n.DBConn.CheckConnection()
+	tables, err := n.DBConn.GetAllTables()
+
 	if err != nil {
 		return err
 	}
+	tables = n.filterTablesForManaged(tables)
 
-	genesisCoinbaseData := "some string. this is TEMP"
+	// check if a DB is empty or not. load list of existent tables
+	if len(tables) > 0 && !initOnNotEmpty {
+		return errors.New("The DB is not empty. It is not allowed to init on non-empty DB")
+	}
+
 	genesisBlock, err := n.prepareGenesisBlock(n.MinterAddress, genesisCoinbaseData)
 
 	if err != nil {
@@ -73,7 +79,17 @@ func (n *makeBlockchain) CreateBlockchain() error {
 		return err
 	}
 
-	n.Logger.Trace.Printf("Blockchain ready!\n")
+	n.Logger.Trace.Printf("Blockchain ready! Now looks existent tables\n")
+
+	if len(tables) > 0 {
+		countTables, countRows, err := n.addExistentTables(tables)
+
+		if err != nil {
+			return err
+		}
+
+		n.Logger.Trace.Printf("Existent tables added fine. %d tables and %d total rows", countTables, countRows)
+	}
 
 	return nil
 }
@@ -248,4 +264,95 @@ func (n *makeBlockchain) addFirstBlock(genesis *structures.Block) error {
 	n.getTransactionsManager().BlockAdded(genesis, true)
 
 	return err
+}
+
+// return only tables that should be managed with blockchain. skip tables ignored in consensus config
+func (n *makeBlockchain) filterTablesForManaged(tables []string) []string {
+	managedTables := []string{}
+
+	for _, table := range tables {
+		managed := true
+		for _, t := range n.consensusConfig.UnmanagedTables {
+			if table == t {
+				managed = false
+				break
+			}
+		}
+
+		if managed {
+			managedTables = append(managedTables, table)
+		}
+	}
+
+	return managedTables
+}
+
+// Add existent tables to blockchain
+func (n *makeBlockchain) addExistentTables(tables []string) (countTales int, countRows int, err error) {
+	sqlslist := []string{}
+
+	counts := map[string]int{}
+	// we need to know total count to keep minimal values of transactions per block
+	totalcount := 0
+	totalloaded := 0
+	// get counts of rows per table
+	for _, table := range tables {
+		counts[table], err = n.DBConn.DB().QM().ExecuteSQLCountInTable(table)
+
+		if err != nil {
+			return
+		}
+		totalcount = totalcount + 1 // table create SQL
+		totalcount = totalcount + counts[table]
+	}
+
+	limit := 1000
+
+	nextBlockHeigh := 1
+
+	var sqls []string
+
+	for _, table := range tables {
+		offset := 0
+
+		for offset <= counts[table] {
+
+			sqls, err = n.DBConn.DB().QM().ExecuteSQLTableDump(table, limit, offset)
+
+			if err != nil {
+				return
+			}
+			fmt.Println(sqls)
+			err = errors.New("tmp")
+			return
+			sqlslist = append(sqlslist, sqls...)
+			totalloaded = totalloaded + len(sqls)
+
+			offset = offset + limit
+			// check if it is time to make new block
+			if len(sqls) >= limit || totalcount == totalloaded {
+				// if not more minimum than nothing to do
+				// we should not do new block if remaining part of rows is less than required for next block after current
+				if totalcount-totalloaded > nextBlockHeigh+1 {
+					// there are more records to load and it will be anough for next block
+					err = n.makeNewInitialBlock(sqlslist)
+
+					if err != nil {
+						return
+					}
+
+					sqlslist = []string{}
+					nextBlockHeigh = nextBlockHeigh + 1
+				}
+			}
+		}
+
+	}
+
+	return 0, 0, nil
+}
+
+//Make new initial block from prepared SQLs
+func (n *makeBlockchain) makeNewInitialBlock(sqls []string) error {
+	return nil
 }

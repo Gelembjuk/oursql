@@ -199,7 +199,9 @@ func (n *Node) CreateBlockchain(minterAddress string) error {
 	bccreator := n.getCreateManager()
 	bccreator.MinterAddress = minterAddress
 
-	return bccreator.CreateBlockchain()
+	genesisCoinbaseData := "some string. this is TEMP"
+
+	return bccreator.CreateBlockchain(genesisCoinbaseData, true)
 }
 
 // Creates new blockchain DB from given list of blocks

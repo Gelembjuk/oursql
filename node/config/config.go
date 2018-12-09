@@ -17,8 +17,10 @@ import (
 )
 
 const (
-	CommandImportWallet = "importwallet"
-	CommandExportWallet = "exportwallet"
+	CommandImportWallet      = "importwallet"
+	CommandExportWallet      = "exportwallet"
+	CommandDumpBlockchain    = "dumpblockchain"
+	CommandRestoreBlockchain = "restoreblockchain"
 )
 
 var commandsDoesNotNeedConfig = []string{

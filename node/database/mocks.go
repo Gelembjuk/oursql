@@ -94,6 +94,18 @@ func (bdm mockMySQLDBManager) ExecuteSQLSelectRow(sqlcommand string) (data map[s
 	return
 }
 
+func (bdm mockMySQLDBManager) ExecuteSQLSelectRows(sqlcommand string) (data []resultRow, err error) {
+	return
+}
+
 func (bdm mockMySQLDBManager) ExecuteSQLNextKeyValue(table string) (string, error) {
 	return "", nil
+}
+
+func (bdm mockMySQLDBManager) ExecuteSQLTableDump(table string, limit int, offset int) ([]string, error) {
+	return nil, nil
+}
+
+func (bdm mockMySQLDBManager) ExecuteSQLCountInTable(table string) (int, error) {
+	return 0, nil
 }

@@ -466,6 +466,60 @@ func (bdm MySQLDBManager) ExecuteSQLSelectRow(sqlcommand string) (data map[strin
 	return
 }
 
+// get all rows as array of maps
+func (bdm MySQLDBManager) ExecuteSQLSelectRows(sqlcommand string) (data []resultRow, err error) {
+	db, err := bdm.getConnection()
+
+	if err != nil {
+		return
+	}
+
+	rows, err := db.Query(sqlcommand)
+
+	if err != nil {
+		return
+	}
+
+	cols, err := rows.Columns()
+
+	if err != nil {
+		return
+	}
+
+	data = []resultRow{}
+
+	for rows.Next() {
+		row := resultRow{}
+
+		columns := make([]sql.NullString, len(cols))
+		columnPointers := make([]interface{}, len(cols))
+		for i, _ := range columns {
+			columnPointers[i] = &columns[i]
+		}
+
+		err = rows.Scan(columnPointers...)
+
+		if err != nil {
+			return
+		}
+		for i, colName := range cols {
+			val := ""
+
+			if columns[i].Valid {
+				val = columns[i].String
+			}
+
+			row[colName] = val
+		}
+
+		data = append(data, row)
+
+	}
+
+	return
+}
+
+// Return next auto_increment before query executed
 func (bdm MySQLDBManager) ExecuteSQLNextKeyValue(table string) (string, error) {
 	row, err := bdm.ExecuteSQLSelectRow("SHOW TABLE STATUS LIKE '" + table + "'")
 
@@ -473,4 +527,43 @@ func (bdm MySQLDBManager) ExecuteSQLNextKeyValue(table string) (string, error) {
 		return "", err
 	}
 	return row["Auto_increment"], nil
+}
+
+// Return list of SQL queries as part of dump
+// If offset is 0 we retrn table create SQL comand too
+func (bdm MySQLDBManager) ExecuteSQLTableDump(table string, limit int, offset int) ([]string, error) {
+	bdm.Logger.Trace.Printf("Get create SQL %s", table)
+	list := []string{}
+
+	if offset == 0 {
+		// add table create SQL
+		row, err := bdm.ExecuteSQLSelectRow("SHOW CREATE TABLE `" + table + "`")
+
+		if err != nil {
+			return nil, err
+		}
+
+		list = append(list, row["Create Table"])
+
+		limit = limit - 1
+	}
+
+	// select limit rows and make dump records for them
+
+	return list, nil
+}
+
+// Get count of rows in table
+func (bdm MySQLDBManager) ExecuteSQLCountInTable(table string) (int, error) {
+
+	row, err := bdm.ExecuteSQLSelectRow("SELECT count(*) as c FROM `" + table + "`")
+
+	if err != nil {
+		return 0, err
+	}
+	count, err := strconv.Atoi(row["c"])
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }

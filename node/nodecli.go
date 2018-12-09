@@ -35,8 +35,8 @@ var disableWithBCReady = []string{"initblockchain",
 var commandsInteractiveMode = []string{
 	"initblockchain",
 	"importblockchain",
-	"restoreblockchain",
-	"dumpblockchain",
+	config.CommandRestoreBlockchain,
+	config.CommandDumpBlockchain,
 	"exportconsensusconfig",
 	"pullupdates",
 	"printchain",
@@ -236,10 +236,10 @@ func (c NodeCLI) ExecuteCommand() error {
 	case "importblockchain":
 		return c.commandImportBlockchain()
 
-	case "restoreblockchain":
+	case config.CommandRestoreBlockchain:
 		return c.commandRestoreBlockchain()
 
-	case "dumpblockchain":
+	case config.CommandDumpBlockchain:
 		return c.commandDumpBlockchain()
 
 	case "exportconsensusconfig":

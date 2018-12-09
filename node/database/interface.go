@@ -4,6 +4,8 @@ import (
 	"github.com/gelembjuk/oursql/lib/utils"
 )
 
+type resultRow map[string]string
+
 type DBManager interface {
 	QM() DBQueryManager // get QueryManager object
 
@@ -36,6 +38,9 @@ type DBQueryManager interface {
 	ExecuteSQLPrimaryKey(table string) (string, error)
 	ExecuteSQLNextKeyValue(table string) (string, error)
 	ExecuteSQLSelectRow(sqlcommand string) (data map[string]string, err error)
+	ExecuteSQLSelectRows(sqlcommand string) (data []resultRow, err error)
+	ExecuteSQLTableDump(table string, limit int, offset int) ([]string, error)
+	ExecuteSQLCountInTable(table string) (int, error)
 }
 
 type SQLExplainInfo struct {

@@ -68,6 +68,31 @@ func (db *Database) CheckConnection() error {
 	return db.DB().CheckConnection()
 }
 
+// check if connection to DB can be set
+func (db *Database) GetAllTables() ([]string, error) {
+	results, err := db.DB().QM().ExecuteSQLSelectRows("SHOW TABLES")
+
+	if err != nil {
+		return nil, err
+	}
+
+	tables := []string{}
+
+	for _, row := range results {
+		table := ""
+
+		for _, t := range row {
+			table = t
+			break
+		}
+		if table != "" {
+			tables = append(tables, table)
+		}
+	}
+
+	return tables, nil
+}
+
 // open DB connection if it is not yet opened
 func (db *Database) OpenConnection(sessid string) error {
 	//db.Logger.Trace.Printf("OpenConn in DB man %s", reason)
