@@ -141,7 +141,12 @@ func (n *Node) GetCommunicationManager() *communicationManager {
 
 // Init block maker object. It is used to make new blocks
 func (n *Node) getCreateManager() *makeBlockchain {
-	return &makeBlockchain{n.Logger, n.MinterAddress, n.DBConn, n.ConsensusConfig}
+	bccr := &makeBlockchain{}
+	bccr.Logger = n.Logger
+	bccr.MinterAddress = n.MinterAddress
+	bccr.DBConn = n.DBConn
+	bccr.consensusConfig = n.ConsensusConfig
+	return bccr
 }
 
 // Init network client object. It is used to communicate with other nodes
@@ -195,10 +200,12 @@ func (n *Node) BlockchainExist() bool {
 }
 
 // Create new blockchain, add genesis block witha given text
-func (n *Node) CreateBlockchain(minterAddress string) error {
+func (n *Node) CreateBlockchain(minterAddress string, pubKey []byte, privateKey ecdsa.PrivateKey) error {
 	bccreator := n.getCreateManager()
 	bccreator.MinterAddress = minterAddress
-
+	bccreator.PubKey = pubKey
+	bccreator.PrivateKey = privateKey
+	bccreator.BC = &n.NodeBC
 	genesisCoinbaseData := "some string. this is TEMP"
 
 	return bccreator.CreateBlockchain(genesisCoinbaseData, true)
@@ -221,7 +228,7 @@ func (n *Node) InitBlockchainFromOther(host string, port int) (bool, error) {
 	}
 	addr := net.NewNodeAddr(host, port)
 
-	complete, err := n.getCreateManager().InitBlockchainFromOther(addr, n.NodeClient, &n.NodeBC)
+	complete, err := n.getCreateManager().InitBlockchainFromOther(addr, n.NodeClient)
 
 	if err != nil {
 		return false, err

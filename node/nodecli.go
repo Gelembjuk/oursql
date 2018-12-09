@@ -427,7 +427,17 @@ func (c *NodeCLI) getLocalNetworkClient() nodeclient.NodeClient {
 
 // To create new blockchain from scratch
 func (c *NodeCLI) commandInitBlockchain() error {
-	err := c.Node.CreateBlockchain(c.Input.MinterAddress)
+	walletscli, err := c.getWalletsCLI()
+
+	if err != nil {
+		return err
+	}
+	walletobj, err := walletscli.WalletsObj.GetWallet(c.Input.MinterAddress)
+	if err != nil {
+		return err
+	}
+
+	err = c.Node.CreateBlockchain(c.Input.MinterAddress, walletobj.GetPublicKey(), walletobj.GetPrivateKey())
 
 	if err != nil {
 		return err

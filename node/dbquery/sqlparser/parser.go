@@ -216,6 +216,9 @@ func (q *sqlParser) parseKindAndTable(sqlquery string) (kind string, table strin
 		}
 
 		table = sr[1]
+
+		table = strings.TrimSpace(table)
+		table = strings.Trim(table, "`")
 	}
 
 	return

@@ -276,6 +276,7 @@ func CopyBytes(source []byte) []byte {
 	return []byte{}
 }
 
+// TO check if a string is in slice
 func StringInSlice(a string, list []string) bool {
 	for _, b := range list {
 		if b == a {
@@ -283,6 +284,27 @@ func StringInSlice(a string, list []string) bool {
 		}
 	}
 	return false
+}
+
+// Enquotes a string to build safe SQL
+// This should be equivalent to PHP mysql_real_escape_string function
+func DBQuote(str string) string {
+
+	str = strings.Replace(str, "\\", "\\\\", -1)
+
+	quotePairs := map[string]string{
+		"\x00": "\\0",
+		"\n":   "\\n",
+		"\r":   "\\r",
+		"'":    "\\'",
+		"\"":   "\\\"",
+		"\x1a": "\\Z"}
+
+	for o, n := range quotePairs {
+		str = strings.Replace(str, o, n, -1)
+	}
+
+	return str
 }
 
 func MakeRandomRange(min, max int) []int {

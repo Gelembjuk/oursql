@@ -118,6 +118,44 @@ func (q queryManager) NewQueryByNode(sql string, pubKey []byte, privKey ecdsa.Pr
 	return SQLProcessingResultTranactionComplete, tx, nil
 }
 
+// Create new transaction and add to pool. Don't execute a query.
+func (q queryManager) NewQueryByNodeInit(sql string, pubKey []byte, privKey ecdsa.PrivateKey) (tx *structures.Transaction, err error) {
+
+	q.Logger.Trace.Printf("Make new transaction for SQL: %s", sql)
+
+	result, err := q.processQuery(sql, pubKey, 0 /*don't execute*/)
+
+	if err != nil {
+		return
+	}
+
+	if result.status == SQLProcessingResultSignatureRequired {
+
+		// sign data and continue
+		q.Logger.Trace.Printf("Sign new TX by %x", pubKey)
+		var signature []byte
+		signature, err = utils.SignDataByPubKey(pubKey, privKey, result.stringtosign)
+
+		if err != nil {
+			return
+		}
+
+		tx, err = q.processQueryWithSignature(result.txdata, signature, 0 /*don't execute*/)
+
+		if err != nil {
+			return
+		}
+	} else if result.status != SQLProcessingResultTranactionCompleteInternally {
+		err = errors.New("Transaction was not complete")
+		return
+	} else {
+		tx = result.tx
+	}
+
+	q.Logger.Trace.Printf("All fine. New TX: %x", tx.GetID())
+	return
+}
+
 // DB proxy received new query .
 // The query can contains comments with some additional instructions . this function should parse
 // If error is returned, proxy will send the eror back to client.
@@ -336,6 +374,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 	}
 
 	if len(q.pubKey) > 0 && bytes.Compare(q.pubKey, pubKey) == 0 {
+		q.Logger.Trace.Printf("There is pubkey to sign. Use it %x", pubKey)
 		// transaction was created by internal pubkey. we have private key for it
 		var signature []byte
 		signature, err = utils.SignDataByPubKey(q.pubKey, q.privKey, result.stringtosign)

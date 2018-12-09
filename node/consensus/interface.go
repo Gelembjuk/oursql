@@ -52,6 +52,7 @@ type SQLTransactionsInterface interface {
 	NewQuery(sql string, pubKey []byte) (uint, []byte, []byte, *structures.Transaction, error)
 	NewQuerySigned(txEncoded []byte, signature []byte) (*structures.Transaction, error)
 	NewQueryByNode(sql string, pubKey []byte, privKey ecdsa.PrivateKey) (uint, *structures.Transaction, error)
+	NewQueryByNodeInit(sql string, pubKey []byte, privKey ecdsa.PrivateKey) (tx *structures.Transaction, err error)
 	NewQueryFromProxy(sql string) QueryFromProxyResult
 	RepeatTransactionsFromCanceledBlocks(txList []structures.Transaction) error
 }

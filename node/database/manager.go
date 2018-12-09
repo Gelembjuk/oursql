@@ -531,24 +531,74 @@ func (bdm MySQLDBManager) ExecuteSQLNextKeyValue(table string) (string, error) {
 
 // Return list of SQL queries as part of dump
 // If offset is 0 we retrn table create SQL comand too
-func (bdm MySQLDBManager) ExecuteSQLTableDump(table string, limit int, offset int) ([]string, error) {
+func (bdm MySQLDBManager) ExecuteSQLTableDump(table string, limit int, offset int) (list []string, err error) {
 	bdm.Logger.Trace.Printf("Get create SQL %s", table)
-	list := []string{}
+	list = []string{}
 
 	if offset == 0 {
 		// add table create SQL
-		row, err := bdm.ExecuteSQLSelectRow("SHOW CREATE TABLE `" + table + "`")
+		row, errl := bdm.ExecuteSQLSelectRow("SHOW CREATE TABLE `" + table + "`")
 
-		if err != nil {
-			return nil, err
+		if errl != nil {
+			err = errl
+			return
 		}
-
-		list = append(list, row["Create Table"])
+		sql := row["Create Table"]
+		sql = strings.Replace(sql, "\n", " ", -1)
+		sql = strings.Replace(sql, "\r", "", -1)
+		list = append(list, sql)
 
 		limit = limit - 1
 	}
 
 	// select limit rows and make dump records for them
+	db, err := bdm.getConnection()
+
+	if err != nil {
+		return
+	}
+
+	rows, err := db.Query("SELECT * FROM " + table)
+
+	if err != nil {
+		return
+	}
+
+	cols, err := rows.Columns()
+
+	if err != nil {
+		return
+	}
+
+	for rows.Next() {
+
+		columns := make([]sql.NullString, len(cols))
+		columnPointers := make([]interface{}, len(cols))
+		for i, _ := range columns {
+			columnPointers[i] = &columns[i]
+		}
+
+		err = rows.Scan(columnPointers...)
+
+		if err != nil {
+			return
+		}
+
+		pairs := []string{}
+
+		for i, colName := range cols {
+			val := "NULL"
+
+			if columns[i].Valid {
+				val = "'" + utils.DBQuote(columns[i].String) + "'"
+			}
+			pair := "`" + colName + "` = " + val
+			pairs = append(pairs, pair)
+		}
+		sql := "INSERT INTO " + table + " SET " + strings.Join(pairs, ", ")
+
+		list = append(list, sql)
+	}
 
 	return list, nil
 }

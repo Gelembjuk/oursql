@@ -16,4 +16,5 @@ const (
 	TXFlagsNoPool                     = 2 // 2
 	TXFlagsSkipSQLBaseCheck           = 4 // 4
 	TXFlagsSkipSQLBaseCheckIfNotOnTop = 8 // 8
+	TXFlagsNoExecute                  = 16
 )

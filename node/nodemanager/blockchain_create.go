@@ -1,6 +1,7 @@
 package nodemanager
 
 import (
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 
@@ -17,6 +18,9 @@ import (
 type makeBlockchain struct {
 	Logger          *utils.LoggerMan
 	MinterAddress   string
+	PubKey          []byte
+	PrivateKey      ecdsa.PrivateKey
+	BC              *NodeBlockchain
 	DBConn          *Database
 	consensusConfig *consensus.ConsensusConfig
 }
@@ -25,6 +29,11 @@ type makeBlockchain struct {
 func (n *makeBlockchain) getBCManager() *blockchain.Blockchain {
 	bcm, _ := blockchain.NewBlockchainManager(n.DBConn.DB(), n.Logger)
 	return bcm
+}
+
+// Init SQL transactions manager
+func (n *makeBlockchain) getSQLQueryManager() (consensus.SQLTransactionsInterface, error) {
+	return consensus.NewSQLQueryManager(n.consensusConfig, n.DBConn.DB(), n.Logger, n.PubKey, n.PrivateKey)
 }
 
 // Transactions manager object
@@ -97,7 +106,7 @@ func (n *makeBlockchain) CreateBlockchain(genesisCoinbaseData string, initOnNotE
 // Creates new blockchain DB from given list of blocks
 // This would be used when new empty node started and syncs with other nodes
 
-func (n *makeBlockchain) InitBlockchainFromOther(addr net.NodeAddr, nodeclient *nodeclient.NodeClient, BC *NodeBlockchain) (bool, error) {
+func (n *makeBlockchain) InitBlockchainFromOther(addr net.NodeAddr, nodeclient *nodeclient.NodeClient) (bool, error) {
 	n.Logger.Trace.Printf("Check DB connection is fine")
 	err := n.DBConn.CheckConnection()
 
@@ -160,7 +169,7 @@ func (n *makeBlockchain) InitBlockchainFromOther(addr net.NodeAddr, nodeclient *
 				return false, err
 			}
 
-			_, err = BC.AddBlock(block)
+			_, err = n.BC.AddBlock(block)
 
 			if err != nil {
 				return false, err
@@ -322,15 +331,13 @@ func (n *makeBlockchain) addExistentTables(tables []string) (countTales int, cou
 			if err != nil {
 				return
 			}
-			fmt.Println(sqls)
-			err = errors.New("tmp")
-			return
+
 			sqlslist = append(sqlslist, sqls...)
 			totalloaded = totalloaded + len(sqls)
 
 			offset = offset + limit
 			// check if it is time to make new block
-			if len(sqls) >= limit || totalcount == totalloaded {
+			if len(sqlslist) >= limit || totalcount == totalloaded {
 				// if not more minimum than nothing to do
 				// we should not do new block if remaining part of rows is less than required for next block after current
 				if totalcount-totalloaded > nextBlockHeigh+1 {
@@ -349,10 +356,65 @@ func (n *makeBlockchain) addExistentTables(tables []string) (countTales int, cou
 
 	}
 
-	return 0, 0, nil
+	if len(sqlslist) > 0 {
+		// make final block
+		err = n.makeNewInitialBlock(sqlslist)
+
+		if err != nil {
+			return
+		}
+	}
+
+	return len(tables), totalcount, nil
 }
 
 //Make new initial block from prepared SQLs
 func (n *makeBlockchain) makeNewInitialBlock(sqls []string) error {
+	qm, err := n.getSQLQueryManager()
+	if err != nil {
+		return err
+	}
+	for _, sql := range sqls {
+		_, err := qm.NewQueryByNodeInit(sql, n.PubKey, n.PrivateKey)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	// make new block
+	Minter := consensus.NewBlockMakerManager(n.consensusConfig, n.MinterAddress, n.DBConn.DB(), n.Logger)
+
+	prepres, err := Minter.PrepareNewBlock()
+
+	if err != nil {
+		return err
+	}
+
+	// close it while doing the proof of work
+	n.DBConn.CloseConnection()
+	// and close it again in the end of function
+	defer n.DBConn.CloseConnection()
+
+	if prepres != consensus.BlockPrepare_Done {
+		return errors.New("Block an not be done. Somethign went wrong")
+	}
+
+	block, err := Minter.CompleteBlock()
+
+	if err != nil {
+		n.Logger.Trace.Printf("Block completion error. %s", err)
+		return err
+	}
+
+	// add new block to local blockchain. this will check a block again
+
+	_, err = n.BC.AddBlock(block)
+
+	if err != nil {
+		n.Logger.Trace.Printf("Block add error. %s", err)
+		return err
+	}
+
 	return nil
 }
