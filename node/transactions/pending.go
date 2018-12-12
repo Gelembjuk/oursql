@@ -746,7 +746,7 @@ func (u *unApprovedTransactions) FindSQLReferenceTransaction(sqlUpdate structure
 
 		// RefID in a tarnsaction can not be empty
 
-		u.Logger.Trace.Printf("Check RefID %s in TX %x", string(tx.SQLCommand.ReferenceID), tx.GetID())
+		//u.Logger.Trace.Printf("Check RefID %s in TX %x", string(tx.SQLCommand.ReferenceID), tx.GetID())
 
 		if bytes.Compare(tx.SQLCommand.ReferenceID, sqlUpdate.ReferenceID) == 0 {
 			// we found this refereence , check if input TX was not yet used as input in other tx

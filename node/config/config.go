@@ -65,6 +65,8 @@ type AllPossibleArgs struct {
 	SQL                 string
 	ConsensusFileToCopy string
 	FilePath            string
+	AllowNonEmpty       bool
+	Trace               bool
 }
 
 // Input summary
@@ -138,6 +140,8 @@ func parseConfig(dirpath string) (AppInput, error) {
 		cmd.StringVar(&input.Args.LogDest, "logdest", "", "Destination of logs. file or stdout")
 		cmd.StringVar(&input.Args.View, "view", "", "View format")
 		cmd.BoolVar(&input.Args.Clean, "clean", false, "Clean data/cache")
+		cmd.BoolVar(&input.Args.Trace, "trace", false, "Trace process with printing to console")
+		cmd.BoolVar(&input.Args.AllowNonEmpty, "allownotempty", false, "Allow to init blockchain on non-empty DB")
 
 		cmd.StringVar(&input.Args.MySQLHost, "mysqlhost", "", "MySQL server host name")
 		cmd.IntVar(&input.Args.MySQLPort, "mysqlport", 3306, "MySQL server port")
@@ -521,7 +525,7 @@ func (c AppInput) PrintUsage() {
 	//fmt.Println("  interactiveautocreate [-consensusfile FILEPATH] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Create a blockchain if it doesn't exist yet, creates a wallet if no wallets yet, starts a node in interactive mode.")
 	//fmt.Println("  importandstart [-nodeaddress HOST:PORT] [-consensusfile FILEPATH] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Loads a blockchain from other node to init the DB. Cretes a wallet of no wallets, starts a node in interactive mode.")
 	//fmt.Println("  pullupdates \n\t- Pulls recent updates from other nodes in a network.")
-	fmt.Println("  initblockchain [-minter ADDRESS] [-consensusfile FILEPATH] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Create a blockchain and send genesis block reward to ADDRESS")
+	fmt.Println("  initblockchain [-minter ADDRESS] [-consensusfile FILEPATH] [-allownotempty] [-trace] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Create a blockchain and send genesis block reward to ADDRESS")
 	fmt.Println("  importblockchain [-consensusfile FILEPATH] [-nodeaddress HOST:PORT] [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Loads a blockchain from other node to init the DB. If consensusfile is set and it contains initial node address, it will be used")
 	fmt.Println("  restoreblockchain -dumpfile FILEPATH [-mysqlhost HOST] [-mysqlport PORT] [-mysqluser USER] [-mysqlpass PASSWORD] [-mysqldb DBNAME] [-tablesprefix PREFIX]\n\t- Loads a blockchain from dump file and restores it to given DB. A DB credentials can be optional if they are present in config file")
 	fmt.Println("  dumpblockchain -dumpfile FILEPATH\n\t- Dump blockchain DB to a file. This fle can be used to restore a BC")
