@@ -342,7 +342,7 @@ func (n *makeBlockchain) addExistentTables(tables []string) (countTales int, cou
 				// we should not do new block if remaining part of rows is less than required for next block after current
 				if totalcount-totalloaded > nextBlockHeigh+1 {
 					// there are more records to load and it will be anough for next block
-					err = n.makeNewInitialBlock(sqlslist)
+					err = n.makeNewInitialBlock(sqlslist, nextBlockHeigh)
 
 					if err != nil {
 						return
@@ -358,7 +358,7 @@ func (n *makeBlockchain) addExistentTables(tables []string) (countTales int, cou
 
 	if len(sqlslist) > 0 {
 		// make final block
-		err = n.makeNewInitialBlock(sqlslist)
+		err = n.makeNewInitialBlock(sqlslist, nextBlockHeigh)
 
 		if err != nil {
 			return
@@ -369,7 +369,9 @@ func (n *makeBlockchain) addExistentTables(tables []string) (countTales int, cou
 }
 
 //Make new initial block from prepared SQLs
-func (n *makeBlockchain) makeNewInitialBlock(sqls []string) error {
+func (n *makeBlockchain) makeNewInitialBlock(sqls []string, nextBlockHeigh int) error {
+	n.consensusConfig.ExtendRulesApplyStartHeigh(nextBlockHeigh)
+
 	qm, err := n.getSQLQueryManager()
 	if err != nil {
 		return err
@@ -415,6 +417,8 @@ func (n *makeBlockchain) makeNewInitialBlock(sqls []string) error {
 		n.Logger.Trace.Printf("Block add error. %s", err)
 		return err
 	}
+
+	n.getTransactionsManager().BlockAdded(block, true)
 
 	return nil
 }

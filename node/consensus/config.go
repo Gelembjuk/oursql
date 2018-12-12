@@ -100,6 +100,7 @@ func NewConfigDefault() (*ConsensusConfig, error) {
 	return &c, nil
 }
 
+// Load consensus config JSON from file and parse
 func (c *ConsensusConfig) loadFromFile(filepath string) error {
 
 	jsonStr, err := ioutil.ReadFile(filepath)
@@ -148,6 +149,17 @@ func (c *ConsensusConfig) load(jsonStr []byte) error {
 	}
 
 	return nil
+}
+
+// Save a consensus config to same file from where it was loaded
+func (cc ConsensusConfig) saveBackToFile() error {
+	jsondata, err := json.Marshal(cc)
+
+	if err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(cc.state.filePath, jsondata, 0644)
 }
 
 // Return info about transaction settings
@@ -322,4 +334,58 @@ func (cc ConsensusConfig) getTableCustomConfig(qp *dbquery.QueryParsed) *Consens
 	}
 
 	return nil
+}
+
+// Increase rule start block heigh for all rules
+// It is used for initial DB import and create BC on existent data
+func (cc *ConsensusConfig) ExtendRulesApplyStartHeigh(setHeigh int) {
+	hadchange := false
+
+	if cc.ApplyRulesAfterBlock < setHeigh {
+		cc.ApplyRulesAfterBlock = setHeigh
+		hadchange = true
+	}
+	if cc.TransactionCost.ApplyAfterBlock < setHeigh && cc.TransactionCost.hasAnyNonDefaut() {
+		cc.TransactionCost.ApplyAfterBlock = setHeigh
+		hadchange = true
+	}
+	for i, _ := range cc.TableRules {
+		if cc.TableRules[i].ApplyAfterBlock < setHeigh {
+			cc.TableRules[i].ApplyAfterBlock = setHeigh
+			hadchange = true
+		}
+
+		if cc.TableRules[i].TransactionCost.hasAnyNonDefaut() &&
+			cc.TableRules[i].TransactionCost.ApplyAfterBlock < setHeigh {
+			cc.TableRules[i].TransactionCost.ApplyAfterBlock = setHeigh
+			hadchange = true
+		}
+	}
+
+	if hadchange {
+		cc.saveBackToFile()
+	}
+}
+
+// Returns trus if a Const structure has any values more 0. False if no any payments required
+func (ccc ConsensusConfigCost) hasAnyNonDefaut() bool {
+	if ccc.ApplyAfterBlock > 0 {
+		return true
+	}
+	if ccc.Default > 0 {
+		return true
+	}
+	if ccc.RowDelete > 0 {
+		return true
+	}
+	if ccc.RowInsert > 0 {
+		return true
+	}
+	if ccc.RowUpdate > 0 {
+		return true
+	}
+	if ccc.TableCreate > 0 {
+		return true
+	}
+	return false
 }
