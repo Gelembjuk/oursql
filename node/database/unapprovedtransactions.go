@@ -19,6 +19,11 @@ func (uts *UnapprovedTransactions) InitDB() error {
 	return uts.DB.CreateTable(uts.getTableName(), "VARBINARY(100)", "LONGBLOB")
 }
 
+// Get all records as single request
+func (uts *UnapprovedTransactions) GetAll() ([][][]byte, error) {
+	return uts.DB.GetAll(uts.getTableName())
+}
+
 // execute functon for each key/value in the bucket
 func (uts *UnapprovedTransactions) ForEach(callback ForEachKeyIteratorInterface) error {
 	return uts.DB.forEachInTable(uts.getTableName(), callback)

@@ -416,6 +416,7 @@ func (bdm MySQLDBManager) ExecuteSQLRowByKey(table string, priKeyVal string) (da
 
 // get single row as a map
 func (bdm MySQLDBManager) ExecuteSQLSelectRow(sqlcommand string) (data map[string]string, err error) {
+	bdm.Logger.Trace.Println(sqlcommand)
 	db, err := bdm.getConnection()
 
 	if err != nil {
@@ -468,6 +469,7 @@ func (bdm MySQLDBManager) ExecuteSQLSelectRow(sqlcommand string) (data map[strin
 
 // get all rows as array of maps
 func (bdm MySQLDBManager) ExecuteSQLSelectRows(sqlcommand string) (data []resultRow, err error) {
+	bdm.Logger.Trace.Println(sqlcommand)
 	db, err := bdm.getConnection()
 
 	if err != nil {

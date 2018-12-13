@@ -8,6 +8,8 @@ import (
 	"github.com/gelembjuk/oursql/lib/utils"
 )
 
+const maxPossibleRowsToReturn = 1000000
+
 type MySQLDB struct {
 	db           *sql.DB
 	tablesPrefix string
@@ -33,7 +35,9 @@ func (bdb *MySQLDB) forEachInTable(table string, callback ForEachKeyIteratorInte
 	offset := 0
 
 	for {
-		err := bdb.db.QueryRow("SELECT * FROM "+table+" ORDER BY v LIMIT "+strconv.Itoa(offset)+",1").Scan(&k, &v)
+		sqlq := "SELECT * FROM " + table + " ORDER BY v LIMIT " + strconv.Itoa(offset) + ",1"
+		bdb.Logger.Trace.Println(sqlq)
+		err := bdb.db.QueryRow(sqlq).Scan(&k, &v)
 
 		switch {
 		case err == sql.ErrNoRows:
@@ -63,7 +67,9 @@ func (bdb *MySQLDB) forEachInTable(table string, callback ForEachKeyIteratorInte
 // get number of rows in a table
 func (bdb *MySQLDB) getCountInTable(table string) (int, error) {
 	var c int
-	err := bdb.db.QueryRow("SELECT count(*) as c FROM " + table).Scan(&c)
+	sqlq := "SELECT count(*) as c FROM " + table
+	bdb.Logger.Trace.Println(sqlq)
+	err := bdb.db.QueryRow(sqlq).Scan(&c)
 
 	switch {
 	case err != nil:
@@ -77,7 +83,7 @@ func (bdb *MySQLDB) getCountInTable(table string) (int, error) {
 func (bdb *MySQLDB) Get(table string, k []byte) ([]byte, error) {
 	var v string
 	s := "SELECT v FROM " + table + " WHERE k='" + bdb.encodeKey(k) + "'"
-
+	bdb.Logger.Trace.Println(s)
 	err := bdb.db.QueryRow(s).Scan(&v)
 
 	switch {
@@ -93,16 +99,55 @@ func (bdb *MySQLDB) Get(table string, k []byte) ([]byte, error) {
 	}
 }
 
+// Get all records from DB. There is max limit maxPossibleRowsToReturn
+// returns list of 2 dimensional slices with key and pair
+func (bdb *MySQLDB) GetAll(table string) ([][][]byte, error) {
+
+	data := [][][]byte{}
+
+	s := "SELECT v FROM " + table + " LIMIT " + strconv.Itoa(maxPossibleRowsToReturn)
+	bdb.Logger.Trace.Println(s)
+	rows, err := bdb.db.Query(s)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var key string
+	var value string
+
+	for rows.Next() {
+
+		err = rows.Scan(&key, &value)
+
+		if err != nil {
+			return nil, err
+		}
+		row := [][]byte{
+			bdb.decodeKey(key),
+			bdb.decodeValue(value)}
+
+		data = append(data, row)
+	}
+	return data, nil
+}
+
 // Put record in DB
 func (bdb *MySQLDB) Put(table string, k, v []byte) error {
 	ve := bdb.encodeValue(v)
-	_, err := bdb.db.Exec("INSERT INTO "+table+" VALUES ( ? , ? ) ON DUPLICATE KEY UPDATE v=?", bdb.encodeKey(k), ve, ve)
+	sqlq := "INSERT INTO " + table + " VALUES ( ? , ? ) ON DUPLICATE KEY UPDATE v=?"
+	bdb.Logger.Trace.Println(sqlq)
+	_, err := bdb.db.Exec(sqlq, bdb.encodeKey(k), ve, ve)
 	return err
 }
 
 // Delete record from DB
 func (bdb *MySQLDB) Delete(table string, k []byte) error {
-	_, err := bdb.db.Exec("DELETE FROM "+table+" WHERE k= ? ", bdb.encodeKey(k))
+	sqlq := "DELETE FROM " + table + " WHERE k= ? "
+	bdb.Logger.Trace.Println(sqlq)
+	_, err := bdb.db.Exec(sqlq, bdb.encodeKey(k))
 	return err
 }
 

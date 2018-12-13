@@ -113,6 +113,7 @@ type UnapprovedTransactionsInterface interface {
 	TruncateDB() error
 	ForEach(callback ForEachKeyIteratorInterface) error
 	GetCount() (int, error)
+	GetAll() ([][][]byte, error)
 
 	GetTransaction(txID []byte) ([]byte, error)
 	PutTransaction(txID []byte, txdata []byte) error

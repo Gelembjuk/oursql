@@ -22,10 +22,15 @@ type txManager struct {
 	DB            database.DBManager
 	Logger        *utils.LoggerMan
 	consensusInfo structures.ConsensusInfo
+	poolObj       *unApprovedTransactions
 }
 
 func NewManager(DB database.DBManager, Logger *utils.LoggerMan, ci structures.ConsensusInfo) TransactionsManagerInterface {
-	return &txManager{DB, Logger, ci}
+	obj := &txManager{}
+	obj.DB = DB
+	obj.Logger = Logger
+	obj.consensusInfo = ci
+	return obj
 }
 
 // make SQL query manager
@@ -39,10 +44,14 @@ func (n txManager) getIndexManager() *transactionsIndex {
 }
 
 // Create unapproved tx manage object to use in this package
-func (n txManager) getUnapprovedTransactionsManager() *unApprovedTransactions {
+func (n *txManager) getUnapprovedTransactionsManager() *unApprovedTransactions {
+	if n.poolObj != nil {
+		return n.poolObj
+	}
 	obj := &unApprovedTransactions{}
 	obj.DB = n.DB
 	obj.Logger = n.Logger
+	n.poolObj = obj
 	return obj
 }
 

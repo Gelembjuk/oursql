@@ -11,6 +11,8 @@ import (
 	"github.com/gelembjuk/oursql/node/structures"
 )
 
+var primaryKeysCache map[string]string
+
 type queryProcessor struct {
 	DB     database.DBManager
 	Logger *utils.LoggerMan
@@ -76,11 +78,23 @@ func (qp queryProcessor) patchRowInfo(parsed *QueryParsed) (err error) {
 		parsed.Structure.GetKind() != lib.QueryKindInsert {
 		return
 	}
+	var keyCol string
 
-	keyCol, err := qp.DB.QM().ExecuteSQLPrimaryKey(parsed.Structure.GetTable())
+	if primaryKeysCache != nil {
+		if k, ok := primaryKeysCache[parsed.Structure.GetTable()]; ok {
+			keyCol = k
+		}
+	}
+	if keyCol == "" {
+		keyCol, err = qp.DB.QM().ExecuteSQLPrimaryKey(parsed.Structure.GetTable())
 
-	if err != nil {
-		return
+		if err != nil {
+			return
+		}
+		if primaryKeysCache == nil {
+			primaryKeysCache = make(map[string]string, 0)
+		}
+		primaryKeysCache[parsed.Structure.GetTable()] = keyCol
 	}
 
 	parsed.KeyCol = keyCol
