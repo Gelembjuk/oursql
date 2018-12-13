@@ -477,7 +477,7 @@ func (n *Node) AddBlock(block *structures.Block) (uint, error) {
 		return 0, err
 	}
 
-	//n.Logger.Trace.Printf("Block added. Update indexes. %d", addstate)
+	n.Logger.Trace.Printf("Block added. Update indexes. %d", addstate)
 
 	if addstate == blockchain.BCBAddState_addedToParallel ||
 		addstate == blockchain.BCBAddState_addedToTop ||

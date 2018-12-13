@@ -40,7 +40,10 @@ func (n txManager) getIndexManager() *transactionsIndex {
 
 // Create unapproved tx manage object to use in this package
 func (n txManager) getUnapprovedTransactionsManager() *unApprovedTransactions {
-	return &unApprovedTransactions{n.DB, n.Logger}
+	obj := &unApprovedTransactions{}
+	obj.DB = n.DB
+	obj.Logger = n.Logger
+	return obj
 }
 
 // Create unspent outputx manage object to use in this package
@@ -275,17 +278,21 @@ func (n *txManager) CleanUnapprovedCache() error {
 // to execute when new block added . the block must not be on top
 func (n *txManager) BlockAdded(block *structures.Block, ontopofchain bool) error {
 	// update caches
-	//n.Logger.Trace.Printf("TX Man. block added %x", block.Hash)
+	n.Logger.Trace.Printf("TX Man. block added %x", block.Hash)
 	n.getIndexManager().BlockAdded(block)
 
 	if ontopofchain {
 		//n.Logger.Trace.Printf("TX Man. block added to top")
+		n.Logger.Trace.Printf("TX Man. process transactions index %x", block.Hash)
 		// execute TXs that were not in pool
 		n.transactionsFromAddedBlock(block.Transactions)
+		n.Logger.Trace.Printf("TX Man. process pool %x", block.Hash)
 		// remove all TXs from pool
 		n.getUnapprovedTransactionsManager().DeleteFromBlock(block)
+		n.Logger.Trace.Printf("TX Man. process unspent outputsx %x", block.Hash)
 		n.getUnspentOutputsManager().UpdateOnBlockAdd(block)
 		// add association of transactions and SQL references
+		n.Logger.Trace.Printf("TX Man. process rows associations %x", block.Hash)
 		n.getDataRowsAndTransacionsManager().UpdateOnBlockAdd(block)
 	}
 	return nil
@@ -362,6 +369,9 @@ func (n *txManager) rollbackConflictingFromPool(txList []structures.Transaction)
 	deletedIDs := [][]byte{}
 
 	pendingPoolObj := n.getUnapprovedTransactionsManager()
+
+	// we don't check error. if somethign is wrong then a cache is not used.
+	pendingPoolObj.renewCache()
 
 	for _, tx := range txList {
 		//n.Logger.Trace.Printf("Find conflicts in pool for %x", tx.GetID())

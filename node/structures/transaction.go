@@ -48,9 +48,14 @@ func (tx Transaction) GetSQLBaseTX() []byte {
 	return tx.SQLBaseTX
 }
 
-// IsCoinbase checks whether the transaction is currency transaction
+// Checks whether the transaction is currency transaction (sends money to somewhere)
 func (tx Transaction) IsCurrencyTransfer() bool {
+	// returns true if there is some money IN or some monet OUT
 	if len(tx.Vin) > 0 {
+		return true
+	}
+
+	if len(tx.Vout) > 0 {
 		return true
 	}
 	return false

@@ -10,6 +10,7 @@ const TXVerifyErrorNoInput = "noinput"
 const TXNotFoundErrorUnspent = "inunspent"
 const TXSQLBaseDifferentError = "sqlbaseisdifferent"
 const TXPrepareNoFundsError = "noenoughfunds"
+const txPoolCacheNoMemoryError = "noenoughfunds"
 
 type TXVerifyError struct {
 	err  string
@@ -27,6 +28,11 @@ type TXPrepareError struct {
 	kind string
 }
 
+type txPoolError struct {
+	err  string
+	kind string
+}
+
 func (e TXVerifyError) Error() string {
 	return fmt.Sprintf("Transaction verify failed: %s, for TX %x", e.err, e.TX)
 }
@@ -37,6 +43,10 @@ func (e *TXNotFoundError) Error() string {
 
 func (e *TXPrepareError) Error() string {
 	return fmt.Sprintf("Transaction prepare failed: %s, kind: %s", e.err, e.kind)
+}
+
+func (e *txPoolError) Error() string {
+	return fmt.Sprintf("Pool Error: %s, kind: %s", e.err, e.kind)
 }
 
 func (e *TXPrepareError) ErrorOrig() string {
@@ -57,6 +67,9 @@ func (e *TXNotFoundError) GetKind() string {
 func (e *TXPrepareError) GetKind() string {
 	return e.kind
 }
+func (e *txPoolError) isNoMemory() bool {
+	return e.kind == txPoolCacheNoMemoryError
+}
 
 func NewTXVerifyError(err string, kind string, TX []byte) error {
 	return &TXVerifyError{err, kind, TX}
@@ -74,4 +87,9 @@ func NewTXNotFoundUOTError(err string) error {
 }
 func NewTXNoEnoughFundsdError(err string) error {
 	return &TXPrepareError{err, TXPrepareNoFundsError}
+}
+
+// Generate when pool memory cache can not be used because no memory
+func newTXPoolCacheNoMemoryError(err string) error {
+	return &txPoolError{err, txPoolCacheNoMemoryError}
 }

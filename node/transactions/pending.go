@@ -13,9 +13,49 @@ import (
 	"github.com/gelembjuk/oursql/node/structures"
 )
 
+const maxCountOfTransactionInMemoryCache = 20000
+
 type unApprovedTransactions struct {
-	DB     database.DBManager
-	Logger *utils.LoggerMan
+	DB                database.DBManager
+	Logger            *utils.LoggerMan
+	transactionsCache []*structures.Transaction
+}
+
+// Loads all Txs from DB to memory
+func (u *unApprovedTransactions) renewCache() error {
+	// get count of TX in pool
+	u.transactionsCache = nil
+
+	c, err := u.GetCount()
+
+	if err != nil {
+		return err
+	}
+
+	if c > maxCountOfTransactionInMemoryCache {
+		return newTXPoolCacheNoMemoryError("Too many transactions to use pool cache")
+	}
+	utdb, err := u.DB.GetUnapprovedTransactionsObject()
+
+	if err != nil {
+		return err
+	}
+	u.transactionsCache = make([]*structures.Transaction, 0)
+
+	err = utdb.ForEach(func(k, txBytes []byte) error {
+		tx, err := structures.DeserializeTransaction(txBytes)
+
+		if err != nil {
+			return err
+		}
+		u.transactionsCache = append(u.transactionsCache, tx)
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // Check if transaction inputs are pointed to some prepared transactions.
@@ -563,22 +603,16 @@ func (u *unApprovedTransactions) DetectConflictsForNew(txcheck *structures.Trans
 		return nil, err
 	}
 
-	var txconflicts *structures.Transaction
+	processTransaction := func(txexi *structures.Transaction) *structures.Transaction {
 
-	err = utdb.ForEach(func(txID, txBytes []byte) error {
-		txexi, err := structures.DeserializeTransaction(txBytes)
-
-		if err != nil {
-			return err
-		}
-
+		var txconf *structures.Transaction
 		conflicts := false
 
 		for _, vin := range txcheck.Vin {
 			for _, vine := range txexi.Vin {
 				if bytes.Compare(vin.Txid, vine.Txid) == 0 && vin.Vout == vine.Vout {
 					// this is same input structures. it is conflict
-					txconflicts = txexi
+					txconf = txexi
 					conflicts = true
 					break
 				}
@@ -596,18 +630,43 @@ func (u *unApprovedTransactions) DetectConflictsForNew(txcheck *structures.Trans
 
 				u.Logger.Trace.Printf("Same base TX and RefID for %x and %x", txcheck.GetID(), txexi.GetID())
 				conflicts = true
-				txconflicts = txexi
+				txconf = txexi
 			}
 		}
-		if conflicts {
-			// return out of loop
-			return database.NewDBCursorStopError()
-		}
+		return txconf
+	}
 
-		return nil
-	})
-	if err != nil {
-		return nil, err
+	var txconflicts *structures.Transaction
+
+	if u.transactionsCache != nil {
+		for _, txexi := range u.transactionsCache {
+			txconf := processTransaction(txexi)
+
+			if txconf != nil {
+				txconflicts = txconf
+				break
+			}
+		}
+	} else {
+
+		err := utdb.ForEach(func(txID, txBytes []byte) error {
+			txexi, err := structures.DeserializeTransaction(txBytes)
+
+			if err != nil {
+				return err
+			}
+			txconf := processTransaction(txexi)
+
+			if txconf != nil {
+				txconflicts = txconf
+				return database.NewDBCursorStopError()
+			}
+
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return txconflicts, nil
@@ -760,6 +819,11 @@ func (u *unApprovedTransactions) FindSQLReferenceTransaction(sqlUpdate structure
 			// we found this refereence , check if input TX was not yet used as input in other tx
 			if altCanBeReused || !u.helperCheckTXInList(tx.GetID(), transactionsReused) {
 				AlttxID = tx.GetID()
+
+				if altCanBeReused {
+					// stop this loop. no sense to continue
+					return database.NewDBCursorStopError()
+				}
 			}
 		}
 		if len(tx.GetSQLBaseTX()) > 0 {

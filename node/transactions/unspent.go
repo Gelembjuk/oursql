@@ -477,6 +477,11 @@ func (u unspentTransactions) UpdateOnBlockAdd(block *structures.Block) error {
 	for _, tx := range block.Transactions {
 		//u.Logger.Trace.Printf("UpdateOnBlockAdd check tx %x", tx.GetID())
 
+		// skip if this is not currency transaction. it can be only SQL with 0 price
+		if !tx.IsCurrencyTransfer() {
+			continue
+		}
+
 		sender := []byte{}
 
 		if !tx.IsCoinbaseTransfer() {
