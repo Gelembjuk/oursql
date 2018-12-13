@@ -146,6 +146,7 @@ func (n *Node) getCreateManager() *makeBlockchain {
 	bccr.MinterAddress = n.MinterAddress
 	bccr.DBConn = n.DBConn
 	bccr.consensusConfig = n.ConsensusConfig
+	bccr.BC = &n.NodeBC
 	return bccr
 }
 

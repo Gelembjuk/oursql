@@ -107,7 +107,7 @@ def StartNodeAndImport(port, importport, title, dbproxyport, suffix = ""):
 
 def MakeBlockchainWithBlocks(port):
     
-    datadir = _lib.CreateTestFolder()
+    datadir = _lib.CreateTestFolder("_1_")
     
     r = blocksbasic.PrepareBlockchain(datadir,port)
     address = r[0]

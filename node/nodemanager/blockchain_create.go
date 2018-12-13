@@ -139,6 +139,7 @@ func (n *makeBlockchain) InitBlockchainFromOther(addr net.NodeAddr, nodeclient *
 	if err != nil {
 		return false, err
 	}
+
 	n.Logger.Trace.Printf("Importing first block hash %x", block.Hash)
 	// make blockchain with single block
 	err = n.addFirstBlock(block)
@@ -193,7 +194,7 @@ func (n *makeBlockchain) importBlockchainConsensusInfo(fromnode net.NodeAddr, no
 		n.Logger.Error.Printf("Failed to import consensus data %s", err.Error())
 		return err
 	}
-	n.Logger.Error.Printf("Loaded consensus file with len %d and contents %s", len(result.ConfigFile), string(result.ConfigFile))
+	//n.Logger.Trace.Printf("Loaded consensus file with len %d and contents %s", len(result.ConfigFile), string(result.ConfigFile))
 	return n.consensusConfig.UpdateConfig(result.ConfigFile)
 }
 
