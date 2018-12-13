@@ -102,7 +102,6 @@ func (vm verifyManager) checkExecutePermissionsAsTable(qp *dbquery.QueryParsed, 
 	hasCustom = true
 	allow = true
 	return
-
 }
 
 // check if this query requires payment for execution. return number
@@ -118,6 +117,7 @@ func (vm verifyManager) CheckQueryNeedsPayment(qp *dbquery.QueryParsed) (float64
 	} else {
 		trcost = &vm.config.TransactionCost
 	}
+
 	vm.logger.Trace.Printf("Block height check: sett %d and prev %d", trcost.ApplyAfterBlock, vm.previousBlockHeigh)
 	if trcost.ApplyAfterBlock > vm.previousBlockHeigh {
 		// rule will affect later when more blocks are there

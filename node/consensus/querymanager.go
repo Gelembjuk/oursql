@@ -49,6 +49,14 @@ func (q queryManager) getBlockMakerManager() *NodeBlockMaker {
 	return bm
 }
 
+func (q queryManager) getVerifyManager(prevBlockNumber int) verifyManager {
+	vm := verifyManager{}
+	vm.config = q.config
+	vm.logger = q.Logger
+	vm.previousBlockHeigh = prevBlockNumber
+	return vm
+}
+
 // New query from command line tool
 // The method decides what to do next
 // possible states:

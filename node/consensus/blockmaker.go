@@ -385,6 +385,7 @@ func (n NodeBlockMaker) VerifyTransaction(tx *structures.Transaction, prevTXs []
 			return err
 		}
 		// check if paid part is correct. contains correct amount anddestination address
+
 		err = n.verifyTransactionPaidSQL(tx, qparsed, prevBlockHeight)
 
 		if err != nil {
@@ -490,6 +491,7 @@ func (n *NodeBlockMaker) verifyTransactionPaidSQL(tx *structures.Transaction, qp
 	}
 
 	// check amount
+
 	amount, err := n.getVerifyManager(prevBlockHeight).CheckQueryNeedsPayment(qparsed)
 
 	if err != nil {
