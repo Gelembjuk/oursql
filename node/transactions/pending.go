@@ -24,6 +24,8 @@ type unApprovedTransactions struct {
 	Logger *utils.LoggerMan
 }
 
+type foreachFunction func(tx *structures.Transaction) (bool, error)
+
 // Lock Transactions Cache access
 func (u unApprovedTransactions) lockCache() {
 	if transactionsCacheLock == nil {
@@ -67,6 +69,7 @@ func (u *unApprovedTransactions) renewCache() error {
 	allPairs, err := utdb.GetAll()
 
 	if err != nil {
+		u.Logger.Trace.Println("Loading error %s ", err.Error())
 		return err
 	}
 
@@ -77,7 +80,54 @@ func (u *unApprovedTransactions) renewCache() error {
 		if err != nil {
 			return err
 		}
+		u.Logger.Trace.Printf("TX adding to cache %x", tx.GetID())
 		transactionsCache = append(transactionsCache, tx)
+	}
+
+	return nil
+}
+
+func (u unApprovedTransactions) forEachTransaction(callback foreachFunction) error {
+	// it i needed to go over all tranactions in cache and check each of them
+
+	u.lockCache()
+
+	if transactionsCache != nil {
+		defer u.unlockCache()
+
+		for _, tx := range transactionsCache {
+			stop, err := callback(tx)
+
+			if err != nil {
+				return err
+			}
+
+			if stop {
+				break
+			}
+		}
+	} else {
+		u.unlockCache()
+
+		utdb, err := u.DB.GetUnapprovedTransactionsObject()
+
+		if err != nil {
+			return err
+		}
+		err = utdb.ForEach(func(txid, txBytes []byte) error {
+			tx, err := structures.DeserializeTransaction(txBytes)
+
+			if err != nil {
+				return err
+			}
+
+			_, err = callback(tx)
+
+			return err
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -183,20 +233,11 @@ func (u *unApprovedTransactions) GetCurrencyTXsPreparedBy(PubKeyHash []byte) ([]
 	inputs := []structures.TXCurrencyInput{}
 	outputs := []*structures.TXOutputIndependent{}
 
-	utdb, err := u.DB.GetUnapprovedTransactionsObject()
-
-	if err != nil {
-		return nil, nil, nil, err
-	}
 	u.Logger.Trace.Println("GetCurrencyTXsPreparedBy")
 	// goes over all pending (unconfirmed) transactions in the cache
 	// check every input for every TX and adds to "inputs" if that input was signed by this pub key
-	err = utdb.ForEach(func(k, txBytes []byte) error {
-		tx, err := structures.DeserializeTransaction(txBytes)
-
-		if err != nil {
-			return err
-		}
+	u.renewCache() // LOAD CACHE
+	err := u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 
 		sender := []byte{}
 
@@ -213,6 +254,12 @@ func (u *unApprovedTransactions) GetCurrencyTXsPreparedBy(PubKeyHash []byte) ([]
 				voutind := structures.TXOutputIndependent{}
 				// we are settings serialised transaction in place of block hash
 				// we don't have a block for such transaction , but we need full transaction later
+				txBytes, err := structures.SerializeTransaction(tx)
+
+				if err != nil {
+					return false, err
+				}
+
 				voutind.LoadFromSimple(vout, tx.ID, indV, sender, tx.IsCoinbaseTransfer(), txBytes)
 
 				// "outputs" contains list of outputs of transations in the pending cache
@@ -221,7 +268,7 @@ func (u *unApprovedTransactions) GetCurrencyTXsPreparedBy(PubKeyHash []byte) ([]
 				outputs = append(outputs, &voutind)
 			}
 		}
-		return nil
+		return false, nil
 	})
 
 	if err != nil {
@@ -316,31 +363,24 @@ func (u *unApprovedTransactions) GetIfExists(txid []byte) (*structures.Transacti
 
 // Get all unapproved transactions
 func (u *unApprovedTransactions) GetTransactions(number int) ([]*structures.Transaction, error) {
-	utdb, err := u.DB.GetUnapprovedTransactionsObject()
 
-	if err != nil {
-		return nil, err
-	}
 	txset := []*structures.Transaction{}
 
 	totalnumber := 0
 	u.Logger.Trace.Println("GetTransactions")
-	err = utdb.ForEach(func(k, txBytes []byte) error {
-		tx, err := structures.DeserializeTransaction(txBytes)
 
-		if err != nil {
-			return err
-		}
+	u.renewCache() // LOAD CACHE
+	err := u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 
 		txset = append(txset, tx)
 		totalnumber++
 
 		if totalnumber >= number {
 			// time to exit the loop. we don't need more
-			return database.NewDBCursorStopError()
+			return true, nil
 		}
 
-		return nil
+		return false, nil
 	})
 	if err != nil {
 		return nil, err
@@ -353,25 +393,18 @@ func (u *unApprovedTransactions) GetTransactions(number int) ([]*structures.Tran
 
 // Get all unapproved transactions filtered by list of Txs to skip
 func (u *unApprovedTransactions) GetTransactionsFilteredByList(number int, ignoreTransactions [][]byte) ([]*structures.Transaction, error) {
-	utdb, err := u.DB.GetUnapprovedTransactionsObject()
 
-	if err != nil {
-		return nil, err
-	}
 	txset := []*structures.Transaction{}
 
 	totalnumber := 0
 	u.Logger.Trace.Println("GetTransactionsFilteredByList")
-	err = utdb.ForEach(func(txID, txBytes []byte) error {
-		for _, txF := range ignoreTransactions {
-			if bytes.Compare(txF, txID) == 0 {
-				return nil
-			}
-		}
-		tx, err := structures.DeserializeTransaction(txBytes)
 
-		if err != nil {
-			return err
+	u.renewCache() // LOAD CACHE
+	err := u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
+		for _, txF := range ignoreTransactions {
+			if bytes.Compare(txF, tx.GetID()) == 0 {
+				return false, nil
+			}
 		}
 
 		txset = append(txset, tx)
@@ -379,10 +412,10 @@ func (u *unApprovedTransactions) GetTransactionsFilteredByList(number int, ignor
 
 		if totalnumber >= number {
 			// time to exit the loop. we don't need more
-			return database.NewDBCursorStopError()
+			return true, nil
 		}
 
-		return nil
+		return false, nil
 	})
 	if err != nil {
 		return nil, err
@@ -397,30 +430,21 @@ func (u *unApprovedTransactions) GetTransactionsFilteredByList(number int, ignor
 func (u *unApprovedTransactions) GetTransactionsFilteredByTime(number int,
 	minCreateTime int64, ignoreTransactions [][]byte) ([]*structures.Transaction, error) {
 
-	utdb, err := u.DB.GetUnapprovedTransactionsObject()
-
-	if err != nil {
-		return nil, err
-	}
 	txset := []*structures.Transaction{}
 
 	totalnumber := 0
 	u.Logger.Trace.Println("GetTransactionsFilteredByTime")
-	err = utdb.ForEach(func(txID, txBytes []byte) error {
+
+	u.renewCache() // LOAD CACHE
+	err := u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 		for _, txF := range ignoreTransactions {
-			if bytes.Compare(txF, txID) == 0 {
-				return nil
+			if bytes.Compare(txF, tx.GetID()) == 0 {
+				return false, nil
 			}
 		}
 
-		tx, err := structures.DeserializeTransaction(txBytes)
-
-		if err != nil {
-			return err
-		}
-
 		if tx.GetTime() < minCreateTime {
-			return nil
+			return false, nil
 		}
 
 		txset = append(txset, tx)
@@ -428,10 +452,10 @@ func (u *unApprovedTransactions) GetTransactionsFilteredByTime(number int,
 
 		if totalnumber >= number {
 			// time to exit the loop. we don't need more
-			return database.NewDBCursorStopError()
+			return true, nil
 		}
 
-		return nil
+		return false, nil
 	})
 	if err != nil {
 		return nil, err
@@ -455,24 +479,21 @@ func (u *unApprovedTransactions) GetCount() (int, error) {
 
 // Get number of unapproved transactions in a cache, but ignoring given list of transactions
 func (u *unApprovedTransactions) GetCountFiltered(ignoreTransactions [][]byte) (int, error) {
-	utdb, err := u.DB.GetUnapprovedTransactionsObject()
-
-	if err != nil {
-		return 0, err
-	}
 
 	count := 0
 	u.Logger.Trace.Println("GetCountFiltered")
-	err = utdb.ForEach(func(txID, txBytes []byte) error {
+
+	u.renewCache() // LOAD CACHE
+	err := u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 		for _, txF := range ignoreTransactions {
-			if bytes.Compare(txF, txID) == 0 {
-				return nil
+			if bytes.Compare(txF, tx.GetID()) == 0 {
+				return false, nil
 			}
 		}
 
 		count = count + 1
 
-		return nil
+		return false, nil
 	})
 	if err != nil {
 		return 0, err
@@ -485,6 +506,7 @@ func (u *unApprovedTransactions) GetCountFiltered(ignoreTransactions [][]byte) (
 // Before to call this function we checked that transaction is valid
 // Now we need to check if there are no conflicts with other transactions in the cache
 func (u *unApprovedTransactions) Add(txadd *structures.Transaction) error {
+	u.Logger.Trace.Printf("Adding to pool in DB man %x", txadd.GetID())
 	conflicts, err := u.DetectConflictsForNew(txadd)
 
 	if err != nil {
@@ -596,20 +618,12 @@ func (u *unApprovedTransactions) forEachUnapprovedTransaction(callback UnApprove
 	c, err := utdb.GetCount()
 	u.Logger.Trace.Printf("for each unapp TX. count %d", c)
 	total := 0
-
-	err = utdb.ForEach(func(txID, txBytes []byte) error {
-		u.Logger.Trace.Printf("found TX %x", txID)
-
-		tx, err := structures.DeserializeTransaction(txBytes)
-
-		if err != nil {
-			u.Logger.Trace.Printf("err %s", err.Error())
-			return err
-		}
-		callback(hex.EncodeToString(txID), tx.String())
+	u.renewCache() // LOAD CACHE
+	err = u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
+		callback(hex.EncodeToString(tx.GetID()), tx.String())
 		total++
 
-		return nil
+		return false, nil
 	})
 	if err != nil {
 		return 0, err
@@ -623,31 +637,25 @@ func (u *unApprovedTransactions) forEachUnapprovedTransaction(callback UnApprove
 // we return first found transaction taht conflicts
 func (u *unApprovedTransactions) DetectConflictsForNew(txcheck *structures.Transaction) (*structures.Transaction, error) {
 	// it i needed to go over all tranactions in cache and check each of them if input is same as in this tx
-	utdb, err := u.DB.GetUnapprovedTransactionsObject()
 
-	if err != nil {
-		return nil, err
-	}
+	u.renewCache() // LOAD CACHE
 
-	processTransaction := func(txexi *structures.Transaction) *structures.Transaction {
+	u.Logger.Trace.Println("DetectConflictsForNew")
+	var txconflicts *structures.Transaction
 
-		var txconf *structures.Transaction
-		conflicts := false
+	err := u.forEachTransaction(func(txexi *structures.Transaction) (bool, error) {
 
 		for _, vin := range txcheck.Vin {
 			for _, vine := range txexi.Vin {
 				if bytes.Compare(vin.Txid, vine.Txid) == 0 && vin.Vout == vine.Vout {
 					// this is same input structures. it is conflict
-					txconf = txexi
-					conflicts = true
-					break
+					txconflicts = txexi
+
+					return true, nil
 				}
 			}
-			if conflicts {
-				break
-			}
 		}
-		if !conflicts && txcheck.IsSQLCommand() && txexi.IsSQLCommand() && bytes.Compare(txcheck.GetID(), txexi.GetID()) != 0 {
+		if txcheck.IsSQLCommand() && txexi.IsSQLCommand() && bytes.Compare(txcheck.GetID(), txexi.GetID()) != 0 {
 			// check if there is SQL conflict
 			// SQL conflict can be if same base transaction and same ReferenceID
 			if len(txexi.GetSQLBaseTX()) > 0 && len(txexi.SQLCommand.ReferenceID) > 0 &&
@@ -655,47 +663,16 @@ func (u *unApprovedTransactions) DetectConflictsForNew(txcheck *structures.Trans
 				bytes.Compare(txexi.SQLCommand.ReferenceID, txcheck.SQLCommand.ReferenceID) == 0 {
 
 				u.Logger.Trace.Printf("Same base TX and RefID for %x and %x", txcheck.GetID(), txexi.GetID())
-				conflicts = true
-				txconf = txexi
+
+				txconflicts = txexi
+				return true, nil
 			}
 		}
-		return txconf
-	}
-	u.Logger.Trace.Println("DetectConflictsForNew")
-	var txconflicts *structures.Transaction
+		return false, nil
+	})
 
-	u.lockCache()
-
-	if transactionsCache != nil {
-		defer u.unlockCache()
-		for _, txexi := range transactionsCache {
-			txconf := processTransaction(txexi)
-
-			if txconf != nil {
-				txconflicts = txconf
-				break
-			}
-		}
-	} else {
-		u.unlockCache()
-		err := utdb.ForEach(func(txID, txBytes []byte) error {
-			txexi, err := structures.DeserializeTransaction(txBytes)
-
-			if err != nil {
-				return err
-			}
-			txconf := processTransaction(txexi)
-
-			if txconf != nil {
-				txconflicts = txconf
-				return database.NewDBCursorStopError()
-			}
-
-			return nil
-		})
-		if err != nil {
-			return nil, err
-		}
+	if err != nil {
+		return nil, err
 	}
 
 	return txconflicts, nil
@@ -794,11 +771,6 @@ func (u *unApprovedTransactions) CleanUnapprovedCache() error {
 // Current TX can be specified. It is for case when we do verify and a TX is already in a pool
 func (u *unApprovedTransactions) FindSQLReferenceTransaction(sqlUpdate structures.SQLUpdate) (txID []byte, err error) {
 	// it i needed to go over all tranactions in cache and check each of them
-	utdb, err := u.DB.GetUnapprovedTransactionsObject()
-
-	if err != nil {
-		return
-	}
 
 	sqlUpdateMan, err := dbquery.NewSQLUpdateManager(sqlUpdate)
 
@@ -820,16 +792,11 @@ func (u *unApprovedTransactions) FindSQLReferenceTransaction(sqlUpdate structure
 	// this keeps list of transactions that were already used in other transations as a reference input
 	transactionsReused := [][]byte{}
 
-	err = utdb.ForEach(func(txid, txBytes []byte) error {
-
-		tx, err := structures.DeserializeTransaction(txBytes)
-
-		if err != nil {
-			return err
-		}
-
+	u.renewCache() // LOAD CACHE
+	// function tp process transaction in a loop
+	err = u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 		if !tx.IsSQLCommand() {
-			return nil
+			return false, nil
 		}
 
 		// RefID in a tarnsaction can not be empty
@@ -854,7 +821,7 @@ func (u *unApprovedTransactions) FindSQLReferenceTransaction(sqlUpdate structure
 				if altCanBeReused {
 					u.Logger.Trace.Printf("stop foreach %x", tx.GetID())
 					// stop this loop. no sense to continue
-					return database.NewDBCursorStopError()
+					return true, nil
 				}
 			}
 		}
@@ -862,11 +829,8 @@ func (u *unApprovedTransactions) FindSQLReferenceTransaction(sqlUpdate structure
 			transactionsReused = append(transactionsReused, tx.GetSQLBaseTX())
 		}
 
-		return nil
+		return false, nil
 	})
-	if err != nil {
-		return
-	}
 
 	if len(txID) == 0 && len(AlttxID) > 0 {
 		txID = AlttxID
@@ -878,24 +842,15 @@ func (u *unApprovedTransactions) FindSQLReferenceTransaction(sqlUpdate structure
 // Find SQL TX based on specific TX
 func (u *unApprovedTransactions) FindSQLBasedOnTransaction(txid []byte) (txIDs [][]byte, err error) {
 	// it i needed to go over all tranactions in cache and check each of them
-	utdb, err := u.DB.GetUnapprovedTransactionsObject()
-
-	if err != nil {
-		return
-	}
 
 	txIDs = [][]byte{}
 	u.Logger.Trace.Println("FindSQLBasedOnTransaction")
 
-	err = utdb.ForEach(func(txid, txBytes []byte) error {
-		tx, err := structures.DeserializeTransaction(txBytes)
+	u.renewCache() // LOAD CACHE
 
-		if err != nil {
-			return err
-		}
-
+	err = u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 		if !tx.IsSQLCommand() {
-			return nil
+			return false, nil
 		}
 
 		if bytes.Compare(tx.GetSQLBaseTX(), txid) == 0 {
@@ -905,11 +860,8 @@ func (u *unApprovedTransactions) FindSQLBasedOnTransaction(txid []byte) (txIDs [
 			txIDs = append(txIDs, txID)
 		}
 
-		return nil
+		return false, nil
 	})
-	if err != nil {
-		return
-	}
 
 	return
 }

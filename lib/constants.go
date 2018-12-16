@@ -17,4 +17,6 @@ const (
 	TXFlagsSkipSQLBaseCheck           = 4 // 4
 	TXFlagsSkipSQLBaseCheckIfNotOnTop = 8 // 8
 	TXFlagsNoExecute                  = 16
+	TXFlagsVerifyAllowMissed          = 32
+	TXFlagsBasedOnTopOfChain          = 64
 )

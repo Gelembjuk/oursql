@@ -19,7 +19,7 @@ type queryProcessor struct {
 }
 
 // checks if this query is syntax correct , return altered query if needed
-func (qp queryProcessor) ParseQuery(sqlquery string) (r QueryParsed, err error) {
+func (qp queryProcessor) ParseQuery(sqlquery string, flags int) (r QueryParsed, err error) {
 	r.Structure = sqlparser.NewSqlParser()
 
 	err = r.Structure.Parse(sqlquery)
@@ -36,9 +36,10 @@ func (qp queryProcessor) ParseQuery(sqlquery string) (r QueryParsed, err error) 
 	}
 
 	// this will extract key column, its value, check if it is present
-	err = qp.patchRowInfo(&r)
+	err = qp.patchRowInfo(&r, flags)
 
 	if err != nil {
+		qp.Logger.Trace.Printf("Patch error %s", err.Error())
 		return
 	}
 
@@ -72,7 +73,7 @@ func (qp queryProcessor) checkQuerySyntax(sqlparsed sqlparser.SQLQueryParserInte
 // return info for a row that will be affected by a query. If that is update or delete
 // return a row
 // if it is insert, try to get next autoincrement
-func (qp queryProcessor) patchRowInfo(parsed *QueryParsed) (err error) {
+func (qp queryProcessor) patchRowInfo(parsed *QueryParsed, flags int) (err error) {
 	if parsed.Structure.GetKind() != lib.QueryKindUpdate &&
 		parsed.Structure.GetKind() != lib.QueryKindDelete &&
 		parsed.Structure.GetKind() != lib.QueryKindInsert {
@@ -115,11 +116,26 @@ func (qp queryProcessor) patchRowInfo(parsed *QueryParsed) (err error) {
 
 		currentRow, err = qp.DB.QM().ExecuteSQLSelectRow(sqlquery)
 
+		parsed.RowDoesNotExist = false
+
 		if err != nil {
-			return
+			if errd, ok := err.(*database.DBError); ok && flags&lib.TXFlagsVerifyAllowMissed > 0 {
+				if errd.IsRowNotFound() {
+					err = nil
+					parsed.RowDoesNotExist = true
+				}
+			}
+			if err != nil {
+				return
+			}
+		}
+		if !parsed.RowDoesNotExist {
+			parsed.RowBeforeQuery = currentRow
+		} else {
+			// it can be update of a row that is not yet in DB
+			parsed.RowBeforeQuery = nil
 		}
 
-		parsed.RowBeforeQuery = currentRow
 		parsed.KeyVal = cVal
 
 	} else if parsed.Structure.GetKind() == lib.QueryKindInsert {
@@ -172,7 +188,7 @@ func (qp queryProcessor) patchRowInfo(parsed *QueryParsed) (err error) {
 
 // execute query against a DB, returns SQLUpdate. Detects RefID and builds rollback
 func (qp queryProcessor) ExecuteQuery(sql string) (*structures.SQLUpdate, error) {
-	qparsed, err := qp.ParseQuery(sql)
+	qparsed, err := qp.ParseQuery(sql, 0)
 
 	if err != nil {
 		return nil, err

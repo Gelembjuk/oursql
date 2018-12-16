@@ -333,13 +333,18 @@ func (n *NodeBlockMaker) VerifyBlock(block *structures.Block, flags int) error {
 			}
 			coinbaseused = true
 		}
+		// we add this frag to ignore error when a row is not in a DB yet. because a row can be inserted in same block before
+		// TODO . maybe there is 100% good way to handle this case
+		flags = flags | lib.TXFlagsVerifyAllowMissed
+
 		err := n.VerifyTransaction(&tx, prevTXs, block.PrevBlockHash, block.Height-1, flags)
 
 		if err != nil {
+			n.Logger.Trace.Printf("tx verify error %x  %s", tx.GetID(), err.Error())
 			return err
 		}
 
-		//n.Logger.Trace.Printf("checked %x . add it to previous list", tx.GetID())
+		n.Logger.Trace.Printf("checked %x . add it to previous list", tx.GetID())
 		prevTXs = append(prevTXs, tx)
 	}
 	// 1.
@@ -353,6 +358,31 @@ func (n *NodeBlockMaker) VerifyBlock(block *structures.Block, flags int) error {
 func (n NodeBlockMaker) VerifyTransaction(tx *structures.Transaction, prevTXs []structures.Transaction,
 	prevBlockHash []byte, prevBlockHeight int, flags int) error {
 
+	// check if provided tip is top of chain or no
+	isOnTop := false
+
+	var curBlockHash []byte
+	var curBlockHeight int
+	var err error
+
+	if len(prevBlockHash) > 0 {
+		curBlockHash, curBlockHeight, err = n.getBlockchainManager().GetState()
+
+		if err != nil {
+			return err
+		}
+
+		if bytes.Compare(curBlockHash, prevBlockHash) == 0 {
+			isOnTop = true
+		}
+	} else {
+		isOnTop = true
+	}
+
+	if isOnTop {
+		flags = flags | lib.TXFlagsBasedOnTopOfChain
+	}
+	n.Logger.Trace.Printf("Go to verify in TXMan %x flags %d", tx.GetID(), flags)
 	vtx, err := n.getTransactionsManager().VerifyTransaction(tx, prevTXs, prevBlockHash, flags)
 
 	if err != nil {
@@ -364,19 +394,27 @@ func (n NodeBlockMaker) VerifyTransaction(tx *structures.Transaction, prevTXs []
 	}
 
 	if tx.IsSQLCommand() {
-		qparsed, err := n.parseQueryFromTX(tx)
+		n.Logger.Trace.Printf("Go to parse %x , flags %d", tx.GetID(), flags)
+		qparsed, err := n.parseQueryFromTX(tx, flags)
 
 		if err != nil {
+			n.Logger.Trace.Printf("Error TX parsing %s", err.Error())
 			return err
 		}
 
 		if prevBlockHeight < 0 {
-			// get current blockheight
-			prevBlockHash, prevBlockHeight, err = n.getBlockchainManager().GetState()
+			if len(curBlockHash) > 0 {
+				prevBlockHash = curBlockHash
+				prevBlockHeight = curBlockHeight
+			} else {
+				// get current blockheight
+				prevBlockHash, prevBlockHeight, err = n.getBlockchainManager().GetState()
 
-			if err != nil {
-				return err
+				if err != nil {
+					return err
+				}
 			}
+
 		}
 		// check execution permissions to ensure this SQL operation is allowed
 		err = n.verifyTransactionSQLPermissions(tx, qparsed, prevBlockHeight)
@@ -386,7 +424,7 @@ func (n NodeBlockMaker) VerifyTransaction(tx *structures.Transaction, prevTXs []
 		}
 		// check if paid part is correct. contains correct amount anddestination address
 
-		err = n.verifyTransactionPaidSQL(tx, qparsed, prevBlockHeight)
+		err = n.verifyTransactionPaidSQL(tx, qparsed, prevBlockHeight, flags)
 
 		if err != nil {
 			return err
@@ -403,6 +441,7 @@ func (n *NodeBlockMaker) AddTransactionToPool(tx *structures.Transaction, flags 
 
 	if tx.IsCoinbaseTransfer() {
 		// we don't add this
+		n.Logger.Trace.Println("It is coin base")
 		return nil
 	}
 
@@ -438,10 +477,10 @@ func (n *NodeBlockMaker) getTransactionNumbersLimits(block *structures.Block) (i
 	//n.Logger.Trace.Printf("TX count limits %d - %d", min, max)
 	return min, max, nil
 }
-func (n NodeBlockMaker) parseQueryFromTX(tx *structures.Transaction) (*dbquery.QueryParsed, error) {
+func (n NodeBlockMaker) parseQueryFromTX(tx *structures.Transaction, flags int) (*dbquery.QueryParsed, error) {
 	qp := n.getQueryParser()
 	// this will get sql type and data from comments. data can be pubkey, txBytes, signature
-	qparsed, err := qp.ParseQuery(tx.GetSQLQuery())
+	qparsed, err := qp.ParseQuery(tx.GetSQLQuery(), flags)
 
 	if err != nil {
 		return nil, err
@@ -451,7 +490,7 @@ func (n NodeBlockMaker) parseQueryFromTX(tx *structures.Transaction) (*dbquery.Q
 }
 
 //Verify SQL paid transaction. This checks if output is locked to correct address and amount is vald for paid SQL
-func (n *NodeBlockMaker) verifyTransactionPaidSQL(tx *structures.Transaction, qparsed *dbquery.QueryParsed, prevBlockHeight int) error {
+func (n *NodeBlockMaker) verifyTransactionPaidSQL(tx *structures.Transaction, qparsed *dbquery.QueryParsed, prevBlockHeight int, flags int) error {
 	// if it is SQL transaction and includes currency part
 	// that we must check if a TX was posted to correct destination address
 	if !(tx.IsSQLCommand() && tx.IsCurrencyTransfer()) {
@@ -483,7 +522,7 @@ func (n *NodeBlockMaker) verifyTransactionPaidSQL(tx *structures.Transaction, qp
 	}
 
 	if qparsed == nil {
-		qparsed, err = n.parseQueryFromTX(tx)
+		qparsed, err = n.parseQueryFromTX(tx, flags)
 		if err != nil {
 			return err
 		}

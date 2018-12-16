@@ -528,6 +528,7 @@ func (n *txManager) AddNewTransaction(tx *structures.Transaction, flags int) (er
 	}
 
 	if flags&lib.TXFlagsNoPool > 0 {
+		n.Logger.Trace.Println("DOn't add to pool. Flag is set")
 		// don't add to a pool. This can be a case when somethign extra must be done with a TX before adding to a pool
 		return nil
 	}
@@ -592,7 +593,13 @@ func (n *txManager) VerifyTransaction(tx *structures.Transaction, prevtxs []stru
 		if len(tx.SQLBaseTX) > 0 {
 			n.Logger.Trace.Printf("Current base is: %x", tx.SQLBaseTX)
 			// check if this previous TX is still actual
-			err := n.checkBaseTransaction(tx.SQLCommand, tx, prevtxs)
+			chTip := tip
+
+			if flags&lib.TXFlagsBasedOnTopOfChain > 0 {
+				chTip = []byte{}
+			}
+
+			err := n.checkBaseTransaction(tx.SQLCommand, tx, prevtxs, chTip)
 
 			if err != nil {
 				n.Logger.Trace.Printf("VT error 7: %s", err.Error())
@@ -1011,12 +1018,13 @@ func (n *txManager) getBaseTransaction(sqlUpdate structures.SQLUpdate) (txID []b
 		// found in a pool
 		return
 	}
-	return n.getBaseTransactionInChain(sqlUpdate)
+	return n.getBaseTransactionInChain(sqlUpdate, []byte{} /*start from top block*/)
 }
 
 // Finds a transaction where a refID was last updated or which can be used as a base
 // Firstly looks in a pool of transactions ,if not found, looks in an index
-func (n *txManager) getBaseTransactionInList(sqlUpdate structures.SQLUpdate, prevtxs []structures.Transaction) (txID []byte, err error) {
+func (n *txManager) getBaseTransactionInList(sqlUpdate structures.SQLUpdate,
+	prevtxs []structures.Transaction, tip []byte) (txID []byte, err error) {
 
 	sqlUpdateMan, err := dbquery.NewSQLUpdateManager(sqlUpdate)
 
@@ -1058,12 +1066,12 @@ func (n *txManager) getBaseTransactionInList(sqlUpdate structures.SQLUpdate, pre
 		}
 	}
 	// nothing found, look in blockchain
-	return n.getBaseTransactionInChain(sqlUpdate)
+	return n.getBaseTransactionInChain(sqlUpdate, tip)
 }
 
 // Finds a transaction where a refID was last updated or which can be used as a base
-// Looks in current blockchain, not in a pool
-func (n *txManager) getBaseTransactionInChain(sqlUpdate structures.SQLUpdate) (txID []byte, err error) {
+// Looks in current blockchain, not in a pool. Also starts from given TIP
+func (n *txManager) getBaseTransactionInChain(sqlUpdate structures.SQLUpdate, tip []byte) (txID []byte, err error) {
 	// now look in a BC using an indes of references
 	sqlUpdateMan, err := dbquery.NewSQLUpdateManager(sqlUpdate)
 
@@ -1083,6 +1091,13 @@ func (n *txManager) getBaseTransactionInChain(sqlUpdate structures.SQLUpdate) (t
 		return
 	}
 	n.Logger.Trace.Printf("Find base in blocked transactions %s and alt %s", string(sqlUpdate.ReferenceID), string(altRefID))
+
+	if len(tip) > 0 {
+		// if TIP is present  here, it means it i not TOP of blockchain
+		// we have to find manually in blocks this base TX
+		txID, err = n.getBaseTransactionInSideChain(sqlUpdate.ReferenceID, altRefID, tip)
+		return
+	}
 
 	txID, err = n.getDataRowsAndTransacionsManager().GetTXForRefID(sqlUpdate.ReferenceID)
 
@@ -1117,13 +1132,31 @@ func (n *txManager) getBaseTransactionInChain(sqlUpdate structures.SQLUpdate) (t
 	return
 }
 
+// Findbase TX based on TIP
+// This is for case when a TX is created based on a block that is not in main chain of blocks (uncle block)
+func (n *txManager) getBaseTransactionInSideChain(refID []byte, altRefID []byte, tip []byte) (txID []byte, err error) {
+	n.Logger.Trace.Printf("Get base TX in side chain for TIP %x and ref %s and alt ref %s", tip, string(refID), string(altRefID))
+	txID, err = n.getDataRowsAndTransacionsManager().GetTXForRefIDByTIP(refID, altRefID, tip)
+
+	if len(txID) > 0 {
+		n.Logger.Trace.Printf("Found base TX in side branch %x ", txID)
+	} else {
+		n.Logger.Trace.Printf("Found nothing in side branch")
+	}
+
+	return
+}
+
 // Verify if base transaction is still valid. We verify transaction before to add it to a blockchain
 // A transaction itself is in a pool at this monent
-func (n *txManager) checkBaseTransaction(sqlUpdate structures.SQLUpdate, tx *structures.Transaction, prevtxs []structures.Transaction) error {
+// Check is done based on the tip (top block). Because this check can be done for an uncle block
+func (n *txManager) checkBaseTransaction(sqlUpdate structures.SQLUpdate,
+	tx *structures.Transaction, prevtxs []structures.Transaction, tip []byte) error {
 	var inputSQLTX []byte
 	var err error
 
 	if prevtxs == nil {
+		// TODO We don't check TIP here. Maybe it worth to check it
 		// this is new TX or is already in a pool
 		txt, err := n.getUnapprovedTransactionsManager().GetIfExists(tx.GetID())
 
@@ -1143,7 +1176,7 @@ func (n *txManager) checkBaseTransaction(sqlUpdate structures.SQLUpdate, tx *str
 
 	} else {
 		//
-		inputSQLTX, err = n.getBaseTransactionInList(sqlUpdate, prevtxs)
+		inputSQLTX, err = n.getBaseTransactionInList(sqlUpdate, prevtxs, tip)
 	}
 
 	if err != nil {

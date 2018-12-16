@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/gelembjuk/oursql/lib/utils"
+	"github.com/gelembjuk/oursql/node/blockchain"
 	"github.com/gelembjuk/oursql/node/database"
 	"github.com/gelembjuk/oursql/node/structures"
 )
@@ -137,4 +138,47 @@ func (dr rowsToTransactions) GetTXForRefID(RefID []byte) (txID []byte, err error
 	}
 
 	return drdb.GetTXForRefID(RefID)
+}
+
+// Finds a base TX in blockchain by full read. It is only for side branches
+func (dr rowsToTransactions) GetTXForRefIDByTIP(RefID []byte, AltRefID []byte, tip []byte) (txID []byte, err error) {
+	bci, err := blockchain.NewBlockchainIteratorFrom(dr.DB, tip)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var altRefIDFound []byte
+
+	dr.Logger.Trace.Println("Search base TX in BC: Start")
+
+	for {
+		block, _ := bci.Next()
+
+		for j := len(block.Transactions) - 1; j >= 0; j-- {
+			tx := &block.Transactions[j]
+
+			if !tx.IsSQLCommand() {
+				continue
+			}
+
+			if bytes.Compare(RefID, tx.SQLCommand.ReferenceID) == 0 {
+				txID = tx.GetID()
+				return
+			}
+			if len(altRefIDFound) == 0 && bytes.Compare(AltRefID, tx.SQLCommand.ReferenceID) == 0 {
+				altRefIDFound = tx.GetID()
+			}
+		}
+
+		if len(block.PrevBlockHash) == 0 {
+			break
+		}
+	}
+
+	if len(altRefIDFound) > 0 {
+		txID = altRefIDFound
+	}
+
+	return
 }

@@ -19,6 +19,7 @@ type QueryParsed struct {
 	KeyCol           string
 	KeyVal           string
 	RowBeforeQuery   map[string]string
+	RowDoesNotExist  bool
 	Structure        sqlparser.SQLQueryParserInterface
 }
 

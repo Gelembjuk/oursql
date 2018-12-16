@@ -36,7 +36,7 @@ func (bdb *MySQLDB) forEachInTable(table string, callback ForEachKeyIteratorInte
 
 	for {
 		sqlq := "SELECT * FROM " + table + " ORDER BY v LIMIT " + strconv.Itoa(offset) + ",1"
-		bdb.Logger.Trace.Println(sqlq)
+		//bdb.Logger.Trace.Println(sqlq)
 		err := bdb.db.QueryRow(sqlq).Scan(&k, &v)
 
 		switch {
@@ -68,7 +68,7 @@ func (bdb *MySQLDB) forEachInTable(table string, callback ForEachKeyIteratorInte
 func (bdb *MySQLDB) getCountInTable(table string) (int, error) {
 	var c int
 	sqlq := "SELECT count(*) as c FROM " + table
-	bdb.Logger.Trace.Println(sqlq)
+	//bdb.Logger.Trace.Println(sqlq)
 	err := bdb.db.QueryRow(sqlq).Scan(&c)
 
 	switch {
@@ -83,7 +83,7 @@ func (bdb *MySQLDB) getCountInTable(table string) (int, error) {
 func (bdb *MySQLDB) Get(table string, k []byte) ([]byte, error) {
 	var v string
 	s := "SELECT v FROM " + table + " WHERE k='" + bdb.encodeKey(k) + "'"
-	bdb.Logger.Trace.Println(s)
+	//bdb.Logger.Trace.Println(s)
 	err := bdb.db.QueryRow(s).Scan(&v)
 
 	switch {
@@ -105,8 +105,8 @@ func (bdb *MySQLDB) GetAll(table string) ([][][]byte, error) {
 
 	data := [][][]byte{}
 
-	s := "SELECT v FROM " + table + " LIMIT " + strconv.Itoa(maxPossibleRowsToReturn)
-	bdb.Logger.Trace.Println(s)
+	s := "SELECT k, v FROM " + table + " LIMIT " + strconv.Itoa(maxPossibleRowsToReturn)
+	//bdb.Logger.Trace.Println(s)
 	rows, err := bdb.db.Query(s)
 
 	if err != nil {
@@ -138,7 +138,7 @@ func (bdb *MySQLDB) GetAll(table string) ([][][]byte, error) {
 func (bdb *MySQLDB) Put(table string, k, v []byte) error {
 	ve := bdb.encodeValue(v)
 	sqlq := "INSERT INTO " + table + " VALUES ( ? , ? ) ON DUPLICATE KEY UPDATE v=?"
-	bdb.Logger.Trace.Println(sqlq)
+	//bdb.Logger.Trace.Println(sqlq)
 	_, err := bdb.db.Exec(sqlq, bdb.encodeKey(k), ve, ve)
 	return err
 }
@@ -146,7 +146,7 @@ func (bdb *MySQLDB) Put(table string, k, v []byte) error {
 // Delete record from DB
 func (bdb *MySQLDB) Delete(table string, k []byte) error {
 	sqlq := "DELETE FROM " + table + " WHERE k= ? "
-	bdb.Logger.Trace.Println(sqlq)
+	//bdb.Logger.Trace.Println(sqlq)
 	_, err := bdb.db.Exec(sqlq, bdb.encodeKey(k))
 	return err
 }

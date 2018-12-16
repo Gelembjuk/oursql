@@ -31,6 +31,10 @@ func (e *DBError) IsKind(kind string) bool {
 	return e.kind == kind
 }
 
+func (e *DBError) IsRowNotFound() bool {
+	return e.kind == DBRowNotFoundError
+}
+
 func NewDBError(err string, kind string) error {
 	return &DBError{err, kind}
 }

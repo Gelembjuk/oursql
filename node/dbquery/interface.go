@@ -7,7 +7,7 @@ import (
 )
 
 type QueryProcessorInterface interface {
-	ParseQuery(sqlquery string) (QueryParsed, error)
+	ParseQuery(sqlquery string, flags int) (QueryParsed, error)
 	ExecuteQuery(sql string) (*structures.SQLUpdate, error)
 	ExecuteParsedQuery(qp QueryParsed) (*structures.SQLUpdate, error)
 	ExecuteQueryFromTX(sql structures.SQLUpdate) error

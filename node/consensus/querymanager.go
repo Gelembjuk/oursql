@@ -275,7 +275,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 	q.Logger.Trace.Println("processQuery " + sql)
 	qp := q.getQueryParser()
 	// this will get sql type and data from comments. data can be pubkey, txBytes, signature
-	qparsed, err := qp.ParseQuery(sql)
+	qparsed, err := qp.ParseQuery(sql, 0)
 
 	if err != nil {
 		return
