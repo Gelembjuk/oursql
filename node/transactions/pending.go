@@ -45,6 +45,7 @@ func (u unApprovedTransactions) unlockCache() {
 
 // Loads all Txs from DB to memory
 func (u *unApprovedTransactions) renewCache() error {
+	return nil
 	u.lockCache()
 	defer u.unlockCache()
 	// get count of TX in pool
@@ -644,6 +645,10 @@ func (u *unApprovedTransactions) DetectConflictsForNew(txcheck *structures.Trans
 	var txconflicts *structures.Transaction
 
 	err := u.forEachTransaction(func(txexi *structures.Transaction) (bool, error) {
+
+		if bytes.Compare(txexi.GetID(), txcheck.GetID()) == 0 {
+			return false, nil
+		}
 
 		for _, vin := range txcheck.Vin {
 			for _, vine := range txexi.Vin {

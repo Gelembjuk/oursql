@@ -109,10 +109,10 @@ def test(testfilter):
     am3 = _wallet.GetBalanceWallet(walletdatadir2, waddress2_1, "localhost", nodeport)
     am4 = _wallet.GetBalanceWallet(walletdatadir2, waddress2_2, "localhost", nodeport)
     time.sleep(2)
-    _lib.FatalAssert(am1[1] == round(float(amounttosend) + float(amounttosend2),8), "Expected balance is different for wallet 1_1. "+str(str(amounttosend)+","+str(amounttosend2)+"="+str(am1[1])))
-    _lib.FatalAssert(am2[1] == round(float(amounttosend) + float(amounttosend2),8), "Expected balance is different for wallet 1_2")
-    _lib.FatalAssert(am3[1] == float(amounttosend), "Expected balance is different for wallet 2_1")
-    _lib.FatalAssert(am4[1] == float(amounttosend), "Expected balance is different for wallet 2_2")
+    _lib.FatalAssert(am1[1] == round(float(amounttosend) + float(amounttosend2),8), "Expected balance is different for wallet 1_1. "+str(am1[1])+" vs "+str(round(float(amounttosend) + float(amounttosend2),8)))
+    _lib.FatalAssert(am2[1] == round(float(amounttosend) + float(amounttosend2),8), "Expected balance is different for wallet 1_2. "+str(am2[1])+" vs "+str(round(float(amounttosend) + float(amounttosend2),8)))
+    _lib.FatalAssert(am3[1] == float(amounttosend), "Expected balance is different for wallet 2_1. "+str(am3[1])+" vs "+str(float(amounttosend)))
+    _lib.FatalAssert(am4[1] == float(amounttosend), "Expected balance is different for wallet 2_2. "+str(am4[1])+" vs "+str(float(amounttosend)))
     
     #get group blances on a wallet loc
     balances = _transfers.GetGroupBalance(datadir)

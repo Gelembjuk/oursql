@@ -119,11 +119,15 @@ func (qp queryProcessor) patchRowInfo(parsed *QueryParsed, flags int) (err error
 		parsed.RowDoesNotExist = false
 
 		if err != nil {
-			if errd, ok := err.(*database.DBError); ok && flags&lib.TXFlagsVerifyAllowMissed > 0 {
-				if errd.IsRowNotFound() {
-					err = nil
-					parsed.RowDoesNotExist = true
+			if errd, ok := err.(*database.DBError); ok {
+				if flags&lib.TXFlagsVerifyAllowMissed > 0 ||
+					parsed.Structure.GetKind() == lib.QueryKindDelete && flags&lib.TXFlagsVerifyAllowMissedForDelete > 0 {
+					if errd.IsRowNotFound() {
+						err = nil
+						parsed.RowDoesNotExist = true
+					}
 				}
+
 			}
 			if err != nil {
 				return

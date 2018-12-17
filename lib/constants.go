@@ -19,4 +19,5 @@ const (
 	TXFlagsNoExecute                  = 16
 	TXFlagsVerifyAllowMissed          = 32
 	TXFlagsBasedOnTopOfChain          = 64
+	TXFlagsVerifyAllowMissedForDelete = 128
 )

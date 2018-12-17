@@ -77,6 +77,7 @@ func (q *queryFilter) RequestCallback(query string, sessionID string) (dbproxy.C
 	q.Logger.Trace.Printf("Proxy Query process status %d", result.Status)
 
 	if result.Error != nil {
+		q.Logger.Trace.Printf("Proxy Query error %s code %d", result.Error.Error(), result.ErrorCode)
 		if result.ErrorCode > 0 {
 			return dbproxy.NewCustomErrorResponse(result.Error.Error(), result.ErrorCode), nil
 		}
@@ -125,12 +126,12 @@ func (q *queryFilter) ResponseCallback(sessionID string, err error) {
 
 	} else if tx, ok := q.sessionTransactions[sessionID]; ok {
 		// Add the TX to the pool
-		err := q.Node.ReceivedNewTransaction(tx, lib.TXFlagsNothing)
+		err := q.Node.ReceivedNewTransaction(tx, lib.TXFlagsVerifyAllowMissedForDelete)
 
 		if err != nil {
 			// Rollback?
 			// TODO
-
+			q.Logger.Trace.Printf("Error adding TX to pool from proxy %x %s", tx.GetID(), err.Error())
 		}
 
 		// Notify server thread about new TX completed fine

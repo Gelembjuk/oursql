@@ -49,6 +49,15 @@ def test(testfilter):
     
     _sql.ExecuteSQLOnProxy(datadir, "CREATE TABLE test (a INT auto_increment PRIMARY KEY, b VARCHAR(20))")
     
+    tables = _lib.DBGetRows(datadir,"SHOW TABLES")
+    found = False
+    for table in tables:
+        if table[0] == "test":
+            found = True
+            break
+        
+    _lib.FatalAssert(found, "Table test not found in the DB")
+    
     _sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test SET b='row1'")
     
     blocks = _blocks.WaitBlocks(datadir, 3)
