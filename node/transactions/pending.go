@@ -16,8 +16,9 @@ import (
 
 const maxCountOfTransactionInMemoryCache = 20000
 
-var transactionsCache []*structures.Transaction
+var transactionsCache map[string]*structures.Transaction
 var transactionsCacheLock *sync.Mutex
+var transactionsCacheEnable bool
 
 type unApprovedTransactions struct {
 	DB     database.DBManager
@@ -43,9 +44,19 @@ func (u unApprovedTransactions) unlockCache() {
 	transactionsCacheLock.Unlock()
 }
 
+func (u unApprovedTransactions) renewCacheIfNeeded() error {
+	transactionsCacheEnable = false
+	return nil
+	if transactionsCache != nil {
+		return nil
+	}
+
+	return u.renewCache()
+}
+
 // Loads all Txs from DB to memory
 func (u *unApprovedTransactions) renewCache() error {
-	return nil
+
 	u.lockCache()
 	defer u.unlockCache()
 	// get count of TX in pool
@@ -65,7 +76,7 @@ func (u *unApprovedTransactions) renewCache() error {
 	if err != nil {
 		return err
 	}
-	transactionsCache = make([]*structures.Transaction, 0)
+	transactionsCache = make(map[string]*structures.Transaction, 0)
 
 	allPairs, err := utdb.GetAll()
 
@@ -82,7 +93,7 @@ func (u *unApprovedTransactions) renewCache() error {
 			return err
 		}
 		u.Logger.Trace.Printf("TX adding to cache %x", tx.GetID())
-		transactionsCache = append(transactionsCache, tx)
+		transactionsCache[string(tx.GetID())] = tx
 	}
 
 	return nil
@@ -237,7 +248,7 @@ func (u *unApprovedTransactions) GetCurrencyTXsPreparedBy(PubKeyHash []byte) ([]
 	u.Logger.Trace.Println("GetCurrencyTXsPreparedBy")
 	// goes over all pending (unconfirmed) transactions in the cache
 	// check every input for every TX and adds to "inputs" if that input was signed by this pub key
-	u.renewCache() // LOAD CACHE
+
 	err := u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 
 		sender := []byte{}
@@ -336,6 +347,19 @@ func (u *unApprovedTransactions) GetInputValue(input structures.TXCurrencyInput)
 
 // Check if transaction exists in a cache of unapproved
 func (u *unApprovedTransactions) GetIfExists(txid []byte) (*structures.Transaction, error) {
+	u.lockCache()
+
+	if transactionsCache != nil {
+		defer u.unlockCache()
+
+		if tx, ok := transactionsCache[string(txid)]; ok {
+			return tx, nil
+		}
+		return nil, nil
+	}
+
+	u.unlockCache()
+
 	utdb, err := u.DB.GetUnapprovedTransactionsObject()
 
 	if err != nil {
@@ -370,7 +394,6 @@ func (u *unApprovedTransactions) GetTransactions(number int) ([]*structures.Tran
 	totalnumber := 0
 	u.Logger.Trace.Println("GetTransactions")
 
-	u.renewCache() // LOAD CACHE
 	err := u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 
 		txset = append(txset, tx)
@@ -400,7 +423,6 @@ func (u *unApprovedTransactions) GetTransactionsFilteredByList(number int, ignor
 	totalnumber := 0
 	u.Logger.Trace.Println("GetTransactionsFilteredByList")
 
-	u.renewCache() // LOAD CACHE
 	err := u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 		for _, txF := range ignoreTransactions {
 			if bytes.Compare(txF, tx.GetID()) == 0 {
@@ -436,7 +458,6 @@ func (u *unApprovedTransactions) GetTransactionsFilteredByTime(number int,
 	totalnumber := 0
 	u.Logger.Trace.Println("GetTransactionsFilteredByTime")
 
-	u.renewCache() // LOAD CACHE
 	err := u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 		for _, txF := range ignoreTransactions {
 			if bytes.Compare(txF, tx.GetID()) == 0 {
@@ -484,7 +505,6 @@ func (u *unApprovedTransactions) GetCountFiltered(ignoreTransactions [][]byte) (
 	count := 0
 	u.Logger.Trace.Println("GetCountFiltered")
 
-	u.renewCache() // LOAD CACHE
 	err := u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 		for _, txF := range ignoreTransactions {
 			if bytes.Compare(txF, tx.GetID()) == 0 {
@@ -540,6 +560,13 @@ func (u *unApprovedTransactions) Add(txadd *structures.Transaction) error {
 		return errors.New("Adding new transaction to unapproved cache: " + err.Error())
 	}
 
+	if transactionsCacheEnable {
+		u.lockCache()
+		defer u.unlockCache()
+
+		transactionsCache[string(txadd.GetID())] = txadd
+	}
+
 	return nil
 }
 
@@ -568,6 +595,16 @@ func (u *unApprovedTransactions) Delete(txid []byte) (bool, error) {
 		if err != nil {
 			return false, err
 		}
+		if transactionsCacheEnable {
+			// remove also from cache
+			u.lockCache()
+			defer u.unlockCache()
+
+			if transactionsCache != nil {
+				delete(transactionsCache, string(txid))
+			}
+		}
+
 		return true, nil
 	}
 
@@ -619,7 +656,7 @@ func (u *unApprovedTransactions) forEachUnapprovedTransaction(callback UnApprove
 	c, err := utdb.GetCount()
 	u.Logger.Trace.Printf("for each unapp TX. count %d", c)
 	total := 0
-	u.renewCache() // LOAD CACHE
+
 	err = u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 		callback(hex.EncodeToString(tx.GetID()), tx.String())
 		total++
@@ -638,8 +675,6 @@ func (u *unApprovedTransactions) forEachUnapprovedTransaction(callback UnApprove
 // we return first found transaction taht conflicts
 func (u *unApprovedTransactions) DetectConflictsForNew(txcheck *structures.Transaction) (*structures.Transaction, error) {
 	// it i needed to go over all tranactions in cache and check each of them if input is same as in this tx
-
-	u.renewCache() // LOAD CACHE
 
 	u.Logger.Trace.Println("DetectConflictsForNew")
 	var txconflicts *structures.Transaction
@@ -766,8 +801,18 @@ func (u *unApprovedTransactions) CleanUnapprovedCache() error {
 	if err != nil {
 		return err
 	}
-	return utdb.TruncateDB()
+	err = utdb.TruncateDB()
 
+	if err != nil {
+		return err
+	}
+
+	u.lockCache()
+	defer u.unlockCache()
+
+	transactionsCache = make(map[string]*structures.Transaction, 0)
+
+	return nil
 }
 
 // Find if there is transaction in a pool that updates given Reference
@@ -797,7 +842,6 @@ func (u *unApprovedTransactions) FindSQLReferenceTransaction(sqlUpdate structure
 	// this keeps list of transactions that were already used in other transations as a reference input
 	transactionsReused := [][]byte{}
 
-	u.renewCache() // LOAD CACHE
 	// function tp process transaction in a loop
 	err = u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 		if !tx.IsSQLCommand() {
@@ -850,8 +894,6 @@ func (u *unApprovedTransactions) FindSQLBasedOnTransaction(txid []byte) (txIDs [
 
 	txIDs = [][]byte{}
 	u.Logger.Trace.Println("FindSQLBasedOnTransaction")
-
-	u.renewCache() // LOAD CACHE
 
 	err = u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 		if !tx.IsSQLCommand() {

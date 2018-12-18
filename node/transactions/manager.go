@@ -51,7 +51,11 @@ func (n *txManager) getUnapprovedTransactionsManager() *unApprovedTransactions {
 	obj := &unApprovedTransactions{}
 	obj.DB = n.DB
 	obj.Logger = n.Logger
+
+	obj.renewCacheIfNeeded()
+
 	n.poolObj = obj
+
 	return obj
 }
 
