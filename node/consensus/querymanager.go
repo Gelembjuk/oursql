@@ -129,7 +129,7 @@ func (q queryManager) NewQueryByNode(sql string, pubKey []byte, privKey ecdsa.Pr
 // Create new transaction and add to pool. Don't execute a query.
 func (q queryManager) NewQueryByNodeInit(sql string, pubKey []byte, privKey ecdsa.PrivateKey) (tx *structures.Transaction, err error) {
 
-	q.Logger.Trace.Printf("Make new transaction for SQL: %s", sql)
+	//q.Logger.Trace.Printf("Make new transaction for SQL: %s", sql)
 
 	result, err := q.processQuery(sql, pubKey, 0 /*don't execute*/)
 

@@ -4,6 +4,7 @@ import _lib
 from os import listdir
 from os.path import isfile, join
 import traceback
+import time
 
 test = ""
 testspos = ""
@@ -86,6 +87,8 @@ for testname in tests:
         
         passed.append(testname)
         num = num + 1
+        
+        time.sleep(1)
 
 if test == "all":
     passedlen = len(passed)

@@ -534,7 +534,7 @@ func (bdm MySQLDBManager) ExecuteSQLNextKeyValue(table string) (string, error) {
 // Return list of SQL queries as part of dump
 // If offset is 0 we retrn table create SQL comand too
 func (bdm MySQLDBManager) ExecuteSQLTableDump(table string, limit int, offset int) (list []string, err error) {
-	bdm.Logger.Trace.Printf("Get create SQL %s", table)
+	bdm.Logger.Trace.Printf("Get create SQL %s limit %d, offset %d", table, limit, offset)
 	list = []string{}
 
 	if offset == 0 {
@@ -551,6 +551,12 @@ func (bdm MySQLDBManager) ExecuteSQLTableDump(table string, limit int, offset in
 		list = append(list, sql)
 
 		limit = limit - 1
+
+		if limit == 0 {
+			return
+		}
+	} else {
+		offset = offset - 1 // to skip table create
 	}
 
 	// select limit rows and make dump records for them
@@ -560,7 +566,13 @@ func (bdm MySQLDBManager) ExecuteSQLTableDump(table string, limit int, offset in
 		return
 	}
 
-	rows, err := db.Query("SELECT * FROM " + table)
+	sqlcommm := "SELECT * FROM " + table
+
+	if limit > 0 {
+		sqlcommm = sqlcommm + " LIMIT " + strconv.Itoa(offset) + "," + strconv.Itoa(limit)
+	}
+	bdm.Logger.Trace.Printf("SQL %s", sqlcommm)
+	rows, err := db.Query(sqlcommm)
 
 	if err != nil {
 		return

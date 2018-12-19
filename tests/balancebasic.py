@@ -99,7 +99,7 @@ def test(testfilter):
     
     # wait to complete blocks 
     blocks = _blocks.WaitBlocks(datadir,6)
-    time.sleep(2)
+    time.sleep(3)
     
     _lib.FatalAssert(len(blocks) == 6, "Expected 6 blocks")
     

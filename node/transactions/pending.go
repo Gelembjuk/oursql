@@ -15,10 +15,10 @@ import (
 )
 
 const maxCountOfTransactionInMemoryCache = 20000
+const transactionsCacheEnable = true
 
-var transactionsCache map[string]*structures.Transaction
+var transactionsCache map[string]structures.Transaction
 var transactionsCacheLock *sync.Mutex
-var transactionsCacheEnable bool
 
 type unApprovedTransactions struct {
 	DB     database.DBManager
@@ -45,8 +45,10 @@ func (u unApprovedTransactions) unlockCache() {
 }
 
 func (u unApprovedTransactions) renewCacheIfNeeded() error {
-	transactionsCacheEnable = false
-	return nil
+	if !transactionsCacheEnable {
+		return nil
+	}
+
 	if transactionsCache != nil {
 		return nil
 	}
@@ -56,7 +58,10 @@ func (u unApprovedTransactions) renewCacheIfNeeded() error {
 
 // Loads all Txs from DB to memory
 func (u *unApprovedTransactions) renewCache() error {
-
+	if !transactionsCacheEnable {
+		return nil
+	}
+	u.Logger.Trace.Println("Renwe TX cache")
 	u.lockCache()
 	defer u.unlockCache()
 	// get count of TX in pool
@@ -76,7 +81,7 @@ func (u *unApprovedTransactions) renewCache() error {
 	if err != nil {
 		return err
 	}
-	transactionsCache = make(map[string]*structures.Transaction, 0)
+	transactionsCache = make(map[string]structures.Transaction, 0)
 
 	allPairs, err := utdb.GetAll()
 
@@ -92,8 +97,8 @@ func (u *unApprovedTransactions) renewCache() error {
 		if err != nil {
 			return err
 		}
-		u.Logger.Trace.Printf("TX adding to cache %x", tx.GetID())
-		transactionsCache[string(tx.GetID())] = tx
+		//u.Logger.Trace.Printf("TX adding to cache %x", tx.GetID())
+		transactionsCache[tx.GetIDString()] = *tx
 	}
 
 	return nil
@@ -102,13 +107,17 @@ func (u *unApprovedTransactions) renewCache() error {
 func (u unApprovedTransactions) forEachTransaction(callback foreachFunction) error {
 	// it i needed to go over all tranactions in cache and check each of them
 
-	u.lockCache()
+	if transactionsCacheEnable {
 
-	if transactionsCache != nil {
+		u.lockCache()
+	}
+
+	if transactionsCacheEnable && transactionsCache != nil {
 		defer u.unlockCache()
 
-		for _, tx := range transactionsCache {
-			stop, err := callback(tx)
+		for _, txC := range transactionsCache {
+			tx := txC
+			stop, err := callback(&tx)
 
 			if err != nil {
 				return err
@@ -119,7 +128,9 @@ func (u unApprovedTransactions) forEachTransaction(callback foreachFunction) err
 			}
 		}
 	} else {
-		u.unlockCache()
+		if transactionsCacheEnable {
+			u.unlockCache()
+		}
 
 		utdb, err := u.DB.GetUnapprovedTransactionsObject()
 
@@ -175,6 +186,7 @@ func (u *unApprovedTransactions) CheckInputsArePrepared(inputs map[int]structure
 		if tx == nil {
 			return NewTXVerifyError("Input transaction is not found in prepared to approve", TXVerifyErrorNoInput, vin.Txid)
 		}
+		//u.Logger.Trace.Printf("FOund TX %x %x for ind %d", vin.Txid, tx.GetID(), vinInd)
 		inputTXs[vinInd] = tx
 		checked[txstr] = append(checked[txstr], vin.Vout)
 	}
@@ -349,12 +361,17 @@ func (u *unApprovedTransactions) GetInputValue(input structures.TXCurrencyInput)
 func (u *unApprovedTransactions) GetIfExists(txid []byte) (*structures.Transaction, error) {
 	u.lockCache()
 
-	if transactionsCache != nil {
+	if transactionsCacheEnable && transactionsCache != nil {
+
 		defer u.unlockCache()
 
-		if tx, ok := transactionsCache[string(txid)]; ok {
-			return tx, nil
+		txIDString := fmt.Sprintf("%x", txid)
+
+		if tx, ok := transactionsCache[txIDString]; ok {
+			//u.Logger.Trace.Printf("Found TX in cache %x", tx.GetID())
+			return &tx, nil
 		}
+
 		return nil, nil
 	}
 
@@ -381,7 +398,7 @@ func (u *unApprovedTransactions) GetIfExists(txid []byte) (*structures.Transacti
 	if err != nil {
 		return nil, err
 	}
-
+	//u.Logger.Trace.Printf("Found TX %x in DB", tx.GetID())
 	return tx, nil
 
 }
@@ -560,11 +577,12 @@ func (u *unApprovedTransactions) Add(txadd *structures.Transaction) error {
 		return errors.New("Adding new transaction to unapproved cache: " + err.Error())
 	}
 
-	if transactionsCacheEnable {
+	if transactionsCacheEnable && transactionsCache != nil {
 		u.lockCache()
 		defer u.unlockCache()
 
-		transactionsCache[string(txadd.GetID())] = txadd
+		transactionsCache[string(txadd.GetIDString())] = *txadd
+		//u.Logger.Trace.Printf("Added TX to TX cache %x %s", txadd.GetID(), txadd.GetIDString())
 	}
 
 	return nil
@@ -600,8 +618,10 @@ func (u *unApprovedTransactions) Delete(txid []byte) (bool, error) {
 			u.lockCache()
 			defer u.unlockCache()
 
+			txIDString := fmt.Sprintf("%x", txid)
+			//u.Logger.Trace.Printf("Delete TX from cache %s", txIDString)
 			if transactionsCache != nil {
-				delete(transactionsCache, string(txid))
+				delete(transactionsCache, txIDString)
 			}
 		}
 
@@ -653,8 +673,8 @@ func (u *unApprovedTransactions) forEachUnapprovedTransaction(callback UnApprove
 	if err != nil {
 		return 0, err
 	}
-	c, err := utdb.GetCount()
-	u.Logger.Trace.Printf("for each unapp TX. count %d", c)
+	_, err = utdb.GetCount()
+
 	total := 0
 
 	err = u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
@@ -676,7 +696,7 @@ func (u *unApprovedTransactions) forEachUnapprovedTransaction(callback UnApprove
 func (u *unApprovedTransactions) DetectConflictsForNew(txcheck *structures.Transaction) (*structures.Transaction, error) {
 	// it i needed to go over all tranactions in cache and check each of them if input is same as in this tx
 
-	u.Logger.Trace.Println("DetectConflictsForNew")
+	//u.Logger.Trace.Println("DetectConflictsForNew")
 	var txconflicts *structures.Transaction
 
 	err := u.forEachTransaction(func(txexi *structures.Transaction) (bool, error) {
@@ -806,11 +826,12 @@ func (u *unApprovedTransactions) CleanUnapprovedCache() error {
 	if err != nil {
 		return err
 	}
+	if transactionsCacheEnable {
+		u.lockCache()
+		defer u.unlockCache()
 
-	u.lockCache()
-	defer u.unlockCache()
-
-	transactionsCache = make(map[string]*structures.Transaction, 0)
+		transactionsCache = make(map[string]structures.Transaction, 0)
+	}
 
 	return nil
 }
@@ -847,15 +868,14 @@ func (u *unApprovedTransactions) FindSQLReferenceTransaction(sqlUpdate structure
 		if !tx.IsSQLCommand() {
 			return false, nil
 		}
-
 		// RefID in a tarnsaction can not be empty
 
-		u.Logger.Trace.Printf("Check RefID %s in TX %x", string(tx.SQLCommand.ReferenceID), tx.GetID())
+		//u.Logger.Trace.Printf("Check RefID %s in TX %x", string(tx.SQLCommand.ReferenceID), tx.GetID())
 
 		if bytes.Compare(tx.SQLCommand.ReferenceID, sqlUpdate.ReferenceID) == 0 {
 			// we found this refereence , check if input TX was not yet used as input in other tx
 			if !u.helperCheckTXInList(tx.GetID(), transactionsReused) {
-				u.Logger.Trace.Printf("found TX %x", tx.GetID())
+				//u.Logger.Trace.Printf("found TX %x", tx.GetID())
 				txID = utils.CopyBytes(tx.GetID())
 			}
 		}
@@ -865,10 +885,10 @@ func (u *unApprovedTransactions) FindSQLReferenceTransaction(sqlUpdate structure
 			// we found this refereence , check if input TX was not yet used as input in other tx
 			if altCanBeReused || !u.helperCheckTXInList(tx.GetID(), transactionsReused) {
 				AlttxID = tx.GetID()
-				u.Logger.Trace.Printf("found alt ID TX %x", tx.GetID())
+				//u.Logger.Trace.Printf("found alt ID TX %x", tx.GetID())
 
 				if altCanBeReused {
-					u.Logger.Trace.Printf("stop foreach %x", tx.GetID())
+					//u.Logger.Trace.Printf("stop foreach %x", tx.GetID())
 					// stop this loop. no sense to continue
 					return true, nil
 				}

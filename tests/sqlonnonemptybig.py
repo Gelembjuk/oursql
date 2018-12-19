@@ -36,20 +36,22 @@ def test(testfilter):
     # add some data to the DB
     _lib.DBExecute(datadir,"create table test (a int unsigned auto_increment primary key, b varchar(10))")
     # add 2k records
-    for x in range(100):
+    sys.stdout.write("\t\t")
+    for x in range(600):
         _lib.DBExecute(datadir,"insert into test SET b='row"+str(x)+"'")
-        if x%50 == 0:
+        if x%20 == 0:
             sys.stdout.write('.')
         if x%200 == 0 and x > 0:
-            sys.stdout.write("-"+str(x)+"-")
+            sys.stdout.write(str(x))
     print("")
+    sys.stdout.write("\t\t")
     _lib.DBExecute(datadir,"create table members (a int unsigned auto_increment primary key, b varchar(10))")
-    for x in range(100):
+    for x in range(600):
         _lib.DBExecute(datadir,"insert into members SET b='row"+str(x)+"'")
         if x%20 == 0:
             sys.stdout.write('.')
         if x%200 == 0 and x > 0:
-            sys.stdout.write("-"+str(x)+"-")
+            sys.stdout.write(str(x))
     print("")
     
     _lib.StartTestGroup("Data added. Init BC")
@@ -67,7 +69,7 @@ def test(testfilter):
     blocks = _blocks.GetBlocks(datadir)
     #print(blocks)
     #_lib.FatalAssert(len(blocks) == 4,"Should be 4 blocks in blockchain")
-    _lib.FatalAssert(len(blocks) == 2,"Should be 2 blocks in blockchain")
+    _lib.FatalAssert(len(blocks) == 3,"Should be 3 blocks in blockchain")
     
     startnode.StopNode(datadir)
     datadir = ""

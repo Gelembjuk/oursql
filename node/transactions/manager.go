@@ -453,7 +453,7 @@ func (n *txManager) transactionsFromAddedBlock(txList []structures.Transaction) 
 			// else it was already executed when adding to a pool
 
 			if exists, err := pendingPoolObj.GetIfExists(tx.GetID()); exists != nil && err == nil {
-				n.Logger.Trace.Printf("Exists in poll. Skip SQL: %x", tx.GetID())
+				//n.Logger.Trace.Printf("Exists in poll. Skip SQL: %x", tx.GetID())
 				continue
 			}
 
@@ -636,7 +636,7 @@ func (n *txManager) getCurrencyInputTransactionsState(tx *structures.Transaction
 	badinputs = make(map[int]structures.TXCurrencyInput)
 
 	for vind, vin := range tx.Vin {
-		//n.Logger.Trace.Printf("Check tx input %x of %x", vin.Txid, tx.GetID())
+		n.Logger.Trace.Printf("Check tx input %x of %x", vin.Txid, tx.GetID())
 		var txBockHashes [][]byte
 		txBockHashes, err = n.getIndexManager().GetTranactionBlocks(vin.Txid)
 
@@ -684,12 +684,12 @@ func (n *txManager) getCurrencyInputTransactionsState(tx *structures.Transaction
 			if err != nil {
 				return
 			}
-			//n.Logger.Trace.Printf("spending of tx %x count %d", vin.Txid, len(spentouts))
-			if len(spentouts) > 0 {
 
+			if len(spentouts) > 0 {
 				for _, o := range spentouts {
 					if o.OutInd == vin.Vout {
-
+						//n.Logger.Trace.Println(spentouts)
+						n.Logger.Trace.Printf("double spend. spending of tx %x count %d", vin.Txid, len(spentouts))
 						return nil, nil, errors.New("Transaction input was already spent before")
 					}
 				}
@@ -980,7 +980,7 @@ func (n *txManager) getAddressPendingBalance(address string) (float64, error) {
 	// input TX can be confirmed (in unspent outputs) or unconfirmed . we need to look for it in
 	// both places
 	for _, i := range inputs {
-		n.Logger.Trace.Printf("find input %s for tx %x", i, i.Txid)
+		//n.Logger.Trace.Printf("find input %s for tx %x", i, i.Txid)
 		v, err := n.getUnspentOutputsManager().GetInputValue(i)
 
 		if err != nil {

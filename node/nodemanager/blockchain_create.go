@@ -327,7 +327,13 @@ func (n *makeBlockchain) addExistentTables(tables []string) (countTales int, cou
 
 		for offset <= counts[table] {
 
-			sqls, err = n.DBConn.DB().QM().ExecuteSQLTableDump(table, limit, offset)
+			limitL := limit - len(sqlslist)
+
+			if limitL < 1 {
+				limitL = limit
+			}
+
+			sqls, err = n.DBConn.DB().QM().ExecuteSQLTableDump(table, limitL, offset)
 
 			if err != nil {
 				return
@@ -336,12 +342,16 @@ func (n *makeBlockchain) addExistentTables(tables []string) (countTales int, cou
 			sqlslist = append(sqlslist, sqls...)
 			totalloaded = totalloaded + len(sqls)
 
-			offset = offset + limit
+			n.Logger.Trace.Printf("SQLs in list %d, limit %d, totalcount %d, total loaded %d", len(sqlslist), limitL, totalcount, totalloaded)
+
+			offset = offset + len(sqls)
 			// check if it is time to make new block
 			if len(sqlslist) >= limit || totalcount == totalloaded {
+				n.Logger.Trace.Printf("check 1 passed")
 				// if not more minimum than nothing to do
 				// we should not do new block if remaining part of rows is less than required for next block after current
-				if totalcount-totalloaded > nextBlockHeigh+1 {
+				if totalcount-totalloaded > nextBlockHeigh+1 || totalcount == totalloaded {
+					n.Logger.Trace.Printf("check 2 passed")
 					// there are more records to load and it will be anough for next block
 					err = n.makeNewInitialBlock(sqlslist, nextBlockHeigh)
 
@@ -358,6 +368,7 @@ func (n *makeBlockchain) addExistentTables(tables []string) (countTales int, cou
 	}
 
 	if len(sqlslist) > 0 {
+		n.Logger.Trace.Printf("Do final block")
 		// make final block
 		err = n.makeNewInitialBlock(sqlslist, nextBlockHeigh)
 
@@ -371,6 +382,7 @@ func (n *makeBlockchain) addExistentTables(tables []string) (countTales int, cou
 
 //Make new initial block from prepared SQLs
 func (n *makeBlockchain) makeNewInitialBlock(sqls []string, nextBlockHeigh int) error {
+	n.Logger.Trace.Printf("DO next block with %d transactions in t")
 	n.consensusConfig.ExtendRulesApplyStartHeigh(nextBlockHeigh)
 
 	qm, err := n.getSQLQueryManager()

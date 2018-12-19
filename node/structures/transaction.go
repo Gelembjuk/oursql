@@ -43,6 +43,10 @@ func (tx Transaction) GetID() []byte {
 	return tx.ID
 }
 
+func (tx Transaction) GetIDString() string {
+	return fmt.Sprintf("%x", tx.ID)
+}
+
 // returns base TX for this SQL update TX
 func (tx Transaction) GetSQLBaseTX() []byte {
 	return tx.SQLBaseTX
@@ -404,7 +408,7 @@ func (tx Transaction) String() string {
 		address, _ := utils.PubKeyHashToAddres(output.PubKeyHash)
 		lines = append(lines, fmt.Sprintf("     Output %d:", i))
 		lines = append(lines, fmt.Sprintf("       Value:  %f", output.Value))
-		lines = append(lines, fmt.Sprintf("       Script: %x", output.PubKeyHash))
+		//lines = append(lines, fmt.Sprintf("       Script: %x", output.PubKeyHash))
 		lines = append(lines, fmt.Sprintf("       Address: %s", address))
 	}
 

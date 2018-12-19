@@ -85,9 +85,9 @@ def test(testfilter):
     _sql.ExecuteSQLOnProxy(datadir,"INSERT INTO test SET b='row2'")
     
     blocks = _blocks.WaitBlocks(datadir, 4)
-    time.sleep(1)
+    time.sleep(2)
     
-    _transfers.Send(datadir,address, address3 ,1) # this table creation costs 10 
+    _transfers.Send(datadir,address, address3 ,1) 
     
     _sql.ExecuteSQLOnProxy(datadir, "INSERT INTO members SET name='user1'")
     _sql.ExecuteSQLOnProxy(datadir, "INSERT INTO members SET name='user2'")
@@ -96,7 +96,7 @@ def test(testfilter):
     bal1 = _transfers.GetBalance(datadir, address)
     bal2 = _transfers.GetBalance(datadir, address2)
     bal3 = _transfers.GetBalance(datadir, address3)
-    
+
     _lib.FatalAssert(bal1[1] == 45.0, "Balance of a first addres is expected to be 45")
     _lib.FatalAssert(bal2[1] == 15.0, "Balance of a second addres is expected to be 15")
     _lib.FatalAssert(bal3[1] == 0.0, "Balance of a third addres is expected to be 0")

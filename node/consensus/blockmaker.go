@@ -394,7 +394,7 @@ func (n NodeBlockMaker) VerifyTransaction(tx *structures.Transaction, prevTXs []
 	}
 
 	if tx.IsSQLCommand() {
-		n.Logger.Trace.Printf("Go to parse %x , flags %d", tx.GetID(), flags)
+		//n.Logger.Trace.Printf("Go to parse %x , flags %d", tx.GetID(), flags)
 		qparsed, err := n.parseQueryFromTX(tx, flags)
 
 		if err != nil {

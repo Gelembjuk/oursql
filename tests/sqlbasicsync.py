@@ -104,7 +104,7 @@ def test(testfilter):
     
     txid = _sql.ExecuteSQL(datadir,address," DELETE  from   test where a=2")
     
-    time.sleep(1)
+    time.sleep(2)
     # should be 1 row on first node
     rows = _lib.DBGetRows(datadir,"SELECT * FROM test")
     
