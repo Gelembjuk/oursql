@@ -20,4 +20,5 @@ const (
 	TXFlagsVerifyAllowMissed          = 32
 	TXFlagsBasedOnTopOfChain          = 64
 	TXFlagsVerifyAllowMissedForDelete = 128
+	TXFlagsVerifyAllowTableMissed     = 256 // On verify allow this error to appear
 )

@@ -297,10 +297,13 @@ func (n *Node) CheckAddressKnown(addr net.NodeAddr) bool {
 func (n *Node) checkAddressKnown(addr net.NodeAddr, afterinputconnect bool) bool {
 	added := false
 
+	if addr.CompareToAddress(n.NodeClient.NodeAddress) {
+		return false
+	}
+
 	n.Logger.Trace.Printf("Check node is known %s", addr.NodeAddrToString())
 
-	if !n.NodeNet.CheckIsKnown(addr) &&
-		!addr.CompareToAddress(n.NodeClient.NodeAddress) {
+	if !n.NodeNet.CheckIsKnown(addr) {
 		// send him all addresses
 		n.Logger.Trace.Printf("Adding to known to %s", addr.NodeAddrToString())
 		n.NodeClient.SendAddrList(addr, n.NodeNet.Nodes)

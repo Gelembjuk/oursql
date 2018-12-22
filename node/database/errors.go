@@ -6,13 +6,16 @@ import (
 	"fmt"
 )
 
-const TXVerifyErrorNoInput = "noinput"
-const DBCursorBreak = "cursorbreak"
-const DBHashNotFoundError = "hashnotfound"
-const DBHashEmptyError = "hashisemptyd"
-const DBHashError = "hashemptyd"
-const DBRowNotFoundError = "rownotfound"
-const DBConfigError = "rownotfound"
+const (
+	TXVerifyErrorNoInput = "noinput"
+	DBCursorBreak        = "cursorbreak"
+	DBHashNotFoundError  = "hashnotfound"
+	DBHashEmptyError     = "hashisemptyd"
+	DBHashError          = "hashemptyd"
+	DBRowNotFoundError   = "rownotfound"
+	DBConfigError        = "config"
+	DBTableNotFound      = "tablenotfound"
+)
 
 type DBError struct {
 	err  string
@@ -31,8 +34,14 @@ func (e *DBError) IsKind(kind string) bool {
 	return e.kind == kind
 }
 
+// Check if this is row not found error
 func (e *DBError) IsRowNotFound() bool {
 	return e.kind == DBRowNotFoundError
+}
+
+// Check if this Table Not Found error
+func (e *DBError) IsTableNotFound() bool {
+	return e.kind == DBTableNotFound
 }
 
 func NewDBError(err string, kind string) error {
@@ -73,6 +82,11 @@ func NewHashDBError(err string) error {
 func NewRowNotFoundDBError(err string) error {
 	return &DBError{err, DBRowNotFoundError}
 }
+
+func NewTableNotFoundDBError(err string) error {
+	return &DBError{err, DBTableNotFound}
+}
+
 func NewConfigDBError(err string) error {
 	return &DBError{err, DBConfigError}
 }

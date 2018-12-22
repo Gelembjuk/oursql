@@ -336,6 +336,9 @@ func (n *NodeBlockMaker) VerifyBlock(block *structures.Block, flags int) error {
 		// we add this frag to ignore error when a row is not in a DB yet. because a row can be inserted in same block before
 		// TODO . maybe there is 100% good way to handle this case
 		flags = flags | lib.TXFlagsVerifyAllowMissed
+		// It can be that a table create is part of this block
+		// TODO We have to ensure there is table create query as part of this bloc
+		flags = flags | lib.TXFlagsVerifyAllowTableMissed
 
 		err := n.VerifyTransaction(&tx, prevTXs, block.PrevBlockHash, block.Height-1, flags)
 

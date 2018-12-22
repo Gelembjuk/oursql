@@ -447,23 +447,29 @@ func (n *txManager) transactionsFromAddedBlock(txList []structures.Transaction) 
 
 	pendingPoolObj := n.getUnapprovedTransactionsManager()
 
+	n.Logger.Trace.Printf("Number of TX. %d", len(txList))
+
 	for _, tx := range txList {
-		if tx.IsSQLCommand() {
-			// execute only if not in a pool
-			// else it was already executed when adding to a pool
+		//n.Logger.Trace.Printf("Check TX. %x", tx.GetID())
+		if !tx.IsSQLCommand() {
+			continue
+		}
 
-			if exists, err := pendingPoolObj.GetIfExists(tx.GetID()); exists != nil && err == nil {
-				//n.Logger.Trace.Printf("Exists in poll. Skip SQL: %x", tx.GetID())
-				continue
-			}
+		// execute only if not in a pool
+		// else it was already executed when adding to a pool
 
-			n.Logger.Trace.Printf("Execute On Block Add: %s", tx.GetSQLQuery())
+		if exists, err := pendingPoolObj.GetIfExists(tx.GetID()); exists != nil && err == nil {
+			//n.Logger.Trace.Printf("Exists in poll. Skip SQL: %x", tx.GetID())
+			continue
+		}
 
-			err := n.getQueryParser().ExecuteQueryFromTX(tx.SQLCommand)
-			if err != nil {
-				n.Logger.Error.Printf("Error when execute SQL on Block Add: %s", err.Error())
-				return err
-			}
+		n.Logger.Trace.Printf("Execute On Block Add: %s", tx.GetSQLQuery())
+
+		err := n.getQueryParser().ExecuteQueryFromTX(tx.SQLCommand)
+		if err != nil {
+			n.Logger.Error.Printf("Error when execute SQL on Block Add: %s", err.Error())
+			n.Logger.Trace.Printf("Error when execute SQL on Block Add: %s", err.Error())
+			return err
 		}
 	}
 	return nil

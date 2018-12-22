@@ -2,7 +2,6 @@ package dbquery
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/gelembjuk/oursql/lib"
 	"github.com/gelembjuk/oursql/lib/utils"
@@ -25,6 +24,7 @@ func (qp queryProcessor) ParseQuery(sqlquery string, flags int) (r QueryParsed, 
 	err = r.Structure.Parse(sqlquery)
 
 	if err != nil {
+		qp.Logger.Trace.Printf("Query parse: %s", err.Error())
 		return
 	}
 
@@ -32,15 +32,29 @@ func (qp queryProcessor) ParseQuery(sqlquery string, flags int) (r QueryParsed, 
 	err = qp.checkQuerySyntax(r.Structure)
 
 	if err != nil {
-		return
+		if erre, ok := err.(*database.DBError); ok {
+			if erre.IsTableNotFound() && flags&lib.TXFlagsVerifyAllowTableMissed > 0 {
+				err = nil
+			}
+		}
+		if err != nil {
+			qp.Logger.Trace.Printf("Query syntax check fails: %s", err.Error())
+			return
+		}
 	}
-
 	// this will extract key column, its value, check if it is present
 	err = qp.patchRowInfo(&r, flags)
 
 	if err != nil {
-		qp.Logger.Trace.Printf("Patch error %s", err.Error())
-		return
+		if erre, ok := err.(*database.DBError); ok {
+			if erre.IsTableNotFound() && flags&lib.TXFlagsVerifyAllowTableMissed > 0 {
+				err = nil
+			}
+		}
+		if err != nil {
+			qp.Logger.Trace.Printf("Patch error %s", err.Error())
+			return
+		}
 	}
 
 	r.PubKey, r.Signature, r.TransactionBytes, err = r.parseInfoFromComments()
@@ -63,7 +77,7 @@ func (qp queryProcessor) checkQuerySyntax(sqlparsed sqlparser.SQLQueryParserInte
 		_, err := qp.DB.QM().ExecuteSQLExplain(sqlparsed.GetCanonicalQuery())
 
 		if err != nil {
-			return errors.New(fmt.Sprintf("Syntax check error: %s", err.Error()))
+			return err
 		}
 	}
 

@@ -204,7 +204,7 @@ func (u *unApprovedTransactions) CheckCurrencyInputsWereBefore(
 	prevTXs []structures.Transaction,
 	inputTXs map[int]*structures.Transaction) (map[int]*structures.Transaction, error) {
 
-	u.Logger.Trace.Printf("Check inputs were before. inputs %d, prev %d", len(inputs), len(prevTXs))
+	//u.Logger.Trace.Printf("Check inputs were before. inputs %d, prev %d", len(inputs), len(prevTXs))
 
 	checked := map[string][]int{}
 
@@ -257,7 +257,7 @@ func (u *unApprovedTransactions) GetCurrencyTXsPreparedBy(PubKeyHash []byte) ([]
 	inputs := []structures.TXCurrencyInput{}
 	outputs := []*structures.TXOutputIndependent{}
 
-	u.Logger.Trace.Println("GetCurrencyTXsPreparedBy")
+	//u.Logger.Trace.Println("GetCurrencyTXsPreparedBy")
 	// goes over all pending (unconfirmed) transactions in the cache
 	// check every input for every TX and adds to "inputs" if that input was signed by this pub key
 
@@ -343,7 +343,7 @@ func (u *unApprovedTransactions) GetCurrencyTXsPreparedBy(PubKeyHash []byte) ([]
 
 // Get input value for TX in the cache
 func (u *unApprovedTransactions) GetInputValue(input structures.TXCurrencyInput) (float64, error) {
-	u.Logger.Trace.Printf("Find TX %x in unapproved", input.Txid)
+	//u.Logger.Trace.Printf("Find TX %x in unapproved", input.Txid)
 	tx, err := u.GetIfExists(input.Txid)
 
 	if err != nil {
@@ -409,7 +409,7 @@ func (u *unApprovedTransactions) GetTransactions(number int) ([]*structures.Tran
 	txset := []*structures.Transaction{}
 
 	totalnumber := 0
-	u.Logger.Trace.Println("GetTransactions")
+	//u.Logger.Trace.Println("GetTransactions")
 
 	err := u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 
@@ -438,7 +438,7 @@ func (u *unApprovedTransactions) GetTransactionsFilteredByList(number int, ignor
 	txset := []*structures.Transaction{}
 
 	totalnumber := 0
-	u.Logger.Trace.Println("GetTransactionsFilteredByList")
+	//u.Logger.Trace.Println("GetTransactionsFilteredByList")
 
 	err := u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 		for _, txF := range ignoreTransactions {
@@ -520,7 +520,7 @@ func (u *unApprovedTransactions) GetCount() (int, error) {
 func (u *unApprovedTransactions) GetCountFiltered(ignoreTransactions [][]byte) (int, error) {
 
 	count := 0
-	u.Logger.Trace.Println("GetCountFiltered")
+	//u.Logger.Trace.Println("GetCountFiltered")
 
 	err := u.forEachTransaction(func(tx *structures.Transaction) (bool, error) {
 		for _, txF := range ignoreTransactions {

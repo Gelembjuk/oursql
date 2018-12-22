@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -426,6 +427,12 @@ func (bdm MySQLDBManager) ExecuteSQLSelectRow(sqlcommand string) (data map[strin
 	rows, err := db.Query(sqlcommand)
 
 	if err != nil {
+		match, _ := regexp.MatchString("Table '.+' doesn't exist", err.Error())
+
+		if match {
+			err = NewTableNotFoundDBError(err.Error())
+		}
+
 		return
 	}
 
@@ -546,6 +553,7 @@ func (bdm MySQLDBManager) ExecuteSQLTableDump(table string, limit int, offset in
 			return
 		}
 		sql := row["Create Table"]
+
 		sql = strings.Replace(sql, "\n", " ", -1)
 		sql = strings.Replace(sql, "\r", "", -1)
 		list = append(list, sql)
