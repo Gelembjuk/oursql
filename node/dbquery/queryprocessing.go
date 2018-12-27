@@ -19,12 +19,28 @@ type queryProcessor struct {
 
 // checks if this query is syntax correct , return altered query if needed
 func (qp queryProcessor) ParseQuery(sqlquery string, flags int) (r QueryParsed, err error) {
+	r.IsIntervalCommand = false
 	r.Structure = sqlparser.NewSqlParser()
 
 	err = r.Structure.Parse(sqlquery)
 
 	if err != nil {
 		qp.Logger.Trace.Printf("Query parse: %s", err.Error())
+		return
+	}
+
+	if r.checkIsInternalCommand() {
+		// this is internal command query. no need to do more work
+		r.IsIntervalCommand = true
+
+		r.PubKey, r.Signature, r.TransactionBytes, err = r.parseInfoFromComments()
+
+		if err != nil {
+			return
+		}
+
+		r.InternalAuth, err = r.parseInternalAuthFromComments()
+
 		return
 	}
 

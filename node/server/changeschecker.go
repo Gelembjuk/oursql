@@ -35,7 +35,7 @@ func StartChangesChecker(s *NodeServer) (c *changesChecker) {
 // Run function to request other nodes for changes regularly
 func (c *changesChecker) Run() {
 	for {
-		c.logger.TraceExt.Printf("Check changes")
+		//c.logger.TraceExt.Printf("Check changes")
 		// check if it is time to exit or no
 		exit := false
 
@@ -51,7 +51,7 @@ func (c *changesChecker) Run() {
 		}
 
 		if c.ticker > 0 {
-			//c.logger.Trace.Printf("Changes Checker ticker value %d", c.ticker)
+			//c.logger.TraceExt.Printf("Changes Checker ticker value %d", c.ticker)
 			time.Sleep(1 * time.Second)
 			c.ticker = c.ticker - 1
 			continue

@@ -56,9 +56,10 @@ func NewCustomDataKeyValueResponse(rows []CustomResponseKeyValue) CustomRequestA
 	return &r
 }
 
-func NewCustomOKResponse(ar uint) CustomRequestActionInterface {
+func NewCustomOKResponse(ar uint, id uint) CustomRequestActionInterface {
 	r := customResponseOK{}
 	r.rowsUpdated = ar
+	r.idReceived = id
 	return &r
 }
 

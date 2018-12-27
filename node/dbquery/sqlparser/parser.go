@@ -365,7 +365,7 @@ func (q *sqlParser) parseValueList(nameslist, valueslist string) (map[string]str
 func (q *sqlParser) parseCondition(sqlquery string, kind string) (condtext string, columns map[string][]string, err error) {
 	columns = map[string][]string{}
 
-	if kind != lib.QueryKindDelete && kind != lib.QueryKindUpdate {
+	if kind != lib.QueryKindDelete && kind != lib.QueryKindUpdate && kind != lib.QueryKindSelect {
 		return
 	}
 
@@ -386,6 +386,19 @@ func (q *sqlParser) parseCondition(sqlquery string, kind string) (condtext strin
 	} else if kind == lib.QueryKindUpdate {
 
 		r, err = regexp.Compile("(?i)update\\s+[^ ]+\\s+set\\s+.+\\swhere\\s+(.+)")
+
+		if err != nil {
+			return
+		}
+		sr := r.FindStringSubmatch(sqlquery)
+
+		if len(sr) >= 2 {
+			return q.parseConditionDetails(sr[1])
+		}
+
+	} else if kind == lib.QueryKindSelect {
+
+		r, err = regexp.Compile("(?i)select\\s+.+\\swhere\\s+(.+)")
 
 		if err != nil {
 			return

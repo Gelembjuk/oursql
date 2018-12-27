@@ -30,6 +30,7 @@ type processQueryResponse struct {
 	txdata       []byte
 	stringtosign []byte
 	tx           *structures.Transaction
+	parsedInfo   dbquery.QueryParsed
 }
 
 func (q queryManager) getQueryParser() dbquery.QueryProcessorInterface {
@@ -181,6 +182,14 @@ func (q queryManager) NewQueryFromProxy(sql string) (result QueryFromProxyResult
 		result.Error = err
 		return
 	}
+
+	if qpresult.status == SQLInternalCommand {
+		result.ParsedInfo = qpresult.parsedInfo
+		result.Status = 4
+
+		return
+	}
+
 	if qpresult.status == SQLProcessingResultExecuted ||
 		qpresult.status == SQLProcessingResultTranactionComplete ||
 		qpresult.status == SQLProcessingResultTranactionCompleteInternally ||
@@ -204,19 +213,14 @@ func (q queryManager) NewQueryFromProxy(sql string) (result QueryFromProxyResult
 		result.Error = errors.New("Error(2): Public Key required")
 		return
 	}
-
+	// Internal command
 	if qpresult.status == SQLProcessingResultSignatureRequired {
-		/*
-			result.ErrorCode = 3
-			result.Error = errors.New("Error(3): Signature required")
-			return
-		*/
-		result.TXData = qpresult.txdata
-		result.StringToSign = qpresult.stringtosign
-		result.Status = 2 // signature data prepared
+
+		result.Status = 4 // it is internal command
 
 		return
 	}
+
 	result.ErrorCode = 5
 	result.Error = errors.New("Unknown query status")
 
@@ -280,7 +284,12 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 	if err != nil {
 		return
 	}
-
+	if qparsed.IsIntervalCommand {
+		result.status = SQLInternalCommand
+		result.parsedInfo = qparsed
+		result.parsedInfo.SQL = sql
+		return
+	}
 	// maybe this query contains signature and txData from previous calls
 	if len(qparsed.Signature) > 0 && len(qparsed.TransactionBytes) > 0 {
 		// this is a case when signature and txdata were part of SQL comments.

@@ -181,3 +181,27 @@ func TestInsert(t *testing.T) {
 
 	}
 }
+
+func TestSelect(t *testing.T) {
+	p := NewSqlParser()
+
+	sql := "SELECT * FROM transactions WHERE state='PENDING'"
+
+	err := p.Parse(sql)
+
+	if err != nil {
+		t.Fatalf("Error: %s for %s", err.Error(), sql)
+	}
+
+	if "select" != p.GetKind() {
+		t.Fatalf("Kind different: %s vs %s for %s", p.GetKind(), "select", sql)
+	}
+
+	if "transactions" != p.GetTable() {
+		t.Fatalf("Table different: %s vs %s for %s", p.GetTable(), "transactions", sql)
+	}
+
+	if !p.HasCondition() {
+		t.Fatalf("Must have a condition")
+	}
+}

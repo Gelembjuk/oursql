@@ -337,7 +337,7 @@ func (s *NodeServer) TryToMakeNewBlock(tx []byte) {
 // MySQL proxy server. It is in the middle between a DB server and DB client an reads requests
 func (s *NodeServer) startDatabaseProxy() (started bool, err error) {
 
-	s.QueryFilter, err = InitQueryFilter(s.DBProxyAddr, s.DBAddr, s.Node.Clone(), s.Logger, s.blocksMakerObj)
+	s.QueryFilter, err = InitQueryFilter(s.DBProxyAddr, s.DBAddr, s.Node.Clone(), s.Logger, s.blocksMakerObj, s.NodeAuthStr)
 	started = true
 
 	if err != nil {

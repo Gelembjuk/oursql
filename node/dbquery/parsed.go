@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/gelembjuk/oursql/lib"
 	"github.com/gelembjuk/oursql/node/database"
@@ -12,15 +13,17 @@ import (
 )
 
 type QueryParsed struct {
-	SQL              string
-	PubKey           []byte
-	Signature        []byte
-	TransactionBytes []byte
-	KeyCol           string
-	KeyVal           string
-	RowBeforeQuery   map[string]string
-	RowDoesNotExist  bool
-	Structure        sqlparser.SQLQueryParserInterface
+	SQL               string
+	PubKey            []byte
+	Signature         []byte
+	TransactionBytes  []byte
+	KeyCol            string
+	KeyVal            string
+	RowBeforeQuery    map[string]string
+	RowDoesNotExist   bool
+	Structure         sqlparser.SQLQueryParserInterface
+	IsIntervalCommand bool
+	InternalAuth      string
 }
 
 func (qp QueryParsed) ReferenceID() string {
@@ -74,6 +77,44 @@ func (qp QueryParsed) buildRollbackSQL() (string, error) {
 		return qp.makeUpdateRollback()
 	}
 	return "", nil
+}
+
+// Detect is internal command
+func (qp QueryParsed) checkIsInternalCommand() (iscommand bool) {
+	comments := qp.Structure.GetComments()
+
+	if len(comments) == 0 {
+		return
+	}
+
+	if strings.Contains(comments[0], "NODE;") &&
+		strings.Contains(comments[0], "AUTH:") {
+		iscommand = true
+	}
+	return
+}
+
+// parse auth string rom internal command
+func (qp QueryParsed) parseInternalAuthFromComments() (auth string, err error) {
+	comments := qp.Structure.GetComments()
+
+	if len(comments) == 0 {
+		return
+	}
+
+	var r *regexp.Regexp
+
+	r, err = regexp.Compile("AUTH:([^;]+);")
+
+	if err != nil {
+		return
+	}
+	s := r.FindStringSubmatch(comments[0])
+
+	if len(s) == 2 {
+		auth = s[1]
+	}
+	return
 }
 
 // Parse comments

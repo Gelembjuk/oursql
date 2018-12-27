@@ -5,6 +5,7 @@ import (
 
 	"github.com/gelembjuk/oursql/lib/utils"
 	"github.com/gelembjuk/oursql/node/database"
+	"github.com/gelembjuk/oursql/node/dbquery"
 	"github.com/gelembjuk/oursql/node/structures"
 )
 
@@ -20,6 +21,7 @@ const (
 	SQLProcessingResultTranactionComplete           = 4 // Query needs signature. TX was created with provied signature
 	SQLProcessingResultTranactionCompleteInternally = 5 // Query needs signature. TX was created with internal keys and completed
 	SQLProcessingResultCanBeExecuted                = 6 // Query doesn't need signature . It was NOT executed. A proxy can pass it to a server
+	SQLInternalCommand                              = 7 // Query is internal command
 )
 
 // The structure to return information on new query request from proxy
@@ -31,6 +33,7 @@ type QueryFromProxyResult struct {
 	TXData       []byte
 	StringToSign []byte
 	ReplaceQuery string
+	ParsedInfo   dbquery.QueryParsed
 	ErrorCode    uint16
 	Error        error
 }

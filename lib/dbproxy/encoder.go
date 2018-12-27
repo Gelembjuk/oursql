@@ -21,6 +21,7 @@ type customResponseRowsKeyValues struct {
 type customResponseOK struct {
 	protocol    *protocolInfo
 	rowsUpdated uint
+	idReceived  uint
 }
 
 type customResponseReplaceQuery struct {
@@ -185,7 +186,7 @@ func (p protocolInfo) clientTransactionsSet() bool {
 // ===============================================================
 // OK Response
 func (r customResponseOK) getPacket() []byte {
-	return []byte{0x05, 0x00, 0x00, 0x01, 0xfe, 0x00, 0x00, 0x22, 0x00}
+	return []byte{0x07, 0x00, 0x00, 0x01, 0x00, byte(r.idReceived), byte(r.idReceived), 0x02, 0x00, 0x00, 0x00}
 }
 
 func (r *customResponseOK) setProtocolInfo(pi protocolInfo) {

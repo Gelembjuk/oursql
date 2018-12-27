@@ -402,7 +402,7 @@ func (pp *responsePacketParser) Write(p []byte) (n int, err error) {
 			pp.initialResponseSet = true
 		}
 	}
-	pp.traceLog.Printf("Send response to client. %d bytes", len(p))
+	pp.traceLog.Printf("Send response to client. %d bytes ", len(p))
 
 	io.Copy(pp.client, bytes.NewReader(p))
 

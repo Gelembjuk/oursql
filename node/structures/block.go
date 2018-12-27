@@ -213,3 +213,16 @@ func (b *Block) DeserializeBlock(d []byte) error {
 
 	return nil
 }
+
+func (b BlockSimpler) String() string {
+	s := fmt.Sprintf("============ Block %x ============\n", b.Hash)
+	s = s + fmt.Sprintf("Height: %d\n", b.Height)
+	s = s + fmt.Sprintf("Prev. block: %x\n", b.PrevBlockHash)
+
+	for _, tx := range b.Transactions {
+		s = s + fmt.Sprintln(tx)
+	}
+	s = s + fmt.Sprintf("\n")
+
+	return s
+}
