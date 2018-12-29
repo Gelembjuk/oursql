@@ -458,7 +458,23 @@ func (q *queryFilter) internalCommandWallets(parsedInfo dbquery.QueryParsed) ([]
 		// return only list of addresses
 
 		for _, addr := range wallets.GetAddresses() {
-			response = append(response, dbproxy.CustomResponseKeyValue{addr, ""})
+			mod := ""
+
+			if q.Node.MinterAddress == addr {
+				mod = "minter"
+			}
+			if len(q.Node.ProxyPubKey) > 0 {
+				proxyaddr, _ := utils.PubKeyToAddres(q.Node.ProxyPubKey)
+
+				if proxyaddr == addr {
+					if mod != "" {
+						mod = mod + ","
+					}
+					mod = mod + "proxy"
+				}
+			}
+
+			response = append(response, dbproxy.CustomResponseKeyValue{addr, mod})
 		}
 	} else {
 		// if has a condition, it is request for particular balance
