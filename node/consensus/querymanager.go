@@ -282,7 +282,23 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 	qparsed, err := qp.ParseQuery(sql, 0)
 
 	if err != nil {
-		return
+		if _, ok := err.(*dbquery.ParseError); ok && !qparsed.IsIntervalCommand {
+			var needsTX bool
+			needsTX, err = q.checkQueryNeedsTransaction(qparsed)
+
+			if err != nil {
+				return
+			}
+
+			if !needsTX {
+				err = nil
+			}
+		}
+		if err != nil {
+			// if still error , return
+			q.Logger.Error.Printf("Error when parsing new query %s and query %s", err.Error(), sql)
+			return
+		}
 	}
 	if qparsed.IsIntervalCommand {
 		result.status = SQLInternalCommand

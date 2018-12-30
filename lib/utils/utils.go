@@ -10,6 +10,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -86,6 +87,10 @@ func (logger *LoggerMan) GetState() string {
 	}
 
 	return strings.Join(list, ",")
+}
+
+func (logger LoggerMan) GetTrace() string {
+	return string(debug.Stack())
 }
 
 // disable all logging

@@ -104,11 +104,12 @@ func (q *sqlParser) ExtendInsert(column string, value string, coltype string) er
 			extraCond = "'" + database.Quote(value) + "'"
 		}
 		// insert as a first column
-		re, err := regexp.Compile("(?i)^(.+into\\s+" + q.GetTable() + "\\s+\\()(.+\\)\\s+values\\s+\\()(.+)$")
+		re, err := regexp.Compile("(?i)^(.+into\\s+`?" + q.GetTable() + "`?\\s+\\()(.+\\)\\s+values\\s+\\()(.+)$")
 
 		if err != nil {
 			return err
 		}
+
 		s := re.FindStringSubmatch(q.canonicalQuery)
 
 		if len(s) < 3 {
@@ -152,6 +153,24 @@ func (q *sqlParser) parseComments(originalsqlquery string) (sqlquery string, com
 func (q *sqlParser) normalizeQuery(sqlquery string) (string, error) {
 	sqlquery = strings.Trim(sqlquery, ";")
 	sqlquery = strings.TrimSpace(sqlquery)
+
+	// drop ON DUPLICATE
+	// TODO ON DUPLICATE is still a problem. it is not processed correctly
+
+	r, _ := regexp.Compile("(?i)(insert\\s+.+)\\son duplicate")
+
+	sr := r.FindStringSubmatch(sqlquery)
+
+	if len(sr) == 2 {
+		sqlquery = sr[1]
+	}
+
+	// remove INSERT IGNORE . replace to INSERT
+	re := regexp.MustCompile(`(?i)^insert ignore `)
+	sqlquery = re.ReplaceAllString(sqlquery, "insert ")
+
+	sqlquery = strings.TrimSpace(sqlquery)
+
 	return sqlquery, nil
 }
 
@@ -211,11 +230,18 @@ func (q *sqlParser) parseKindAndTable(sqlquery string) (kind string, table strin
 		sr := r.FindStringSubmatch(lcase)
 
 		if len(sr) < 2 {
-			err = errors.New("Table name not found")
-			return
-		}
+			if kind == lib.QueryKindSelect {
+				// this can be select not from a table but some function or variable.
+				table = "*"
+			} else {
+				err = errors.New("Table name not found")
+				return
+			}
 
-		table = sr[1]
+		}
+		if table == "" {
+			table = sr[1]
+		}
 
 		table = strings.TrimSpace(table)
 		table = strings.Trim(table, "`")
@@ -235,6 +261,7 @@ func (q *sqlParser) parseUpdateColumns(sqlquery string, kind string) (data map[s
 	var r *regexp.Regexp
 
 	if kind == lib.QueryKindInsert {
+
 		r, err = regexp.Compile("(?i)insert\\s+into\\s+[^ ]+\\s+set\\s+(.+)")
 
 		if err != nil {

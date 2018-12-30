@@ -26,6 +26,7 @@ func (qp queryProcessor) ParseQuery(sqlquery string, flags int) (r QueryParsed, 
 
 	if err != nil {
 		qp.Logger.Trace.Printf("Query parse: %s", err.Error())
+		//qp.Logger.Error.Printf("Query parse: %s for %s", err.Error(), sqlquery)
 		return
 	}
 
@@ -55,6 +56,7 @@ func (qp queryProcessor) ParseQuery(sqlquery string, flags int) (r QueryParsed, 
 		}
 		if err != nil {
 			qp.Logger.Trace.Printf("Query syntax check fails: %s", err.Error())
+			//qp.Logger.Error.Printf("Query syntax check fails: %s", err.Error())
 			return
 		}
 	}
@@ -69,6 +71,8 @@ func (qp queryProcessor) ParseQuery(sqlquery string, flags int) (r QueryParsed, 
 		}
 		if err != nil {
 			qp.Logger.Trace.Printf("Patch error %s", err.Error())
+			//qp.Logger.Error.Printf("Patch error %s", err.Error())
+			//qp.Logger.Error.Println(qp.Logger.GetTrace())
 			return
 		}
 	}
@@ -76,6 +80,7 @@ func (qp queryProcessor) ParseQuery(sqlquery string, flags int) (r QueryParsed, 
 	r.PubKey, r.Signature, r.TransactionBytes, err = r.parseInfoFromComments()
 
 	if err != nil {
+		qp.Logger.Error.Printf("Comments parse error %s", err.Error())
 		return
 	}
 
@@ -136,7 +141,7 @@ func (qp queryProcessor) patchRowInfo(parsed *QueryParsed, flags int) (err error
 		cKey, cVal := parsed.Structure.GetOneColumnCondition()
 
 		if cKey != keyCol {
-			err = errors.New("Query condition has no a primary key")
+			err = NewParseNoPrimaryKeyInCondError("Query condition has no a primary key")
 			return
 		}
 
