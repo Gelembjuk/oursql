@@ -282,7 +282,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 	qparsed, err := qp.ParseQuery(sql, 0)
 
 	if err != nil {
-		if _, ok := err.(*dbquery.ParseError); ok && !qparsed.IsIntervalCommand {
+		if _, ok := err.(*dbquery.ParseError); ok && !qparsed.IsInternalCommand {
 			var needsTX bool
 			needsTX, err = q.checkQueryNeedsTransaction(qparsed)
 
@@ -300,7 +300,8 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 			return
 		}
 	}
-	if qparsed.IsIntervalCommand {
+	q.Logger.Trace.Println("Parse Passed " + string(qparsed.Structure.GetTable()))
+	if qparsed.IsInternalCommand {
 		result.status = SQLInternalCommand
 		result.parsedInfo = qparsed
 		result.parsedInfo.SQL = sql
@@ -326,6 +327,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 	}
 
 	if !needsTX {
+		q.Logger.Trace.Println("No need transaction ")
 		if flags&lib.TXFlagsExecute == 0 {
 			// no need to execute query. just return
 			result.status = SQLProcessingResultCanBeExecuted
@@ -344,6 +346,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 
 		return
 	}
+	q.Logger.Trace.Println("Need transaction ")
 	// decide which pubkey to use.
 
 	// first priority for a key posted as argument, next is the key in SQL comment (parsed) and final is the key

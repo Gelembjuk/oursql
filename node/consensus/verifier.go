@@ -117,13 +117,13 @@ func (vm verifyManager) CheckQueryNeedsPayment(qp *dbquery.QueryParsed) (float64
 	} else {
 		trcost = &vm.config.TransactionCost
 	}
-
-	vm.logger.Trace.Printf("Block height check: sett %d and prev %d", trcost.ApplyAfterBlock, vm.previousBlockHeigh)
+	//vm.logger.Trace.Println(trcost)
+	//vm.logger.Trace.Printf("Block height check: sett %d and prev %d", trcost.ApplyAfterBlock, vm.previousBlockHeigh)
 	if trcost.ApplyAfterBlock > vm.previousBlockHeigh {
 		// rule will affect later when more blocks are there
 		return 0, nil
 	}
-
+	//vm.logger.Trace.Println("kind ", qp.Structure.GetKind())
 	// check if current operation has a price
 	if qp.Structure.GetKind() == lib.QueryKindDelete && trcost.RowDelete > 0 {
 
@@ -131,7 +131,7 @@ func (vm verifyManager) CheckQueryNeedsPayment(qp *dbquery.QueryParsed) (float64
 	}
 
 	if qp.Structure.GetKind() == lib.QueryKindInsert && trcost.RowInsert > 0 {
-
+		//vm.logger.Trace.Println("return insert ", trcost.RowInsert)
 		return trcost.RowInsert, nil
 	}
 
@@ -145,6 +145,7 @@ func (vm verifyManager) CheckQueryNeedsPayment(qp *dbquery.QueryParsed) (float64
 	}
 
 	if trcost.Default > 0 {
+		//vm.logger.Trace.Println("return default ", trcost.Default)
 		return trcost.Default, nil
 	}
 

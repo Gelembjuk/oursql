@@ -19,7 +19,7 @@ type queryProcessor struct {
 
 // checks if this query is syntax correct , return altered query if needed
 func (qp queryProcessor) ParseQuery(sqlquery string, flags int) (r QueryParsed, err error) {
-	r.IsIntervalCommand = false
+	r.IsInternalCommand = false
 	r.Structure = sqlparser.NewSqlParser()
 
 	err = r.Structure.Parse(sqlquery)
@@ -32,7 +32,7 @@ func (qp queryProcessor) ParseQuery(sqlquery string, flags int) (r QueryParsed, 
 
 	if r.checkIsInternalCommand() {
 		// this is internal command query. no need to do more work
-		r.IsIntervalCommand = true
+		r.IsInternalCommand = true
 
 		r.PubKey, r.Signature, r.TransactionBytes, err = r.parseInfoFromComments()
 
@@ -60,6 +60,13 @@ func (qp queryProcessor) ParseQuery(sqlquery string, flags int) (r QueryParsed, 
 			return
 		}
 	}
+	r.PubKey, r.Signature, r.TransactionBytes, err = r.parseInfoFromComments()
+
+	if err != nil {
+		qp.Logger.Error.Printf("Comments parse error %s", err.Error())
+		return
+	}
+
 	// this will extract key column, its value, check if it is present
 	err = qp.patchRowInfo(&r, flags)
 
@@ -75,13 +82,6 @@ func (qp queryProcessor) ParseQuery(sqlquery string, flags int) (r QueryParsed, 
 			//qp.Logger.Error.Println(qp.Logger.GetTrace())
 			return
 		}
-	}
-
-	r.PubKey, r.Signature, r.TransactionBytes, err = r.parseInfoFromComments()
-
-	if err != nil {
-		qp.Logger.Error.Printf("Comments parse error %s", err.Error())
-		return
 	}
 
 	r.SQL = r.Structure.GetCanonicalQuery()

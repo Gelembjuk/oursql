@@ -22,7 +22,7 @@ type QueryParsed struct {
 	RowBeforeQuery    map[string]string
 	RowDoesNotExist   bool
 	Structure         sqlparser.SQLQueryParserInterface
-	IsIntervalCommand bool
+	IsInternalCommand bool
 	InternalAuth      string
 }
 

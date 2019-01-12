@@ -487,7 +487,7 @@ func (q *queryFilter) internalCommandWallets(parsedInfo dbquery.QueryParsed) ([]
 			if err != nil {
 				return nil, err
 			}
-			response = append(response, dbproxy.CustomResponseKeyValue{addr, strconv.FormatFloat(balance.Total, 'f', -1, 64)})
+			response = append(response, dbproxy.CustomResponseKeyValue{addr, strconv.FormatFloat(balance.Approved, 'f', -1, 64)})
 		} else {
 			// all balances
 			for _, addr := range wallets.GetAddresses() {
@@ -496,7 +496,7 @@ func (q *queryFilter) internalCommandWallets(parsedInfo dbquery.QueryParsed) ([]
 				if err != nil {
 					return nil, err
 				}
-				response = append(response, dbproxy.CustomResponseKeyValue{addr, strconv.FormatFloat(balance.Total, 'f', -1, 64)})
+				response = append(response, dbproxy.CustomResponseKeyValue{addr, strconv.FormatFloat(balance.Approved, 'f', -1, 64)})
 			}
 		}
 	}
