@@ -277,6 +277,14 @@ func (q queryManager) RepeatTransactionsFromCanceledBlocks(txList []structures.T
 // it can return prepared transaction and data to sign or return complete transaction if keys are set in the object
 func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result processQueryResponse, err error) {
 	q.Logger.Trace.Println("processQuery " + sql)
+
+	_, prevBlockHeight, err := q.getBlockMakerManager().getBlockchainManager().GetState()
+	q.Logger.Trace.Printf("Base block heigh %d", prevBlockHeight)
+
+	if err != nil {
+		return
+	}
+
 	qp := q.getQueryParser()
 	// this will get sql type and data from comments. data can be pubkey, txBytes, signature
 	qparsed, err := qp.ParseQuery(sql, 0)
@@ -284,7 +292,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 	if err != nil {
 		if _, ok := err.(*dbquery.ParseError); ok && !qparsed.IsInternalCommand {
 			var needsTX bool
-			needsTX, err = q.checkQueryNeedsTransaction(qparsed)
+			needsTX, err = q.getBlockMakerManager().getVerifyManager(prevBlockHeight).checkQueryNeedsTransaction(&qparsed)
 
 			if err != nil {
 				return
@@ -320,7 +328,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 		return
 	}
 
-	needsTX, err := q.checkQueryNeedsTransaction(qparsed)
+	needsTX, err := q.getBlockMakerManager().getVerifyManager(prevBlockHeight).checkQueryNeedsTransaction(&qparsed)
 
 	if err != nil {
 		return
@@ -362,11 +370,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 			return
 		}
 	}
-	_, prevBlockHeight, err := q.getBlockMakerManager().getBlockchainManager().GetState()
-	q.Logger.Trace.Printf("Base block heigh %d", prevBlockHeight)
-	if err != nil {
-		return
-	}
+
 	// check if the key has permissions to execute this query
 	hasPerm, err := q.getBlockMakerManager().getVerifyManager(prevBlockHeight).CheckExecutePermissions(&qparsed, pubKey)
 
@@ -457,30 +461,6 @@ func (q queryManager) processQueryWithSignature(txEncoded []byte, signature []by
 		return nil, err
 	}
 	return tx, nil
-}
-
-// check if this query must be added to transaction. all SELECT queries must be ignored.
-// and some update queries can be ignored too. such queries are just executed
-func (q queryManager) checkQueryNeedsTransaction(qp dbquery.QueryParsed) (bool, error) {
-
-	if qp.IsSelect() {
-		return false, nil
-	}
-
-	if qp.IsUpdateOther() {
-		// updates that can not be supported
-		return false, nil
-	}
-
-	for _, t := range q.config.UnmanagedTables {
-		if qp.Structure.GetTable() == t {
-			// no any transactions for this table
-			return false, nil
-		}
-	}
-
-	// transaction for any update
-	return true, nil
 }
 
 // check if this query must be added to transaction. all SELECT queries must be ignored.

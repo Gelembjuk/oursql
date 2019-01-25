@@ -151,3 +151,31 @@ func (vm verifyManager) CheckQueryNeedsPayment(qp *dbquery.QueryParsed) (float64
 
 	return 0, nil
 }
+
+// check if this query must be added to transaction. all SELECT queries must be ignored.
+// and some update queries can be ignored too. such queries are just executed
+func (vm verifyManager) checkQueryNeedsTransaction(qp *dbquery.QueryParsed) (bool, error) {
+
+	if qp.IsSelect() {
+		return false, nil
+	}
+
+	if qp.IsUpdateOther() {
+		// updates that can not be supported
+		return false, nil
+	}
+
+	if vm.config.ApplyRulesAfterBlock > vm.previousBlockHeigh {
+		return true, nil
+	}
+
+	for _, t := range vm.config.UnmanagedTables {
+		if qp.Structure.GetTable() == t {
+			// no any transactions for this table
+			return false, nil
+		}
+	}
+
+	// transaction for any update
+	return true, nil
+}

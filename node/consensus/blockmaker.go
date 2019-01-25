@@ -22,6 +22,7 @@ type NodeBlockMaker struct {
 	MinterAddress string // this is the wallet that will receive for mining
 	PreparedBlock *structures.Block
 	config        *ConsensusConfig
+	verifyMan     *verifyManager
 }
 
 func (n NodeBlockMaker) getQueryParser() dbquery.QueryProcessorInterface {
@@ -48,12 +49,16 @@ func (n *NodeBlockMaker) getBlockchainManager() *blockchain.Blockchain {
 
 	return bcm
 }
-func (n NodeBlockMaker) getVerifyManager(prevBlockNumber int) verifyManager {
-	vm := verifyManager{}
-	vm.config = n.config
-	vm.logger = n.Logger
-	vm.previousBlockHeigh = prevBlockNumber
-	return vm
+func (n NodeBlockMaker) getVerifyManager(prevBlockNumber int) *verifyManager {
+	if n.verifyMan != nil {
+		n.verifyMan.previousBlockHeigh = prevBlockNumber
+		return n.verifyMan
+	}
+	n.verifyMan = &verifyManager{}
+	n.verifyMan.config = n.config
+	n.verifyMan.logger = n.Logger
+	n.verifyMan.previousBlockHeigh = prevBlockNumber
+	return n.verifyMan
 }
 
 func (n *NodeBlockMaker) PrepareNewBlock() (int, error) {
@@ -543,6 +548,8 @@ func (n *NodeBlockMaker) verifyTransactionPaidSQL(tx *structures.Transaction, qp
 	err = structures.CheckTXOutputValueToAddress(tx, paidTXPubKeyHash, amount)
 
 	if err != nil {
+		n.Logger.Trace.Println("Failed output check")
+		n.Logger.Trace.Println(tx)
 		return err
 	}
 

@@ -289,6 +289,17 @@ func (n *makeBlockchain) filterTablesForManaged(tables []string) []string {
 			}
 		}
 
+		if !managed {
+			// table can be inspecial list to add to BC on initial BC create
+			// it will be ignored only later but must be present in current state on all nodes
+			for _, t := range n.consensusConfig.UnmanagedTablesImport {
+				if table == t {
+					managed = true
+					break
+				}
+			}
+		}
+
 		if managed {
 			managedTables = append(managedTables, table)
 		}

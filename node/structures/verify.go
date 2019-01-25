@@ -37,14 +37,21 @@ func CheckTXOutputsAreOnlyToGivenAddresses(tx *Transaction, PubKeyHashes [][]byt
 func CheckTXOutputValueToAddress(tx *Transaction, PubKeyHash []byte, amount float64) error {
 
 	total := float64(0)
+	hasamount := false
+
+	// must work corrrectly when sending to himself
 
 	for _, out := range tx.Vout {
 		if bytes.Compare(out.PubKeyHash, PubKeyHash) == 0 {
 			total = total + out.Value
+
+			if out.Value == amount {
+				hasamount = true
+			}
 		}
 	}
 
-	if total != amount {
+	if total != amount && !hasamount {
 		addr, err := utils.PubKeyHashToAddres(PubKeyHash)
 
 		if err != nil {

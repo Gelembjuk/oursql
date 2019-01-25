@@ -295,8 +295,7 @@ func (pp *requestPacketParser) Write(p []byte) (n int, err error) {
 	if clientErr != nil {
 		// send error response to client
 		pp.traceLog.Printf("Custom error response: %s", clientErr)
-		customResponse = NewCustomErrorResponse(err.Error(), 3001)
-
+		customResponse = NewCustomErrorResponse(clientErr.Error(), 3001)
 	}
 	if customResponse != nil {
 		pp.traceLog.Printf("Custom response")

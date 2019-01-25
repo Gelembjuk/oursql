@@ -46,17 +46,22 @@ type consensusConfigState struct {
 	isDefault bool
 	filePath  string
 }
+type ConsensusConfigDatabase struct {
+	IncompatibleSSLModes []string
+}
 type ConsensusConfig struct {
 	Application            ConsensusConfigApplication
 	Kind                   string
 	CoinsForBlockMade      float64
 	Settings               map[string]interface{}
+	DBSettings             ConsensusConfigDatabase
 	ApplyRulesAfterBlock   int
 	AllowTableCreate       bool
 	AllowTableDrop         bool
 	AllowRowDelete         bool
 	TransactionCost        ConsensusConfigCost
 	UnmanagedTables        []string
+	UnmanagedTablesImport  []string
 	TableRules             []ConsensusConfigTable
 	InitNodesAddreses      []string
 	PaidTransactionsWallet string
