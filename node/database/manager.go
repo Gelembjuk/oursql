@@ -308,6 +308,22 @@ func (bdm *MySQLDBManager) getConnection() (*sql.DB, error) {
 	//db.SetMaxOpenConns(2)
 	db.SetMaxIdleConns(2)
 
+	if len(bdm.configConsensus.IncompatibleSSLModes) > 0 {
+		// there are some custom SQL settings to set
+		sql := "SET SESSION sql_mode = '"
+
+		for i, m := range bdm.configConsensus.IncompatibleSSLModes {
+			if i > 0 {
+				sql = sql + ","
+			}
+			sql = sql + m
+
+		}
+		sql = sql + "'"
+
+		db.Exec(sql)
+	}
+
 	bdm.conn = db
 
 	return db, nil

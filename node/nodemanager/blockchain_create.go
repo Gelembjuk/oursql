@@ -122,6 +122,9 @@ func (n *makeBlockchain) InitBlockchainFromOther(addr net.NodeAddr, nodeclient *
 		return false, err
 	}
 
+	// Reset DB conn, asconsensus config can have some DB settings
+	n.DBConn.SetConfigCons(n.consensusConfig.DBSettings)
+
 	result, err := nodeclient.SendGetFirstBlocks(addr)
 
 	if err != nil {
