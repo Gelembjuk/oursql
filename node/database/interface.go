@@ -10,6 +10,7 @@ type DBManager interface {
 	QM() DBQueryManager // get QueryManager object
 
 	SetConfig(config DatabaseConfig) error
+	SetConfigConsensus(config DatabaseConfigConsensus) error
 	SetLogger(logger *utils.LoggerMan) error
 	GetLockerObject() DatabaseLocker
 	SetLockerObject(lockerobj DatabaseLocker)

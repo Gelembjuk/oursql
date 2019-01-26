@@ -25,11 +25,12 @@ const (
 )
 
 type MySQLDBManager struct {
-	Logger     *utils.LoggerMan
-	Config     DatabaseConfig
-	conn       *sql.DB
-	openedConn bool
-	SessID     string
+	Logger          *utils.LoggerMan
+	Config          DatabaseConfig
+	configConsensus DatabaseConfigConsensus
+	conn            *sql.DB
+	openedConn      bool
+	SessID          string
 }
 
 func (bdm *MySQLDBManager) QM() DBQueryManager {
@@ -38,6 +39,11 @@ func (bdm *MySQLDBManager) QM() DBQueryManager {
 
 func (bdm *MySQLDBManager) SetConfig(config DatabaseConfig) error {
 	bdm.Config = config
+
+	return nil
+}
+func (bdm *MySQLDBManager) SetConfigConsensus(config DatabaseConfigConsensus) error {
+	bdm.configConsensus = config
 
 	return nil
 }

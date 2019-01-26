@@ -81,6 +81,8 @@ func (qp QueryParsed) buildRollbackSQL() (string, error) {
 
 // Detect is internal command
 func (qp QueryParsed) checkIsInternalCommand() (iscommand bool) {
+	iscommand = false
+
 	comments := qp.Structure.GetComments()
 
 	if len(comments) == 0 {

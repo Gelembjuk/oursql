@@ -14,6 +14,10 @@ type DatabaseConfig struct {
 	TablesPrefix string
 }
 
+type DatabaseConfigConsensus struct {
+	IncompatibleSSLModes []string
+}
+
 func (dbc *DatabaseConfig) HasMinimum() bool {
 	if (dbc.MysqlHost == "" || dbc.MysqlPort == 0) && dbc.MysqlSocket == "" || dbc.DatabaseName == "" {
 		return false

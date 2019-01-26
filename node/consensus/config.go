@@ -11,6 +11,7 @@ import (
 	"github.com/fatih/structs"
 	"github.com/gelembjuk/oursql/lib/net"
 	"github.com/gelembjuk/oursql/lib/utils"
+	"github.com/gelembjuk/oursql/node/database"
 	"github.com/gelembjuk/oursql/node/dbquery"
 	"github.com/gelembjuk/oursql/node/structures"
 	"github.com/mitchellh/mapstructure"
@@ -46,15 +47,13 @@ type consensusConfigState struct {
 	isDefault bool
 	filePath  string
 }
-type ConsensusConfigDatabase struct {
-	IncompatibleSSLModes []string
-}
+
 type ConsensusConfig struct {
 	Application            ConsensusConfigApplication
 	Kind                   string
 	CoinsForBlockMade      float64
 	Settings               map[string]interface{}
-	DBSettings             ConsensusConfigDatabase
+	DBSettings             database.DatabaseConfigConsensus
 	ApplyRulesAfterBlock   int
 	AllowTableCreate       bool
 	AllowTableDrop         bool

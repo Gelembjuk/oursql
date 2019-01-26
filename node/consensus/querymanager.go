@@ -186,7 +186,6 @@ func (q queryManager) NewQueryFromProxy(sql string) (result QueryFromProxyResult
 	if qpresult.status == SQLInternalCommand {
 		result.ParsedInfo = qpresult.parsedInfo
 		result.Status = 4
-
 		return
 	}
 
@@ -213,10 +212,10 @@ func (q queryManager) NewQueryFromProxy(sql string) (result QueryFromProxyResult
 		result.Error = errors.New("Error(2): Public Key required")
 		return
 	}
-	// Internal command
 	if qpresult.status == SQLProcessingResultSignatureRequired {
-
-		result.Status = 4 // it is internal command
+		result.TXData = qpresult.txdata
+		result.StringToSign = qpresult.stringtosign
+		result.Status = 2 // signature data prepared
 
 		return
 	}
@@ -431,6 +430,7 @@ func (q queryManager) processQuery(sql string, pubKey []byte, flags int) (result
 		return
 	}
 	result.status = SQLProcessingResultSignatureRequired
+
 	return
 }
 

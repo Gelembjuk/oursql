@@ -8,11 +8,12 @@ import (
 )
 
 type Database struct {
-	db        database.DBManager
-	Logger    *utils.LoggerMan
-	Config    database.DatabaseConfig
-	lockerObj database.DatabaseLocker
-	locallock *sync.Mutex
+	db              database.DBManager
+	Logger          *utils.LoggerMan
+	Config          database.DatabaseConfig
+	configConsensus database.DatabaseConfigConsensus
+	lockerObj       database.DatabaseLocker
+	locallock       *sync.Mutex
 }
 
 func (db *Database) DB() database.DBManager {
@@ -61,6 +62,10 @@ func (db *Database) SetLogger(Logger *utils.LoggerMan) {
 
 func (db *Database) SetConfig(config database.DatabaseConfig) {
 	db.Config = config
+}
+
+func (db *Database) SetConfigCons(config database.DatabaseConfigConsensus) {
+	db.configConsensus = config
 }
 
 // check if connection to DB can be set
@@ -114,6 +119,7 @@ func (db *Database) PrepareConnection(sessid string) {
 	db.db = obj
 	db.db.SetLogger(db.Logger)
 	db.db.SetConfig(db.Config)
+	db.db.SetConfigConsensus(db.configConsensus)
 
 	if db.lockerObj != nil {
 		db.db.SetLockerObject(db.lockerObj)

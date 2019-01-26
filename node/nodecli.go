@@ -131,17 +131,6 @@ func (c *NodeCLI) CreateNode() error {
 
 	node.ConfigDir = c.ConfigDir
 
-	node.DBConn = &nodemanager.Database{}
-
-	node.DBConn.SetLogger(c.Logger)
-
-	node.DBConn.SetConfig(c.Input.Database)
-	// at this place DB doesn't do a connection attempt
-	node.DBConn.Init()
-
-	node.Logger = c.Logger
-	node.MinterAddress = c.Input.MinterAddress
-
 	var err error
 	// load consensus config
 	if c.ConseususConfigFilePresent {
@@ -156,6 +145,18 @@ func (c *NodeCLI) CreateNode() error {
 	}
 
 	node.ConsensusConfig.SetConfigFilePath(c.Input.ConseususConfigFile)
+
+	node.DBConn = &nodemanager.Database{}
+
+	node.DBConn.SetLogger(c.Logger)
+
+	node.DBConn.SetConfig(c.Input.Database)
+	node.DBConn.SetConfigCons(node.ConsensusConfig.DBSettings)
+	// at this place DB doesn't do a connection attempt
+	node.DBConn.Init()
+
+	node.Logger = c.Logger
+	node.MinterAddress = c.Input.MinterAddress
 
 	node.Init()
 	node.InitNodes(c.Input.Nodes, false)
